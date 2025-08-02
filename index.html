@@ -66,15 +66,16 @@
     }
 </style>
 </head>
-<div id="teacher-login" class="page">
+<div id="teacher-login" class="page mt-24">
   <div class="max-w-sm mx-auto mt-10 p-6 bg-white shadow rounded">
     <h2 class="text-xl font-bold mb-4">講師ログイン</h2>
-    <input type="text" placeholder="ユーザー名" class="border p-2 w-full mb-2">
-    <input type="password" placeholder="パスワード" class="border p-2 w-full mb-4">
-    <button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded w-full">ログイン</button>
+    <input id="teacher-email" type="text" placeholder="メールアドレス" class="border p-2 w-full mb-2">
+<input id="teacher-password" type="password" placeholder="パスワード" class="border p-2 w-full mb-4">
+<button onclick="handleTeacherLogin()" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded w-full">ログイン</button>
   </div>
 </div>
-<div id="student-login" class="page">
+
+<div id="student-login" class="page mt-24">
   <div class="max-w-sm mx-auto mt-10 p-6 bg-white shadow rounded">
     <h2 class="text-xl font-bold mb-4">生徒ログイン</h2>
     <input type="text" placeholder="生徒ID" class="border p-2 w-full mb-2">
@@ -84,35 +85,32 @@
 </div>
 
 <body class="bg-gray-50">
-    <!-- Navigation -->
-    <nav class="bg-blue-600 text-white p-4 sticky top-0 z-50">
-        <div class="container mx-auto flex justify-between items-center">
-            <h1 class="text-xl font-bold flex items-center">
-                <i class="fas fa-music mr-2"></i>
-                ピアノ教室予約システム
-            </h1>
-            <div class="space-x-4">
-                <button type="button" onclick="showPage('home')" class="hover:bg-blue-700 px-3 py-2 rounded">
-    <i class="fas fa-home mr-1"></i>ホーム
-</button>
-
-                <button type="button" onclick="showPage('student-register')" class="hover:bg-blue-700 px-3 py-2 rounded">
-    <i class="fas fa-user-plus mr-1"></i>生徒登録
-</button>
-
-                <button type="button" onclick="showPage('teacher-login')" class="hover:bg-blue-700 px-3 py-2 rounded">
-    <i class="fas fa-chalkboard-teacher mr-1"></i>講師ログイン
-</button>
-<button type="button" onclick="showPage('student-login')" class="hover:bg-blue-700 px-3 py-2 rounded">
-    <i class="fas fa-sign-in-alt mr-1"></i>生徒ログイン
-</button>
-
-            </div>
-        </div>
-    </nav>
+   <!-- Navigation -->
+<nav class="bg-blue-600 text-white p-4 fixed top-0 left-0 right-0 z-50">
+  <div class="container mx-auto flex justify-between items-center">
+    <h1 class="text-xl font-bold flex items-center">
+      <i class="fas fa-music mr-2"></i>
+      ピアノ教室予約システム
+    </h1>
+    <div class="space-x-4">
+      <button type="button" onclick="showPage('home')" class="hover:bg-blue-700 px-3 py-2 rounded">
+        <i class="fas fa-home mr-1"></i>ホーム
+      </button>
+      <button type="button" onclick="showPage('student-register')" class="hover:bg-blue-700 px-3 py-2 rounded">
+        <i class="fas fa-user-plus mr-1"></i>生徒登録
+      </button>
+      <button type="button" onclick="showPage('teacher-login')" class="hover:bg-blue-700 px-3 py-2 rounded">
+        <i class="fas fa-chalkboard-teacher mr-1"></i>講師ログイン
+      </button>
+      <button type="button" onclick="showPage('student-login')" class="hover:bg-blue-700 px-3 py-2 rounded">
+        <i class="fas fa-sign-in-alt mr-1"></i>生徒ログイン
+      </button>
+    </div>
+  </div>
+</nav>
 
     <!-- Home Page -->
-    <div id="home" class="page active">
+    <div id="home" class="page mt-24">
         <div class="container mx-auto max-w-4xl px-4">
             <div class="text-center mb-12">
                 <h1 class="text-4xl font-bold text-gray-800 mb-4"> ピアノ教室予約管理システム</h1>
@@ -203,7 +201,7 @@
     </div>
 
     <!-- Student Registration Page -->
-    <div id="student-register" class="page">
+    <div id="student-register" class="page mt-24">
         <div class="container mx-auto max-w-2xl px-4">
             <div class="bg-white rounded-lg shadow-md p-8">
                 <h2 class="text-2xl font-bold mb-6 text-center"> 生徒登録フォーム</h2>
@@ -289,7 +287,7 @@
     </div>
 
     <!-- Teacher Login Page -->
-    <div id="teacher-login" class="page">
+    <div id="teacher-login" class="page mt-24">
         <div class="container mx-auto max-w-md px-4">
             <div class="bg-white rounded-lg shadow-md p-8">
                 <div class="text-center mb-6">
@@ -329,7 +327,7 @@
     </div>
 
     <!-- Teacher Dashboard -->
-    <div id="teacher-dashboard" class="page">
+    <div id="teacher-dashboard" class="page mt-24">
         <div class="container mx-auto max-w-6xl px-4">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold">講師管理画面</h2>
@@ -451,7 +449,7 @@
     </div>
 
     <!-- Student Login Page -->
-    <div id="student-login" class="page">
+    <div id="student-login" class="page mt-24">
         <div class="container mx-auto max-w-md px-4">
             <div class="bg-white rounded-lg shadow-md p-8">
                 <div class="text-center mb-6">
@@ -491,7 +489,7 @@
     </div>
 
     <!-- Student Portal -->
-    <div id="student-portal" class="page">
+    <div id="student-portal" class="page mt-24">
         <div class="container mx-auto max-w-4xl px-4">
             <div class="flex justify-between items-center mb-6">
                 <div>
@@ -632,6 +630,7 @@
     </div>
 
     <script>
+
         // Global variables
         let currentUser = null;
         let currentUserType = null;
@@ -1863,8 +1862,46 @@ function initLoginForms() {
         };
     }
 }
+function handleTeacherLogin() {
+  const email = document.getElementById('teacher-email')?.value.trim();
+  const password = document.getElementById('teacher-password')?.value;
+
+  // 本物の先生情報（メールは固定、パスワードは自由に変更可）
+  const validEmail = 'little.chopin-301@docomo.ne.jp';
+  const validPassword = 'kobuta121'; // ← あなたが決めてOK
+
+  if (email === validEmail && password === validPassword) {
+    alert('ログイン成功！');
+    showPage('teacher-dashboard'); // ← ここで管理画面へ遷移
+  } else {
+    alert('メールアドレスまたはパスワードが正しくありません。');
+  }
+}
+
 
 
     </script>
+    <script>
+  function handleStudentLogin() {
+    const name = document.getElementById('student-name')?.value.trim();
+    const email = document.getElementById('student-email')?.value.trim();
+
+    if (!name || !email) {
+      alert('名前とメールアドレスを入力してください。');
+      return;
+    }
+
+    const students = JSON.parse(localStorage.getItem('students') || '[]');
+    const match = students.find(s => s.name === name && s.email === email);
+
+    if (match) {
+      alert(`${match.name} さん、ログイン成功しました！`);
+      showPage('student-portal');
+    } else {
+      alert('名前またはメールアドレスが一致しません。');
+    }
+  }
+</script>
+
 </body>
 </html>
