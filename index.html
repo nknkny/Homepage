@@ -66,7 +66,8 @@
     }
 </style>
 </head>
-<div id="teacher-login" class="page mt-24">
+<body class="bg-gray-50">
+    <div id="teacher-login" class="page mt-24">
   <div class="max-w-sm mx-auto mt-10 p-6 bg-white shadow rounded">
     <h2 class="text-xl font-bold mb-4">講師ログイン</h2>
     <input id="teacher-email" type="text" placeholder="メールアドレス" class="border p-2 w-full mb-2">
@@ -83,8 +84,6 @@
     <button class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded w-full">ログイン</button>
   </div>
 </div>
-
-<body class="bg-gray-50">
    <!-- Navigation -->
 <nav class="bg-blue-600 text-white p-4 fixed top-0 left-0 right-0 z-50">
   <div class="container mx-auto flex justify-between items-center">
@@ -2030,22 +2029,6 @@ function renderTeacherCalendar() {
 
   calendar.render();
 }
-// ✅ 生徒ポータル：自分の固定スケジュールを表示
-function loadStudentSchedule() {
-  const container = document.getElementById('studentSchedule');
-  if (!container || !currentUser) return;
-
-  const raw = localStorage.getItem('confirmedReservations');
-  const reservations = raw ? JSON.parse(raw) : [];
-
-  const myReservations = reservations.filter(r =>
-    r.email === currentUser.email && r.name === currentUser.name
-  );
-
-  if (myReservations.length === 0) {
-    container.innerHTML = `<p class="text-gray-500">確定スケジュールはありません。</p>`;
-    return;
-  }
 
   // 表形式で表示
   let html = `
@@ -2073,7 +2056,7 @@ function loadStudentSchedule() {
 
   html += '</tbody></table>';
   container.innerHTML = html;
-}
+
 
 function loadRequestsList() {
     const container = document.getElementById('requestsList');
