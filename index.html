@@ -653,54 +653,79 @@
 }
 
 
-        // Initialize the system
-        function initSystem() {
-            loadTimeOptions();
-            loadMakeupTimeOptions();
-            generateScheduleTable();
+       function initSystem() {
+    loadTimeOptions();
+    loadMakeupTimeOptions();
+    generateScheduleTable();
+
+    // teacher-dashboard が表示されているときだけ処理する
+    if (document.getElementById('teacher-dashboard')) {
+        try {
             updateDashboardStats();
             loadStudentsList();
             loadRequestsList();
-            loadStudentRequests();
+        } catch (e) {
+            console.warn('講師画面の初期化エラー:', e);
         }
+    }
 
-// ページ切り替え関数（修正版）
+    // student-portal が表示されているときだけ処理する
+    if (document.getElementById('student-portal')) {
+        try {
+            loadStudentRequests();
+        } catch (e) {
+            console.warn('生徒画面の初期化エラー:', e);
+        }
+    }
+}
+
+
 window.showPage = function(pageId) {
     // 全ページを非表示
     document.querySelectorAll('.page').forEach(page => {
         page.classList.remove('active');
     });
 
-    // 対象ページを表示
+    // 対象ページを表示（存在チェック付き）
     const target = document.getElementById(pageId);
-    if (target) {
-        target.classList.add('active');
+    if (!target) {
+        console.error(`ページ "${pageId}" が見つかりません`);
+        return;
     }
+    target.classList.add('active');
 
     // ページ別の初期化処理
     switch (pageId) {
         case 'teacher-login':
             document.getElementById('teacherLoginForm')?.reset();
+            initLoginForms(); // ← 追加（フォームのイベント再登録）
             break;
         case 'student-login':
             document.getElementById('studentLoginForm')?.reset();
+            initLoginForms(); // ← 追加
             break;
         case 'teacher-dashboard':
             setTimeout(() => {
-                generateScheduleTable();
-                updateDashboardStats();
-                loadStudentsList();
-                loadRequestsList();
-                initTeacherCalendar();
+                generateScheduleTable?.();
+                updateDashboardStats?.();
+                loadStudentsList?.();
+                loadRequestsList?.();
+                if (document.getElementById('teacherCalendar')) {
+                    initTeacherCalendar?.();
+                }
             }, 100);
             break;
         case 'student-register':
-            initStudentAvailabilityCalendarForRegister();
+            if (document.getElementById('calendarChoice1')) {
+                initStudentAvailabilityCalendarForRegister?.();
+            }
             break;
         case 'student-portal':
-            loadStudentSchedule();
-            loadStudentRequests();
-            initStudentAvailabilityCalendar();
+            loadStudentSchedule?.();
+            loadStudentRequests?.();
+            if (document.getElementById('studentAvailabilityCalendar')) {
+                initStudentAvailabilityCalendar?.();
+            }
             break;
     }
 };
@@ -709,6 +734,7 @@ window.showPage = function(pageId) {
 // DOMロード時の初期表示
 document.addEventListener('DOMContentLoaded', function() {
     initSystem();
+        initLoginForms(); // ← 追加
     showPage('home'); // 最初はホームを表示
 });
 
@@ -1763,6 +1789,47 @@ function manualAssignSave(studentId, day, time) {
 document.getElementById('newLessonDay').addEventListener('change', loadNewLessonTimeOptions);
 // 振替申請：日付を選んだら時間リストを更新
 document.getElementById('makeupToDate').addEventListener('change', loadMakeupTimeOptions);
+
+function initLoginForms() {
+    const teacherForm = document.getElementById('teacherLoginForm');
+    if (teacherForm) {
+        teacherForm.onsubmit = function(e) {
+            e.preventDefault();
+            const email = document.getElementById('teacherEmail').value;
+            const password = document.getElementById('teacherPassword').value;
+
+            if (email === 'little.chopin-301@docomo.ne.jp' && password === 'kobuta121') {
+                currentUser = { email: email };
+                currentUserType = 'teacher';
+                showPage('teacher-dashboard');
+            } else {
+                alert('メールアドレスまたはパスワードが間違っています。');
+            }
+        };
+    }
+
+    const studentForm = document.getElementById('studentLoginForm');
+    if (studentForm) {
+        studentForm.onsubmit = function(e) {
+            e.preventDefault();
+            const name = document.getElementById('loginStudentName').value;
+            const email = document.getElementById('loginStudentEmail').value;
+
+            const students = JSON.parse(localStorage.getItem('students') || '[]');
+            const student = students.find(s => s.name === name && s.email === email);
+
+            if (student) {
+                currentUser = student;
+                currentUserType = 'student';
+                document.getElementById('currentStudentName').textContent = student.name;
+                showPage('student-portal');
+            } else {
+                alert('お名前またはメールアドレスが見つかりません。');
+            }
+        };
+    }
+}
+
 
     </script>
 </body>
