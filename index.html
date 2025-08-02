@@ -738,33 +738,46 @@ document.addEventListener('DOMContentLoaded', function() {
     showPage('home'); // 最初はホームを表示
 });
 
-        // Load time options (9:00 - 21:00, 30-minute intervals)
-        function loadTimeOptions() {
-            const timeSelects = ['choice1Time', 'choice2Time', 'choice3Time'];
-            timeSelects.forEach(id => {
-                const select = document.getElementById(id);
-                select.innerHTML = '<option value="">選択してください</option>';
-                
-                for (let hour = 9; hour <= 20; hour++) {
-                    for (let minute = 0; minute < 60; minute += 30) {
-                        const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-                        const endHour = minute === 30 ? hour + 1 : hour;
-                        const endMinute = minute === 30 ? 0 : 30;
-                        const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
-                        select.innerHTML += `<option value="${timeStr}">${timeStr} - ${endTimeStr}</option>`;
-                    }
-                }
-            });
-        }
+       // 希望時間の選択肢をロード（9:00〜20:30まで、30分刻み）
+function loadTimeOptions() {
+    const timeSelects = ['choice1Time', 'choice2Time', 'choice3Time'];
 
-        // 振替レッスンの時間選択肢をロード（先生スケジュールと連動）
+    timeSelects.forEach(id => {
+        const select = document.getElementById(id);
+        if (!select) return; // ← これでエラーを防止
+
+        // 初期選択肢
+        select.innerHTML = '<option value="">選択してください</option>';
+
+        for (let hour = 9; hour <= 20; hour++) {
+            for (let minute = 0; minute < 60; minute += 30) {
+                const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+                const endHour = minute === 30 ? hour + 1 : hour;
+                const endMinute = minute === 30 ? 0 : 30;
+                const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+
+                const opt = document.createElement('option');
+                opt.value = timeStr;
+                opt.textContent = `${timeStr} - ${endTimeStr}`;
+                select.appendChild(opt);
+            }
+        }
+    });
+}
+
+
+// 振替レッスンの時間選択肢をロード（先生スケジュールと連動）
 function loadMakeupTimeOptions() {
     const select = document.getElementById('makeupToTime');
-    if (!select) return;
+    const dateInput = document.getElementById('makeupToDate');
+
+    // HTML上に対象の要素が存在していなければ処理を中断
+    if (!select || !dateInput) return;
+
     select.innerHTML = '<option value="">時間選択</option>';
 
     const teacherSchedule = JSON.parse(localStorage.getItem('teacherSchedule') || '{}');
-    const daySelect = document.getElementById('makeupToDate')?.value;
+    const daySelect = dateInput.value;
     if (!daySelect) return;
 
     const day = new Date(daySelect).getDay(); // 0=日,1=月...
@@ -780,11 +793,15 @@ function loadMakeupTimeOptions() {
 
             const key = `${dayName}_${timeStr}`;
             if (teacherSchedule[key]) {
-                select.innerHTML += `<option value="${timeStr}">${timeStr} - ${endTimeStr}</option>`;
+                const opt = document.createElement('option');
+                opt.value = timeStr;
+                opt.textContent = `${timeStr} - ${endTimeStr}`;
+                select.appendChild(opt);
             }
         }
     }
 }
+
 
 
    // Student registration
