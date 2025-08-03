@@ -668,14 +668,16 @@
         // ==========================================
         
         // ⚠️ 重要: 以下の設定をあなたのFirebaseプロジェクトの設定に置き換えてください
-         const firebaseConfig = {
-            apiKey: "AIzaSyDuwQzcC9HlejgxpLAa8dK68xYwueoNmK4",
-            authDomain: "piano-lesson-system.firebaseapp.com",
-            projectId: "piano-lesson-system",
-            storageBucket: "piano-lesson-system.firebasestorage.app",
-            messagingSenderId: "94459879451",
-            appId: "1:94459879451:web:342958cd3531b61fb818be"
-        };
+     const firebaseConfig = {
+    apiKey: "AIzaSyDuwQzcC9HlejgxpLAa8dK68xYwueoNmK4",
+    authDomain: "piano-lesson-system.firebaseapp.com",
+    projectId: "piano-lesson-system",
+    storageBucket: "piano-lesson-system.firebasestorage.app",
+    messagingSenderId: "94459879451",
+    appId: "1:94459879451:web:342958cd3531b61fb818be",
+    // ここにdatabaseURLを追加します
+    databaseURL: "https://piano-lesson-system-default-rtdb.asia-southeast1.firebasedatabase.app"
+};
 
         // Firebase初期化
         let db;
