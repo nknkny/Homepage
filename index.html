@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -667,14 +668,14 @@
         // ==========================================
         
         // ⚠️ 重要: 以下の設定をあなたのFirebaseプロジェクトの設定に置き換えてください
-       const firebaseConfig = {
-            apiKey: "AIzaSyDuwQzcC9HlejgxpLAa8dK68xYwueoNmK4",
-            authDomain: "piano-lesson-system.firebaseapp.com",
-            databaseURL: "https://piano-lesson-system-default-rtdb.asia-southeast1.firebasedatabase.app",
-            projectId: "piano-lesson-system",
-            storageBucket: "piano-lesson-system.firebasestorage.app",
-            messagingSenderId: "94459879451",
-            appId: "1:94459879451:web:342958cd3531b61fb818be"
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_AUTH_DOMAIN",
+            databaseURL: "YOUR_DATABASE_URL",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
         };
 
         // Firebase初期化
@@ -1239,53 +1240,6 @@
                     const endHour = minute === 30 ? hour + 1 : hour;
                     const endMinute = minute === 30 ? 0 : 30;
                     const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
-
-                    const key = `${dayName}_${timeStr}`;
-                    if (teacherSchedule[key] === true) {
-                        const opt = document.createElement('option');
-                        opt.value = timeStr;
-                        opt.textContent = `${timeStr} - ${endTimeStr}`;
-                        select.appendChild(opt);
-                    }
-                }
-            }
-        }
-
-        function populateManualTimeOptions() {
-            const select = document.getElementById('manualTime');
-            if (!select) return;
-
-            select.innerHTML = '<option value="">時間を選択</option>';
-
-            for (let hour = 9; hour <= 20; hour++) {
-                for (let minute = 0; minute < 60; minute += 30) {
-                    const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-                    const endHour = minute === 30 ? hour + 1 : hour;
-                    const endMinute = minute === 30 ? 0 : 30;
-                    const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
-
-                    const opt = document.createElement('option');
-                    opt.value = timeStr;
-                    opt.textContent = `${timeStr} - ${endTimeStr}`;
-                    select.appendChild(opt);
-                }
-            }
-        }
-
-        async function populateManualStudentOptions() {
-            const select = document.getElementById('manualStudentSelect');
-            if (!select) return;
-
-            const students = await getFromFirebase('students') || {};
-            select.innerHTML = '<option value="">生徒を選択</option>';
-
-            Object.values(students).forEach(student => {
-                const opt = document.createElement('option');
-                opt.value = student.email;
-                opt.textContent = `${student.name}（${student.email}）`;
-                select.appendChild(opt);
-            });
-        }dHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
                     
                     const row = document.createElement('tr');
                     row.innerHTML = `<td class="p-2 font-medium">${timeStr} - ${endTimeStr}</td>`;
