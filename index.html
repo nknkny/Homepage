@@ -7,6 +7,11 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
     <style>
         .time-slot {
             min-height: 40px;
@@ -39,7 +44,21 @@
         .page.active {
             display: block !important;
         }
-
+        .loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+        .loading.hidden {
+            display: none;
+        }
         @media print {
             .page {
                 display: block !important;
@@ -67,6 +86,28 @@
     </style>
 </head>
 <body class="bg-gray-50">
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="loading">
+        <div class="text-center">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            <p class="mt-4 text-gray-600">読み込み中...</p>
+        </div>
+    </div>
+
+    <!-- Firebase Config Alert -->
+    <div id="firebaseConfigAlert" class="hidden fixed top-20 left-4 right-4 bg-yellow-100 border-l-4 border-yellow-500 p-4 z-50">
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <i class="fas fa-exclamation-triangle text-yellow-500"></i>
+            </div>
+            <div class="ml-3">
+                <p class="text-sm text-yellow-700">
+                    Firebaseの設定が必要です。コード内の firebaseConfig を置き換えてください。
+                </p>
+            </div>
+        </div>
+    </div>
+
     <!-- Navigation -->
     <nav class="bg-blue-600 text-white p-4 fixed top-0 left-0 right-0 z-50">
         <div class="container mx-auto flex justify-between items-center">
@@ -97,6 +138,10 @@
             <div class="text-center mb-12">
                 <h1 class="text-4xl font-bold text-gray-800 mb-4">ピアノ教室予約管理システム</h1>
                 <p class="text-xl text-gray-600 mb-8">個人運営ピアノ教室の完全予約管理システム</p>
+                <div id="connectionStatus" class="inline-block px-4 py-2 rounded-full text-sm">
+                    <i class="fas fa-circle mr-2"></i>
+                    <span id="connectionText">接続確認中...</span>
+                </div>
             </div>
 
             <div class="grid md:grid-cols-3 gap-6 mb-12">
@@ -156,10 +201,10 @@
                     </div>
                     <div class="space-y-4">
                         <div class="flex items-start">
-                            <i class="fas fa-shield-alt text-blue-500 mt-1 mr-3"></i>
+                            <i class="fas fa-sync text-blue-500 mt-1 mr-3"></i>
                             <div>
-                                <h4 class="font-semibold">セキュア認証</h4>
-                                <p class="text-gray-600">講師・生徒それぞれ専用ログイン</p>
+                                <h4 class="font-semibold">リアルタイム同期</h4>
+                                <p class="text-gray-600">先生と生徒の情報が即座に反映</p>
                             </div>
                         </div>
                         <div class="flex items-start">
@@ -415,6 +460,13 @@
                 <!-- Pending Requests Calendar Tab -->
                 <div id="pendingCalendarTabContent" class="teacherTabContent p-6" style="display: none;">
                     <h3 class="text-lg font-semibold mb-4">承認待ち申請カレンダー</h3>
+                    <div class="mb-4 p-4 bg-gray-50 rounded-lg">
+                        <p class="text-sm text-gray-600 mb-2">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            カレンダー上の申請をクリックすると承認できます
+                        </p>
+                        <div id="studentColorLegend" class="flex flex-wrap gap-2 mt-2"></div>
+                    </div>
                     <div id="pendingCalendar" style="height: 600px;"></div>
                 </div>
 
@@ -610,54 +662,130 @@
     </div>
 
     <script>
-        // Global variables
+        // ==========================================
+        // Firebase Configuration
+        // ==========================================
+        
+        // ⚠️ 重要: 以下の設定をあなたのFirebaseプロジェクトの設定に置き換えてください
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_AUTH_DOMAIN",
+            databaseURL: "YOUR_DATABASE_URL",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        // Firebase初期化
+        let db;
+        try {
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.database();
+            console.log('Firebase接続成功');
+        } catch (error) {
+            console.error('Firebase初期化エラー:', error);
+            document.getElementById('firebaseConfigAlert').classList.remove('hidden');
+        }
+
+        // ==========================================
+        // Global Variables
+        // ==========================================
         let currentUser = null;
         let currentUserType = null;
         let teacherCalendar = null;
+        let scheduleListener = null;
+        let studentsListener = null;
+        let requestsListener = null;
+        let bookingsListener = null;
 
-        function addWeeklyBookingsUntilFiscalEnd(student, day, time) {
-            let bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
-
-            const startDate = new Date();
-            const targetDay = { '日':0,'月':1,'火':2,'水':3,'木':4,'金':5,'土':6 }[day];
-
-            let firstLessonDate = new Date(startDate);
-            while (firstLessonDate.getDay() !== targetDay) {
-                firstLessonDate.setDate(firstLessonDate.getDate() + 1);
-            }
-
-            const year = startDate.getMonth() >= 4 ? startDate.getFullYear() + 1 : startDate.getFullYear();
-            const fiscalEnd = new Date(`${year}-03-31T23:59:59`);
-
-            let current = new Date(firstLessonDate);
-            while (current <= fiscalEnd) {
-                bookings.push({
-                    id: Date.now().toString() + Math.random(),
-                    studentId: student.id,
-                    studentName: student.name,
-                    day,
-                    time,
-                    date: current.toISOString().split('T')[0],
-                    type: 'regular',
-                    status: 'confirmed'
-                });
-                current.setDate(current.getDate() + 7);
-            }
-
-            localStorage.setItem('bookings', JSON.stringify(bookings));
-        }
-
-        function initSystem() {
-            loadTimeOptions();
-            loadMakeupTimeOptions();
-            
-            // Event listener for date changes
-            const makeupToDate = document.getElementById('makeupToDate');
-            if (makeupToDate) {
-                makeupToDate.addEventListener('change', loadMakeupTimeOptions);
+        // ==========================================
+        // Firebase Helper Functions
+        // ==========================================
+        
+        // データ保存
+        async function saveToFirebase(path, data) {
+            try {
+                await db.ref(path).set(data);
+                return true;
+            } catch (error) {
+                console.error('Firebase保存エラー:', error);
+                return false;
             }
         }
 
+        // データ更新
+        async function updateFirebase(path, data) {
+            try {
+                await db.ref(path).update(data);
+                return true;
+            } catch (error) {
+                console.error('Firebase更新エラー:', error);
+                return false;
+            }
+        }
+
+        // データ取得
+        async function getFromFirebase(path) {
+            try {
+                const snapshot = await db.ref(path).once('value');
+                return snapshot.val();
+            } catch (error) {
+                console.error('Firebase取得エラー:', error);
+                return null;
+            }
+        }
+
+        // リアルタイムリスナー設定
+        function listenToFirebase(path, callback) {
+            return db.ref(path).on('value', snapshot => {
+                callback(snapshot.val() || {});
+            });
+        }
+
+        // リスナー解除
+        function removeFirebaseListener(path, listener) {
+            if (listener) {
+                db.ref(path).off('value', listener);
+            }
+        }
+
+        // ==========================================
+        // Connection Status
+        // ==========================================
+        
+        // Firebase接続状態を監視
+        if (db) {
+            db.ref('.info/connected').on('value', (snapshot) => {
+                const status = document.getElementById('connectionStatus');
+                const text = document.getElementById('connectionText');
+                
+                if (snapshot.val() === true) {
+                    status.className = 'inline-block px-4 py-2 rounded-full text-sm bg-green-100 text-green-800';
+                    text.innerHTML = '<i class="fas fa-circle text-green-500 mr-2"></i>オンライン';
+                } else {
+                    status.className = 'inline-block px-4 py-2 rounded-full text-sm bg-red-100 text-red-800';
+                    text.innerHTML = '<i class="fas fa-circle text-red-500 mr-2"></i>オフライン';
+                }
+            });
+        }
+
+        // ==========================================
+        // Loading Functions
+        // ==========================================
+        
+        function showLoading() {
+            document.getElementById('loadingScreen').classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingScreen').classList.add('hidden');
+        }
+
+        // ==========================================
+        // Page Navigation
+        // ==========================================
+        
         window.showPage = function(pageId) {
             // 全ページを非表示
             document.querySelectorAll('.page').forEach(page => {
@@ -676,30 +804,117 @@
             switch (pageId) {
                 case 'teacher-dashboard':
                     setTimeout(() => {
-                        generateScheduleTable();
-                        updateDashboardStats();
-                        loadStudentsList();
-                        loadRequestsList();
-                        populateManualTimeOptions();
-                        populateManualStudentOptions();
+                        initTeacherDashboard();
                     }, 100);
                     break;
                 case 'student-register':
                     setTimeout(() => {
-                        initStudentAvailabilityCalendarForRegister();
+                        initStudentRegistration();
                     }, 100);
                     break;
                 case 'student-portal':
                     setTimeout(() => {
-                        loadStudentSchedule();
-                        loadStudentRequests();
-                        initStudentAvailabilityCalendar();
+                        initStudentPortal();
                     }, 100);
                     break;
             }
         };
 
-        // DOMロード時の初期表示
+        // ==========================================
+        // Initialization
+        // ==========================================
+        
+        async function initSystem() {
+            showLoading();
+            
+            // 初期データのチェックと作成
+            const teacherSchedule = await getFromFirebase('teacherSchedule');
+            if (!teacherSchedule) {
+                await saveToFirebase('teacherSchedule', {});
+            }
+            
+            // 振替時間オプション用のイベントリスナー
+            const makeupToDate = document.getElementById('makeupToDate');
+            if (makeupToDate) {
+                makeupToDate.addEventListener('change', loadMakeupTimeOptions);
+            }
+            
+            hideLoading();
+        }
+
+        // Teacher Dashboard初期化
+        async function initTeacherDashboard() {
+            // リスナーをクリア
+            removeFirebaseListener('teacherSchedule', scheduleListener);
+            removeFirebaseListener('students', studentsListener);
+            removeFirebaseListener('requests', requestsListener);
+            removeFirebaseListener('bookings', bookingsListener);
+            
+            // 新しいリスナーを設定
+            scheduleListener = listenToFirebase('teacherSchedule', () => {
+                generateScheduleTable();
+            });
+            
+            studentsListener = listenToFirebase('students', () => {
+                loadStudentsList();
+                updateDashboardStats();
+                populateManualStudentOptions();
+            });
+            
+            requestsListener = listenToFirebase('requests', () => {
+                loadRequestsList();
+                updateDashboardStats();
+            });
+            
+            bookingsListener = listenToFirebase('bookings', () => {
+                updateDashboardStats();
+                if (teacherCalendar) initTeacherCalendar();
+            });
+            
+            // 初期表示
+            generateScheduleTable();
+            populateManualTimeOptions();
+        }
+
+        // Student Registration初期化
+        async function initStudentRegistration() {
+            showLoading();
+            const teacherSchedule = await getFromFirebase('teacherSchedule');
+            initStudentAvailabilityCalendarForRegister(teacherSchedule || {});
+            hideLoading();
+        }
+
+        // Student Portal初期化
+        async function initStudentPortal() {
+            if (!currentUser) return;
+            
+            showLoading();
+            
+            // リアルタイムで自分のデータを監視
+            listenToFirebase(`students/${currentUser.id}`, (studentData) => {
+                if (studentData) {
+                    currentUser = studentData;
+                    loadStudentSchedule();
+                }
+            });
+            
+            // 申請履歴を監視
+            listenToFirebase('requests', (requests) => {
+                loadStudentRequests(requests);
+            });
+            
+            // 先生のスケジュールを監視
+            listenToFirebase('teacherSchedule', (schedule) => {
+                initStudentAvailabilityCalendar(schedule);
+            });
+            
+            hideLoading();
+        }
+
+        // ==========================================
+        // DOMContentLoaded
+        // ==========================================
+        
         document.addEventListener('DOMContentLoaded', function() {
             initSystem();
             showPage('home');
@@ -707,314 +922,314 @@
             // Login form handlers
             const teacherLoginForm = document.getElementById('teacherLoginForm');
             if (teacherLoginForm) {
-                teacherLoginForm.addEventListener('submit', function(e) {
-                    e.preventDefault();
-                    
-                    const email = document.getElementById('teacherEmail').value;
-                    const password = document.getElementById('teacherPassword').value;
-
-                    if (email === 'little.chopin-301@docomo.ne.jp' && password === 'kobuta121') {
-                        currentUser = { email: email };
-                        currentUserType = 'teacher';
-                        showPage('teacher-dashboard');
-                    } else {
-                        alert('メールアドレスまたはパスワードが間違っています。');
-                    }
-                });
+                teacherLoginForm.addEventListener('submit', handleTeacherLogin);
             }
 
             const studentLoginForm = document.getElementById('studentLoginForm');
             if (studentLoginForm) {
-                studentLoginForm.addEventListener('submit', function(e) {
-                    e.preventDefault();
-                    
-                    const name = document.getElementById('loginStudentName').value;
-                    const email = document.getElementById('loginStudentEmail').value;
-
-                    const students = JSON.parse(localStorage.getItem('students') || '[]');
-                    const student = students.find(s => s.name === name && s.email === email);
-
-                    if (student) {
-                        currentUser = student;
-                        currentUserType = 'student';
-                        document.getElementById('currentStudentName').textContent = student.name;
-                        showPage('student-portal');
-                    } else {
-                        alert('お名前またはメールアドレスが見つかりません。');
-                    }
-                });
+                studentLoginForm.addEventListener('submit', handleStudentLogin);
             }
 
             // Student registration form
             const studentRegisterForm = document.getElementById('studentRegisterForm');
             if (studentRegisterForm) {
-                studentRegisterForm.addEventListener('submit', function(e) {
-                    e.preventDefault();
-
-                    const choices = [];
-                    for (let i = 1; i <= 3; i++) {
-                        const slot = localStorage.getItem(`registerChoice${i}`);
-                        if (slot) {
-                            const [day, time] = slot.split('_');
-                            choices.push({ day, time });
-                        }
-                    }
-
-                    const studentData = {
-                        id: Date.now().toString(),
-                        name: document.getElementById('studentName').value,
-                        email: document.getElementById('studentEmail').value,
-                        phone: document.getElementById('studentPhone').value,
-                        choices: choices,
-                        notes: document.getElementById('studentNotes').value,
-                        registeredAt: new Date().toISOString(),
-                        assignedSchedule: null
-                    };
-
-                    let students = JSON.parse(localStorage.getItem('students') || '[]');
-                    students.push(studentData);
-                    localStorage.setItem('students', JSON.stringify(students));
-
-                    let requests = JSON.parse(localStorage.getItem('requests') || '[]');
-                    studentData.choices.forEach((choice, index) => {
-                        requests.push({
-                            id: Date.now().toString() + index,
-                            studentId: studentData.id,
-                            studentName: studentData.name,
-                            type: 'new',
-                            day: choice.day,
-                            time: choice.time,
-                            reason: `第${index + 1}希望`,
-                            status: 'pending',
-                            createdAt: new Date().toISOString()
-                        });
-                    });
-                    localStorage.setItem('requests', JSON.stringify(requests));
-
-                    for (let i = 1; i <= 3; i++) {
-                        localStorage.removeItem(`registerChoice${i}`);
-                    }
-
-                    alert('登録が完了しました！先生による承認後にスケジュールが確定します。');
-                    studentRegisterForm.reset();
-                    showPage('home');
-                });
+                studentRegisterForm.addEventListener('submit', handleStudentRegistration);
             }
 
             // Cancel form
             const cancelForm = document.getElementById('cancelForm');
             if (cancelForm) {
-                cancelForm.addEventListener('submit', function(e) {
-                    e.preventDefault();
-                    
-                    const request = {
-                        id: Date.now().toString(),
-                        studentId: currentUser.id,
-                        studentName: currentUser.name,
-                        type: 'cancel',
-                        date: document.getElementById('cancelDate').value,
-                        reason: document.getElementById('cancelReason').value,
-                        status: 'pending',
-                        createdAt: new Date().toISOString()
-                    };
-
-                    let requests = JSON.parse(localStorage.getItem('requests') || '[]');
-                    requests.push(request);
-                    localStorage.setItem('requests', JSON.stringify(requests));
-
-                    alert('キャンセル申請を送信しました。承認をお待ちください。');
-                    cancelForm.reset();
-                    loadStudentRequests();
-                });
+                cancelForm.addEventListener('submit', handleCancelRequest);
             }
 
             // Makeup form
             const makeupForm = document.getElementById('makeupForm');
             if (makeupForm) {
-                makeupForm.addEventListener('submit', function(e) {
-                    e.preventDefault();
-                    
-                    const request = {
-                        id: Date.now().toString(),
-                        studentId: currentUser.id,
-                        studentName: currentUser.name,
-                        type: 'makeup',
-                        fromDate: document.getElementById('makeupFromDate').value,
-                        toDate: document.getElementById('makeupToDate').value,
-                        toTime: document.getElementById('makeupToTime').value,
-                        reason: document.getElementById('makeupReason').value,
-                        status: 'pending',
-                        createdAt: new Date().toISOString()
-                    };
-
-                    let requests = JSON.parse(localStorage.getItem('requests') || '[]');
-                    requests.push(request);
-                    localStorage.setItem('requests', JSON.stringify(requests));
-
-                    alert('振替申請を送信しました。承認をお待ちください。');
-                    makeupForm.reset();
-                    loadStudentRequests();
-                });
+                makeupForm.addEventListener('submit', handleMakeupRequest);
             }
 
             // New lesson form
             const newLessonForm = document.getElementById('newLessonForm');
             if (newLessonForm) {
-                newLessonForm.addEventListener('submit', function(e) {
-                    e.preventDefault();
-
-                    const selectedSlots = JSON.parse(localStorage.getItem('studentSelectedSlots') || '[]');
-                    if (selectedSlots.length === 0) {
-                        alert('希望枠を○カレンダーから選択してください');
-                        return;
-                    }
-
-                    const requests = JSON.parse(localStorage.getItem('requests') || '[]');
-                    const reason = document.getElementById('newLessonReason').value;
-                    
-                    selectedSlots.forEach((slot, index) => {
-                        const [day, time] = slot.split('_');
-                        requests.push({
-                            id: Date.now().toString() + '_' + index,
-                            studentId: currentUser.id,
-                            studentName: currentUser.name,
-                            type: 'new',
-                            day,
-                            time,
-                            reason: reason || `第${index + 1}希望`,
-                            status: 'pending',
-                            createdAt: new Date().toISOString()
-                        });
-                    });
-                    localStorage.setItem('requests', JSON.stringify(requests));
-
-                    alert('新規レッスン申請を送信しました。先生の承認をお待ちください。');
-                    localStorage.removeItem('studentSelectedSlots');
-                    newLessonForm.reset();
-                    loadStudentRequests();
-                });
+                newLessonForm.addEventListener('submit', handleNewLessonRequest);
             }
 
             // Manual assign form
             const manualAssignForm = document.getElementById('manualAssignForm');
             if (manualAssignForm) {
-                manualAssignForm.addEventListener('submit', function(e) {
-                    e.preventDefault();
-
-                    const email = document.getElementById('manualStudentSelect').value;
-                    const date = document.getElementById('manualDate').value;
-                    const time = document.getElementById('manualTime').value;
-
-                    const students = JSON.parse(localStorage.getItem('students') || '[]');
-                    const student = students.find(s => s.email === email);
-                    if (!student) {
-                        alert('生徒情報が見つかりません');
-                        return;
-                    }
-
-                    const confirmed = JSON.parse(localStorage.getItem('confirmedReservations') || '[]');
-                    const dateTime = new Date(`${date}T${time}`);
-
-                    confirmed.push({
-                        name: student.name,
-                        email: student.email,
-                        datetime: dateTime.toISOString(),
-                        reason: '講師による手動登録',
-                        type: 'manual'
-                    });
-
-                    localStorage.setItem('confirmedReservations', JSON.stringify(confirmed));
-                    alert('予約を追加しました');
-                    if (teacherCalendar) {
-                        initTeacherCalendar();
-                    }
-                    manualAssignForm.reset();
-                });
+                manualAssignForm.addEventListener('submit', handleManualAssign);
             }
         });
 
-        // 希望時間の選択肢をロード
-        function loadTimeOptions() {
-            const timeSelects = ['choice1Time', 'choice2Time', 'choice3Time'];
+        // ==========================================
+        // Authentication Handlers
+        // ==========================================
+        
+        async function handleTeacherLogin(e) {
+            e.preventDefault();
+            showLoading();
+            
+            const email = document.getElementById('teacherEmail').value;
+            const password = document.getElementById('teacherPassword').value;
 
-            timeSelects.forEach(id => {
-                const select = document.getElementById(id);
-                if (!select) return;
-
-                select.innerHTML = '<option value="">選択してください</option>';
-
-                for (let hour = 9; hour <= 20; hour++) {
-                    for (let minute = 0; minute < 60; minute += 30) {
-                        const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-                        const endHour = minute === 30 ? hour + 1 : hour;
-                        const endMinute = minute === 30 ? 0 : 30;
-                        const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
-
-                        const opt = document.createElement('option');
-                        opt.value = timeStr;
-                        opt.textContent = `${timeStr} - ${endTimeStr}`;
-                        select.appendChild(opt);
-                    }
-                }
-            });
-        }
-
-        // 振替レッスンの時間選択肢をロード
-        function loadMakeupTimeOptions() {
-            const select = document.getElementById('makeupToTime');
-            const dateInput = document.getElementById('makeupToDate');
-
-            if (!select || !dateInput) return;
-
-            select.innerHTML = '<option value="">時間選択</option>';
-
-            const teacherSchedule = JSON.parse(localStorage.getItem('teacherSchedule') || '{}');
-            const daySelect = dateInput.value;
-            if (!daySelect) return;
-
-            const day = new Date(daySelect).getDay();
-            const dayNames = ['日','月','火','水','木','金','土'];
-            const dayName = dayNames[day];
-
-            for (let hour = 9; hour <= 20; hour++) {
-                for (let minute = 0; minute < 60; minute += 30) {
-                    const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-                    const endHour = minute === 30 ? hour + 1 : hour;
-                    const endMinute = minute === 30 ? 0 : 30;
-                    const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
-
-                    const key = `${dayName}_${timeStr}`;
-                    if (teacherSchedule[key]) {
-                        const opt = document.createElement('option');
-                        opt.value = timeStr;
-                        opt.textContent = `${timeStr} - ${endTimeStr}`;
-                        select.appendChild(opt);
-                    }
-                }
+            if (email === 'little.chopin-301@docomo.ne.jp' && password === 'kobuta121') {
+                currentUser = { email: email };
+                currentUserType = 'teacher';
+                hideLoading();
+                showPage('teacher-dashboard');
+            } else {
+                hideLoading();
+                alert('メールアドレスまたはパスワードが間違っています。');
             }
         }
 
-        // Teacher logout
-        function teacherLogout() {
+        async function handleStudentLogin(e) {
+            e.preventDefault();
+            showLoading();
+            
+            const name = document.getElementById('loginStudentName').value;
+            const email = document.getElementById('loginStudentEmail').value;
+
+            const students = await getFromFirebase('students') || {};
+            const student = Object.values(students).find(s => s.name === name && s.email === email);
+
+            if (student) {
+                currentUser = student;
+                currentUserType = 'student';
+                document.getElementById('currentStudentName').textContent = student.name;
+                hideLoading();
+                showPage('student-portal');
+            } else {
+                hideLoading();
+                alert('お名前またはメールアドレスが見つかりません。');
+            }
+        }
+
+        // ==========================================
+        // Registration Handler
+        // ==========================================
+        
+        async function handleStudentRegistration(e) {
+            e.preventDefault();
+            showLoading();
+
+            const choices = [];
+            for (let i = 1; i <= 3; i++) {
+                const slot = localStorage.getItem(`registerChoice${i}`);
+                if (slot) {
+                    const [day, time] = slot.split('_');
+                    choices.push({ day, time });
+                }
+            }
+
+            const studentId = Date.now().toString();
+            const studentData = {
+                id: studentId,
+                name: document.getElementById('studentName').value,
+                email: document.getElementById('studentEmail').value,
+                phone: document.getElementById('studentPhone').value,
+                choices: choices,
+                notes: document.getElementById('studentNotes').value,
+                registeredAt: new Date().toISOString(),
+                assignedSchedule: null
+            };
+
+            // Firebaseに保存
+            await saveToFirebase(`students/${studentId}`, studentData);
+
+            // 申請も作成
+            const requests = {};
+            studentData.choices.forEach((choice, index) => {
+                const requestId = Date.now().toString() + index;
+                requests[requestId] = {
+                    id: requestId,
+                    studentId: studentData.id,
+                    studentName: studentData.name,
+                    type: 'new',
+                    day: choice.day,
+                    time: choice.time,
+                    reason: `第${index + 1}希望`,
+                    status: 'pending',
+                    createdAt: new Date().toISOString()
+                };
+            });
+            
+            await updateFirebase('requests', requests);
+
+            // ローカルストレージクリア
+            for (let i = 1; i <= 3; i++) {
+                localStorage.removeItem(`registerChoice${i}`);
+            }
+
+            hideLoading();
+            alert('登録が完了しました！先生による承認後にスケジュールが確定します。');
+            document.getElementById('studentRegisterForm').reset();
+            showPage('home');
+        }
+
+        // ==========================================
+        // Request Handlers
+        // ==========================================
+        
+        async function handleCancelRequest(e) {
+            e.preventDefault();
+            if (!currentUser) return;
+            
+            showLoading();
+            
+            const requestId = Date.now().toString();
+            const request = {
+                id: requestId,
+                studentId: currentUser.id,
+                studentName: currentUser.name,
+                type: 'cancel',
+                date: document.getElementById('cancelDate').value,
+                reason: document.getElementById('cancelReason').value,
+                status: 'pending',
+                createdAt: new Date().toISOString()
+            };
+
+            await saveToFirebase(`requests/${requestId}`, request);
+            
+            hideLoading();
+            alert('キャンセル申請を送信しました。承認をお待ちください。');
+            document.getElementById('cancelForm').reset();
+        }
+
+        async function handleMakeupRequest(e) {
+            e.preventDefault();
+            if (!currentUser) return;
+            
+            showLoading();
+            
+            const requestId = Date.now().toString();
+            const request = {
+                id: requestId,
+                studentId: currentUser.id,
+                studentName: currentUser.name,
+                type: 'makeup',
+                fromDate: document.getElementById('makeupFromDate').value,
+                toDate: document.getElementById('makeupToDate').value,
+                toTime: document.getElementById('makeupToTime').value,
+                reason: document.getElementById('makeupReason').value,
+                status: 'pending',
+                createdAt: new Date().toISOString()
+            };
+
+            await saveToFirebase(`requests/${requestId}`, request);
+            
+            hideLoading();
+            alert('振替申請を送信しました。承認をお待ちください。');
+            document.getElementById('makeupForm').reset();
+        }
+
+        async function handleNewLessonRequest(e) {
+            e.preventDefault();
+            if (!currentUser) return;
+
+            const selectedSlots = JSON.parse(localStorage.getItem('studentSelectedSlots') || '[]');
+            if (selectedSlots.length === 0) {
+                alert('希望枠を○カレンダーから選択してください');
+                return;
+            }
+
+            showLoading();
+
+            const reason = document.getElementById('newLessonReason').value;
+            const requests = {};
+            
+            for (let i = 0; i < selectedSlots.length; i++) {
+                const [day, time] = selectedSlots[i].split('_');
+                const requestId = Date.now().toString() + '_' + i;
+                requests[requestId] = {
+                    id: requestId,
+                    studentId: currentUser.id,
+                    studentName: currentUser.name,
+                    type: 'new',
+                    day,
+                    time,
+                    reason: reason || `第${i + 1}希望`,
+                    status: 'pending',
+                    createdAt: new Date().toISOString()
+                };
+            }
+            
+            await updateFirebase('requests', requests);
+
+            localStorage.removeItem('studentSelectedSlots');
+            hideLoading();
+            alert('新規レッスン申請を送信しました。先生の承認をお待ちください。');
+            document.getElementById('newLessonForm').reset();
+        }
+
+        async function handleManualAssign(e) {
+            e.preventDefault();
+            showLoading();
+
+            const email = document.getElementById('manualStudentSelect').value;
+            const date = document.getElementById('manualDate').value;
+            const time = document.getElementById('manualTime').value;
+
+            const students = await getFromFirebase('students') || {};
+            const student = Object.values(students).find(s => s.email === email);
+            
+            if (!student) {
+                hideLoading();
+                alert('生徒情報が見つかりません');
+                return;
+            }
+
+            const bookingId = Date.now().toString();
+            const booking = {
+                id: bookingId,
+                studentId: student.id,
+                studentName: student.name,
+                date: date,
+                time: time,
+                type: 'manual',
+                status: 'confirmed',
+                createdAt: new Date().toISOString()
+            };
+
+            await saveToFirebase(`bookings/${bookingId}`, booking);
+            
+            hideLoading();
+            alert('予約を追加しました');
+            document.getElementById('manualAssignForm').reset();
+        }
+
+        // ==========================================
+        // Logout Functions
+        // ==========================================
+        
+        window.teacherLogout = function() {
+            // リスナーをクリア
+            removeFirebaseListener('teacherSchedule', scheduleListener);
+            removeFirebaseListener('students', studentsListener);
+            removeFirebaseListener('requests', requestsListener);
+            removeFirebaseListener('bookings', bookingsListener);
+            
             currentUser = null;
             currentUserType = null;
             showPage('home');
         }
 
-        // Student logout
-        function studentLogout() {
+        window.studentLogout = function() {
             currentUser = null;
             currentUserType = null;
             showPage('home');
         }
 
-        // Generate schedule table for teacher
-        function generateScheduleTable() {
+        // ==========================================
+        // Schedule Management
+        // ==========================================
+        
+        async function generateScheduleTable() {
             const table = document.getElementById('scheduleTable');
             if (!table) return;
             
             const days = ['月', '火', '水', '木', '金', '土', '日'];
-            const teacherSchedule = JSON.parse(localStorage.getItem('teacherSchedule') || '{}');
+            const teacherSchedule = await getFromFirebase('teacherSchedule') || {};
             
             table.innerHTML = '';
 
@@ -1024,6 +1239,53 @@
                     const endHour = minute === 30 ? hour + 1 : hour;
                     const endMinute = minute === 30 ? 0 : 30;
                     const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+
+                    const key = `${dayName}_${timeStr}`;
+                    if (teacherSchedule[key] === true) {
+                        const opt = document.createElement('option');
+                        opt.value = timeStr;
+                        opt.textContent = `${timeStr} - ${endTimeStr}`;
+                        select.appendChild(opt);
+                    }
+                }
+            }
+        }
+
+        function populateManualTimeOptions() {
+            const select = document.getElementById('manualTime');
+            if (!select) return;
+
+            select.innerHTML = '<option value="">時間を選択</option>';
+
+            for (let hour = 9; hour <= 20; hour++) {
+                for (let minute = 0; minute < 60; minute += 30) {
+                    const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+                    const endHour = minute === 30 ? hour + 1 : hour;
+                    const endMinute = minute === 30 ? 0 : 30;
+                    const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+
+                    const opt = document.createElement('option');
+                    opt.value = timeStr;
+                    opt.textContent = `${timeStr} - ${endTimeStr}`;
+                    select.appendChild(opt);
+                }
+            }
+        }
+
+        async function populateManualStudentOptions() {
+            const select = document.getElementById('manualStudentSelect');
+            if (!select) return;
+
+            const students = await getFromFirebase('students') || {};
+            select.innerHTML = '<option value="">生徒を選択</option>';
+
+            Object.values(students).forEach(student => {
+                const opt = document.createElement('option');
+                opt.value = student.email;
+                opt.textContent = `${student.name}（${student.email}）`;
+                select.appendChild(opt);
+            });
+        }dHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
                     
                     const row = document.createElement('tr');
                     row.innerHTML = `<td class="p-2 font-medium">${timeStr} - ${endTimeStr}</td>`;
@@ -1048,28 +1310,20 @@
             }
         }
 
-        // Toggle availability slot
-        window.toggleSlot = function(key) {
-            const teacherSchedule = JSON.parse(localStorage.getItem('teacherSchedule') || '{}');
+        window.toggleSlot = async function(key) {
+            const teacherSchedule = await getFromFirebase('teacherSchedule') || {};
             teacherSchedule[key] = !teacherSchedule[key];
-            localStorage.setItem('teacherSchedule', JSON.stringify(teacherSchedule));
-            
-            const slot = document.querySelector(`[data-key="${key}"]`);
-            if (teacherSchedule[key]) {
-                slot.textContent = '○';
-                slot.className = 'time-slot available';
-            } else {
-                slot.textContent = '×';
-                slot.className = 'time-slot unavailable';
-            }
+            await saveToFirebase('teacherSchedule', teacherSchedule);
         }
 
-        // Save schedule
         window.saveSchedule = function() {
-            alert('スケジュールが保存されました。');
+            alert('スケジュールは自動的に保存されています。');
         }
 
-        // Teacher tab navigation
+        // ==========================================
+        // Tab Navigation
+        // ==========================================
+        
         window.showTeacherTab = function(tabName) {
             // Hide all tab contents
             document.querySelectorAll('.teacherTabContent').forEach(content => {
@@ -1102,16 +1356,19 @@
             if (tabName === 'pendingCalendar') {
                 setTimeout(initPendingCalendar, 100);
             }
-            if (tabName === 'schedule') {
-                generateScheduleTable();
-            }
         }
 
-        function initTeacherCalendar() {
+        // ==========================================
+        // Calendar Functions
+        // ==========================================
+        
+        async function initTeacherCalendar() {
             if (teacherCalendar) teacherCalendar.destroy();
 
             const calendarEl = document.getElementById('teacherCalendar');
             if (!calendarEl) return;
+
+            const events = await getConfirmedReservationsForCalendar();
 
             teacherCalendar = new FullCalendar.Calendar(calendarEl, {
                 initialView: 'timeGridWeek',
@@ -1120,7 +1377,7 @@
                 slotMinTime: '09:00:00',
                 slotMaxTime: '21:00:00',
                 slotDuration: '00:30:00',
-                events: getConfirmedReservationsForCalendar(),
+                events: events,
                 eventClick: function(info) {
                     if (confirm(`${info.event.title} を削除しますか？`)) {
                         deleteReservationById(info.event.id);
@@ -1133,11 +1390,11 @@
             teacherCalendar.render();
         }
 
-        function getConfirmedReservationsForCalendar() {
-            const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+        async function getConfirmedReservationsForCalendar() {
+            const bookings = await getFromFirebase('bookings') || {};
             const events = [];
 
-            bookings.forEach(booking => {
+            Object.values(bookings).forEach(booking => {
                 if (booking.status === 'confirmed') {
                     events.push({
                         id: booking.id,
@@ -1158,44 +1415,182 @@
             return start.toISOString();
         }
 
-        function deleteReservationById(id) {
-            let bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
-            bookings = bookings.filter(b => b.id !== id);
-            localStorage.setItem('bookings', JSON.stringify(bookings));
-            updateDashboardStats();
+        async function deleteReservationById(id) {
+            await db.ref(`bookings/${id}`).remove();
         }
 
-        // Update dashboard statistics
-        function updateDashboardStats() {
-            const students = JSON.parse(localStorage.getItem('students') || '[]');
-            const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
-            const requests = JSON.parse(localStorage.getItem('requests') || '[]');
-            const pendingRequests = requests.filter(r => r.status === 'pending');
+        // 生徒ごとの色を管理
+        const studentColors = {};
+        const colorPalette = [
+            { bg: '#3B82F6', border: '#2563EB' }, // 青
+            { bg: '#10B981', border: '#059669' }, // 緑
+            { bg: '#F59E0B', border: '#D97706' }, // オレンジ
+            { bg: '#EF4444', border: '#DC2626' }, // 赤
+            { bg: '#8B5CF6', border: '#7C3AED' }, // 紫
+            { bg: '#EC4899', border: '#DB2777' }, // ピンク
+            { bg: '#14B8A6', border: '#0D9488' }, // ティール
+            { bg: '#F97316', border: '#EA580C' }, // オレンジレッド
+            { bg: '#6366F1', border: '#4F46E5' }, // インディゴ
+            { bg: '#84CC16', border: '#65A30D' }, // ライム
+        ];
+        let colorIndex = 0;
+
+        async function initPendingCalendar() {
+            const requests = await getFromFirebase('requests') || {};
+            const pending = Object.values(requests).filter(r => r.status === 'pending');
+
+            // 生徒ごとに色を割り当て
+            const legendContainer = document.getElementById('studentColorLegend');
+            if (legendContainer) {
+                legendContainer.innerHTML = '';
+            }
+
+            const uniqueStudents = {};
+            pending.forEach(req => {
+                if (!studentColors[req.studentId]) {
+                    studentColors[req.studentId] = colorPalette[colorIndex % colorPalette.length];
+                    colorIndex++;
+                }
+                uniqueStudents[req.studentId] = req.studentName;
+            });
+
+            // 色の凡例を表示
+            if (legendContainer) {
+                Object.entries(uniqueStudents).forEach(([studentId, studentName]) => {
+                    const color = studentColors[studentId];
+                    const legendItem = document.createElement('div');
+                    legendItem.className = 'flex items-center space-x-2';
+                    legendItem.innerHTML = `
+                        <div class="w-4 h-4 rounded" style="background-color: ${color.bg}"></div>
+                        <span class="text-sm">${studentName}</span>
+                    `;
+                    legendContainer.appendChild(legendItem);
+                });
+            }
+
+            const events = pending.map(req => {
+                const color = studentColors[req.studentId];
+                
+                if (req.type === 'new') {
+                    return {
+                        title: `${req.studentName}`,
+                        start: getNextDate(req.day) + 'T' + req.time,
+                        backgroundColor: color.bg,
+                        borderColor: color.border,
+                        textColor: '#FFFFFF',
+                        extendedProps: { requestId: req.id, studentName: req.studentName }
+                    };
+                } else if (req.type === 'makeup') {
+                    return {
+                        title: `${req.studentName} (振替)`,
+                        start: req.toDate + 'T' + req.toTime,
+                        backgroundColor: color.bg,
+                        borderColor: color.border,
+                        textColor: '#FFFFFF',
+                        extendedProps: { requestId: req.id, studentName: req.studentName }
+                    };
+                } else if (req.type === 'cancel') {
+                    return {
+                        title: `${req.studentName} (キャンセル)`,
+                        start: req.date,
+                        backgroundColor: color.bg,
+                        borderColor: color.border,
+                        textColor: '#FFFFFF',
+                        allDay: true,
+                        extendedProps: { requestId: req.id, studentName: req.studentName }
+                    };
+                }
+                return null;
+            }).filter(e => e);
+
+            const calendarEl = document.getElementById('pendingCalendar');
+            if (!calendarEl) return;
+
+            if (calendarEl._calendar) {
+                calendarEl._calendar.destroy();
+            }
+
+            const pendingCalendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'timeGridWeek',
+                locale: 'ja',
+                headerToolbar: {
+                    left: '',
+                    center: '',
+                    right: ''
+                },
+                titleFormat: { year: 'numeric', month: 'short' },
+                dayHeaderFormat: { weekday: 'short' }, // 曜日のみ表示
+                slotMinTime: '09:00',
+                slotMaxTime: '21:00',
+                slotDuration: '00:30',
+                slotLabelInterval: '01:00',
+                allDaySlot: false,
+                weekNumbers: false,
+                dayHeaders: true,
+                nowIndicator: true,
+                events: events,
+                height: 600,
+                eventClick: function(info) {
+                    const requestId = info.event.extendedProps.requestId;
+                    const studentName = info.event.extendedProps.studentName;
+                    if (confirm(`${studentName}さんの申請を承認しますか？`)) {
+                        approveRequest(requestId);
+                        initPendingCalendar();
+                    }
+                },
+                eventDidMount: function(info) {
+                    // ツールチップの追加
+                    info.el.setAttribute('title', `${info.event.title} - クリックで承認`);
+                    // イベントのスタイルを調整
+                    info.el.style.fontSize = '12px';
+                    info.el.style.padding = '2px 4px';
+                    info.el.style.borderRadius = '4px';
+                    info.el.style.cursor = 'pointer';
+                }
+            });
+
+            pendingCalendar.render();
+            calendarEl._calendar = pendingCalendar;
+        }
+
+        // ==========================================
+        // Dashboard Functions
+        // ==========================================
+        
+        async function updateDashboardStats() {
+            const students = await getFromFirebase('students') || {};
+            const bookings = await getFromFirebase('bookings') || {};
+            const requests = await getFromFirebase('requests') || {};
+            
+            const studentsArray = Object.values(students);
+            const bookingsArray = Object.values(bookings);
+            const pendingRequests = Object.values(requests).filter(r => r.status === 'pending');
 
             const totalStudentsEl = document.getElementById('totalStudents');
             const weeklyLessonsEl = document.getElementById('weeklyLessons');
             const pendingRequestsEl = document.getElementById('pendingRequests');
             const monthlyRevenueEl = document.getElementById('monthlyRevenue');
 
-            if (totalStudentsEl) totalStudentsEl.textContent = students.length;
-            if (weeklyLessonsEl) weeklyLessonsEl.textContent = bookings.length;
+            if (totalStudentsEl) totalStudentsEl.textContent = studentsArray.length;
+            if (weeklyLessonsEl) weeklyLessonsEl.textContent = bookingsArray.length;
             if (pendingRequestsEl) pendingRequestsEl.textContent = pendingRequests.length;
-            if (monthlyRevenueEl) monthlyRevenueEl.textContent = `¥${bookings.length * 8000}`;
+            if (monthlyRevenueEl) monthlyRevenueEl.textContent = `¥${bookingsArray.length * 8000}`;
         }
 
-        // Load students list
-        function loadStudentsList() {
-            const students = JSON.parse(localStorage.getItem('students') || '[]');
+        async function loadStudentsList() {
+            const students = await getFromFirebase('students') || {};
             const container = document.getElementById('studentsList');
             
             if (!container) return;
 
-            if (students.length === 0) {
+            const studentsArray = Object.values(students);
+
+            if (studentsArray.length === 0) {
                 container.innerHTML = '<p class="text-gray-500">登録された生徒はまだいません。</p>';
                 return;
             }
 
-            container.innerHTML = students.map(student => `
+            container.innerHTML = studentsArray.map(student => `
                 <div class="border border-gray-200 rounded-md p-4 mb-4">
                     <div class="flex justify-between items-start">
                         <div>
@@ -1239,41 +1634,52 @@
             `).join('');
         }
 
-        // Delete student
-        window.deleteStudent = function(studentId) {
+        window.deleteStudent = async function(studentId) {
             if (!confirm('本当にこの生徒を削除しますか？')) return;
             
-            let students = JSON.parse(localStorage.getItem('students') || '[]');
-            students = students.filter(s => s.id !== studentId);
-            localStorage.setItem('students', JSON.stringify(students));
-
-            let requests = JSON.parse(localStorage.getItem('requests') || '[]');
-            requests = requests.filter(r => r.studentId !== studentId);
-            localStorage.setItem('requests', JSON.stringify(requests));
-
-            let bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
-            bookings = bookings.filter(b => b.studentId !== studentId);
-            localStorage.setItem('bookings', JSON.stringify(bookings));
-
+            showLoading();
+            
+            // 生徒データを削除
+            await db.ref(`students/${studentId}`).remove();
+            
+            // 関連する申請を削除
+            const requests = await getFromFirebase('requests') || {};
+            const deletePromises = [];
+            
+            Object.entries(requests).forEach(([id, request]) => {
+                if (request.studentId === studentId) {
+                    deletePromises.push(db.ref(`requests/${id}`).remove());
+                }
+            });
+            
+            // 関連する予約を削除
+            const bookings = await getFromFirebase('bookings') || {};
+            Object.entries(bookings).forEach(([id, booking]) => {
+                if (booking.studentId === studentId) {
+                    deletePromises.push(db.ref(`bookings/${id}`).remove());
+                }
+            });
+            
+            await Promise.all(deletePromises);
+            
+            hideLoading();
             alert('生徒を削除しました。');
-            loadStudentsList();
-            loadRequestsList();
-            updateDashboardStats();
         };
 
-        // Load requests list
-        function loadRequestsList() {
-            const requests = JSON.parse(localStorage.getItem('requests') || '[]');
+        async function loadRequestsList() {
+            const requests = await getFromFirebase('requests') || {};
             const container = document.getElementById('requestsList');
             
             if (!container) return;
 
-            if (requests.length === 0) {
+            const requestsArray = Object.values(requests);
+
+            if (requestsArray.length === 0) {
                 container.innerHTML = '<p class="text-gray-500">申請はありません。</p>';
                 return;
             }
 
-            const sortedRequests = requests.sort((a, b) => 
+            const sortedRequests = requestsArray.sort((a, b) => 
                 new Date(b.createdAt) - new Date(a.createdAt)
             );
 
@@ -1343,55 +1749,82 @@
             }).join('');
         }
 
-        // Approve request
-        window.approveRequest = function(requestId) {
-            let requests = JSON.parse(localStorage.getItem('requests') || '[]');
-            const requestIndex = requests.findIndex(r => r.id === requestId);
-
-            if (requestIndex !== -1) {
-                const req = requests[requestIndex];
-                requests[requestIndex].status = 'approved';
-
-                if (req.type === 'new') {
-                    let students = JSON.parse(localStorage.getItem('students') || '[]');
-                    const student = students.find(s => s.id === req.studentId);
-                    
-                    if (student) {
-                        student.assignedSchedule = { day: req.day, time: req.time };
-                        localStorage.setItem('students', JSON.stringify(students));
-                        addWeeklyBookingsUntilFiscalEnd(student, req.day, req.time);
-                    }
-                }
-
-                localStorage.setItem('requests', JSON.stringify(requests));
-                loadRequestsList();
-                loadStudentsList();
-                updateDashboardStats();
-                if (teacherCalendar) initTeacherCalendar();
-                alert('申請を承認しました。');
-            }
-        }
-
-        // Reject request
-        window.rejectRequest = function(requestId) {
-            let requests = JSON.parse(localStorage.getItem('requests') || '[]');
-            const requestIndex = requests.findIndex(r => r.id === requestId);
+        window.approveRequest = async function(requestId) {
+            showLoading();
             
-            if (requestIndex !== -1) {
-                requests[requestIndex].status = 'rejected';
-                localStorage.setItem('requests', JSON.stringify(requests));
-                loadRequestsList();
-                updateDashboardStats();
-                alert('申請を却下しました。');
+            const request = await getFromFirebase(`requests/${requestId}`);
+            if (!request) {
+                hideLoading();
+                alert('申請が見つかりません');
+                return;
             }
+
+            // 申請を承認済みに更新
+            await updateFirebase(`requests/${requestId}`, { status: 'approved' });
+
+            if (request.type === 'new') {
+                // 生徒にスケジュールを割り当て
+                await updateFirebase(`students/${request.studentId}`, {
+                    assignedSchedule: { day: request.day, time: request.time }
+                });
+
+                // 年度末まで毎週の予約を作成
+                await addWeeklyBookingsUntilFiscalEnd(request.studentId, request.studentName, request.day, request.time);
+            }
+
+            hideLoading();
+            alert('申請を承認しました。');
         }
 
-        // Load student schedule
+        window.rejectRequest = async function(requestId) {
+            showLoading();
+            await updateFirebase(`requests/${requestId}`, { status: 'rejected' });
+            hideLoading();
+            alert('申請を却下しました。');
+        }
+
+        async function addWeeklyBookingsUntilFiscalEnd(studentId, studentName, day, time) {
+            const startDate = new Date();
+            const targetDay = { '日':0,'月':1,'火':2,'水':3,'木':4,'金':5,'土':6 }[day];
+
+            let firstLessonDate = new Date(startDate);
+            while (firstLessonDate.getDay() !== targetDay) {
+                firstLessonDate.setDate(firstLessonDate.getDate() + 1);
+            }
+
+            const year = startDate.getMonth() >= 4 ? startDate.getFullYear() + 1 : startDate.getFullYear();
+            const fiscalEnd = new Date(`${year}-03-31T23:59:59`);
+
+            const bookings = {};
+            let current = new Date(firstLessonDate);
+            
+            while (current <= fiscalEnd) {
+                const bookingId = `${studentId}_${current.toISOString().split('T')[0]}_${time}`;
+                bookings[bookingId] = {
+                    id: bookingId,
+                    studentId: studentId,
+                    studentName: studentName,
+                    day,
+                    time,
+                    date: current.toISOString().split('T')[0],
+                    type: 'regular',
+                    status: 'confirmed'
+                };
+                current.setDate(current.getDate() + 7);
+            }
+
+            await updateFirebase('bookings', bookings);
+        }
+
+        // ==========================================
+        // Student Portal Functions
+        // ==========================================
+        
         function loadStudentSchedule() {
             const container = document.getElementById('studentSchedule');
-            if (!container) return;
+            if (!container || !currentUser) return;
             
-            if (currentUser && currentUser.assignedSchedule) {
+            if (currentUser.assignedSchedule) {
                 const schedule = currentUser.assignedSchedule;
                 const endHour = parseInt(schedule.time.split(':')[0]) + (parseInt(schedule.time.split(':')[1]) >= 30 ? 1 : 0);
                 const endMinute = parseInt(schedule.time.split(':')[1]) + 30 >= 60 ? 
@@ -1419,12 +1852,10 @@
             }
         }
 
-        // Load student requests
-        function loadStudentRequests() {
+        function loadStudentRequests(requests) {
             if (!currentUser) return;
             
-            const requests = JSON.parse(localStorage.getItem('requests') || '[]');
-            const studentRequests = requests.filter(r => r.studentId === currentUser.id);
+            const studentRequests = Object.values(requests || {}).filter(r => r.studentId === currentUser.id);
             const container = document.getElementById('studentRequests');
             
             if (!container) return;
@@ -1485,9 +1916,11 @@
             }).join('');
         }
 
-        // Student availability calendar for registration
-        function initStudentAvailabilityCalendarForRegister() {
-            const teacherSchedule = JSON.parse(localStorage.getItem('teacherSchedule') || '{}');
+        // ==========================================
+        // Availability Calendar Functions
+        // ==========================================
+        
+        function initStudentAvailabilityCalendarForRegister(teacherSchedule) {
             const days = ['月', '火', '水', '木', '金', '土', '日'];
 
             for (let choiceNum = 1; choiceNum <= 3; choiceNum++) {
@@ -1542,12 +1975,10 @@
             }
         }
 
-        // Student availability calendar
-        function initStudentAvailabilityCalendar() {
+        function initStudentAvailabilityCalendar(teacherSchedule) {
             const container = document.getElementById('studentAvailabilityCalendar');
             if (!container) return;
 
-            const teacherSchedule = JSON.parse(localStorage.getItem('teacherSchedule') || '{}');
             const days = ['月', '火', '水', '木', '金', '土', '日'];
 
             let html = '<table class="w-full border-collapse">';
@@ -1613,10 +2044,13 @@
             });
         }
 
-        // Manual assign
-        window.openManualAssign = function(studentId) {
-            const students = JSON.parse(localStorage.getItem('students') || '[]');
-            const student = students.find(s => s.id === studentId);
+        // ==========================================
+        // Manual Assignment
+        // ==========================================
+        
+        window.openManualAssign = async function(studentId) {
+            const students = await getFromFirebase('students') || {};
+            const student = students[studentId];
             if (!student) return alert('生徒が見つかりません');
 
             showTeacherTab('manualAssign');
@@ -1628,70 +2062,10 @@
             }
         };
 
-        // Pending calendar
-        function initPendingCalendar() {
-            const requests = JSON.parse(localStorage.getItem('requests') || '[]');
-            const pending = requests.filter(r => r.status === 'pending');
-
-            const events = pending.map(req => {
-                if (req.type === 'new') {
-                    return {
-                        title: `${req.studentName} ${req.time}`,
-                        start: getNextDate(req.day) + 'T' + req.time,
-                        backgroundColor: '#facc15',
-                        borderColor: '#ca8a04',
-                        extendedProps: { requestId: req.id }
-                    };
-                } else if (req.type === 'makeup') {
-                    return {
-                        title: `${req.studentName} 振替申請`,
-                        start: req.toDate + 'T' + req.toTime,
-                        backgroundColor: '#34d399',
-                        borderColor: '#059669',
-                        extendedProps: { requestId: req.id }
-                    };
-                } else if (req.type === 'cancel') {
-                    return {
-                        title: `${req.studentName} キャンセル申請`,
-                        start: req.date,
-                        backgroundColor: '#f87171',
-                        borderColor: '#dc2626',
-                        allDay: true,
-                        extendedProps: { requestId: req.id }
-                    };
-                }
-                return null;
-            }).filter(e => e);
-
-            const calendarEl = document.getElementById('pendingCalendar');
-            if (!calendarEl) return;
-
-            if (calendarEl._calendar) {
-                calendarEl._calendar.destroy();
-            }
-
-            const pendingCalendar = new FullCalendar.Calendar(calendarEl, {
-                initialView: 'timeGridWeek',
-                locale: 'ja',
-                slotMinTime: '09:00',
-                slotMaxTime: '21:00',
-                slotDuration: '00:30',
-                events: events,
-                height: 600,
-                eventClick: function(info) {
-                    const requestId = info.event.extendedProps.requestId;
-                    if (confirm('この申請を承認しますか？')) {
-                        approveRequest(requestId);
-                        initPendingCalendar();
-                    }
-                }
-            });
-
-            pendingCalendar.render();
-            calendarEl._calendar = pendingCalendar;
-        }
-
-        // Get next date for specific day
+        // ==========================================
+        // Helper Functions
+        // ==========================================
+        
         function getNextDate(dayName) {
             const days = {
                 '日': 0, '月': 1, '火': 2, '水': 3, '木': 4, '金': 5, '土': 6
@@ -1707,7 +2081,40 @@
             return targetDate.toISOString().split('T')[0];
         }
 
-        // Manual time options
+        async function loadMakeupTimeOptions() {
+            const select = document.getElementById('makeupToTime');
+            const dateInput = document.getElementById('makeupToDate');
+
+            if (!select || !dateInput) return;
+
+            select.innerHTML = '<option value="">時間選択</option>';
+
+            const teacherSchedule = await getFromFirebase('teacherSchedule') || {};
+            const daySelect = dateInput.value;
+            if (!daySelect) return;
+
+            const day = new Date(daySelect).getDay();
+            const dayNames = ['日','月','火','水','木','金','土'];
+            const dayName = dayNames[day];
+
+            for (let hour = 9; hour <= 20; hour++) {
+                for (let minute = 0; minute < 60; minute += 30) {
+                    const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+                    const endHour = minute === 30 ? hour + 1 : hour;
+                    const endMinute = minute === 30 ? 0 : 30;
+                    const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+
+                    const key = `${dayName}_${timeStr}`;
+                    if (teacherSchedule[key] === true) {
+                        const opt = document.createElement('option');
+                        opt.value = timeStr;
+                        opt.textContent = `${timeStr} - ${endTimeStr}`;
+                        select.appendChild(opt);
+                    }
+                }
+            }
+        }
+
         function populateManualTimeOptions() {
             const select = document.getElementById('manualTime');
             if (!select) return;
@@ -1729,15 +2136,14 @@
             }
         }
 
-        // Manual student options
-        function populateManualStudentOptions() {
+        async function populateManualStudentOptions() {
             const select = document.getElementById('manualStudentSelect');
             if (!select) return;
 
-            const students = JSON.parse(localStorage.getItem('students') || '[]');
+            const students = await getFromFirebase('students') || {};
             select.innerHTML = '<option value="">生徒を選択</option>';
 
-            students.forEach(student => {
+            Object.values(students).forEach(student => {
                 const opt = document.createElement('option');
                 opt.value = student.email;
                 opt.textContent = `${student.name}（${student.email}）`;
