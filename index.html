@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title> ピアノ教室予約管理システム</title>
+    <title>ピアノ教室予約管理システム</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
@@ -33,12 +33,12 @@
             border: none !important;
             background: linear-gradient(45deg, #3b82f6, #1d4ed8) !important;
         }
-       .page {
-    display: none;
-}
-.page.active {
-    display: block !important;
-}
+        .page {
+            display: none;
+        }
+        .page.active {
+            display: block !important;
+        }
 
         @media print {
             .page {
@@ -50,69 +50,52 @@
             }
         }
         
-    /* 予約カレンダーのイベントを小さく（30分枠の上半分だけ） */
-    .fc-timegrid-event {
-        height: 50% !important;       /* ← 高さを半分に */
-        font-size: 12px !important;   /* ← 文字を小さく */
-        padding: 2px 4px !important;  /* ← コンパクトに */
-        overflow: hidden;
-    }
+        /* 予約カレンダーのイベントを小さく（30分枠の上半分だけ） */
+        .fc-timegrid-event {
+            height: 50% !important;       /* ← 高さを半分に */
+            font-size: 12px !important;   /* ← 文字を小さく */
+            padding: 2px 4px !important;  /* ← コンパクトに */
+            overflow: hidden;
+        }
 
-    /* タイトルをシンプルに（はみ出したら省略） */
-    .fc-event-title {
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-</style>
+        /* タイトルをシンプルに（はみ出したら省略） */
+        .fc-event-title {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+    </style>
 </head>
 <body class="bg-gray-50">
-    <div id="teacher-login" class="page mt-24">
-  <div class="max-w-sm mx-auto mt-10 p-6 bg-white shadow rounded">
-    <h2 class="text-xl font-bold mb-4">講師ログイン</h2>
-    <input id="teacher-email" type="text" placeholder="メールアドレス" class="border p-2 w-full mb-2">
-<input id="teacher-password" type="password" placeholder="パスワード" class="border p-2 w-full mb-4">
-<button onclick="handleTeacherLogin()" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded w-full">ログイン</button>
-  </div>
-</div>
-
-<div id="student-login" class="page mt-24">
-  <div class="max-w-sm mx-auto mt-10 p-6 bg-white shadow rounded">
-    <h2 class="text-xl font-bold mb-4">生徒ログイン</h2>
-    <input type="text" placeholder="生徒ID" class="border p-2 w-full mb-2">
-    <input type="password" placeholder="パスワード" class="border p-2 w-full mb-4">
-    <button class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded w-full">ログイン</button>
-  </div>
-</div>
-   <!-- Navigation -->
-<nav class="bg-blue-600 text-white p-4 fixed top-0 left-0 right-0 z-50">
-  <div class="container mx-auto flex justify-between items-center">
-    <h1 class="text-xl font-bold flex items-center">
-      <i class="fas fa-music mr-2"></i>
-      ピアノ教室予約システム
-    </h1>
-    <div class="space-x-4">
-      <button type="button" onclick="showPage('home')" class="hover:bg-blue-700 px-3 py-2 rounded">
-        <i class="fas fa-home mr-1"></i>ホーム
-      </button>
-      <button type="button" onclick="showPage('student-register')" class="hover:bg-blue-700 px-3 py-2 rounded">
-        <i class="fas fa-user-plus mr-1"></i>生徒登録
-      </button>
-      <button type="button" onclick="showPage('teacher-login')" class="hover:bg-blue-700 px-3 py-2 rounded">
-        <i class="fas fa-chalkboard-teacher mr-1"></i>講師ログイン
-      </button>
-      <button type="button" onclick="showPage('student-login')" class="hover:bg-blue-700 px-3 py-2 rounded">
-        <i class="fas fa-sign-in-alt mr-1"></i>生徒ログイン
-      </button>
-    </div>
-  </div>
-</nav>
+    <!-- Navigation -->
+    <nav class="bg-blue-600 text-white p-4 fixed top-0 left-0 right-0 z-50">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold flex items-center">
+                <i class="fas fa-music mr-2"></i>
+                ピアノ教室予約システム
+            </h1>
+            <div class="space-x-4">
+                <button type="button" onclick="showPage('home')" class="hover:bg-blue-700 px-3 py-2 rounded">
+                    <i class="fas fa-home mr-1"></i>ホーム
+                </button>
+                <button type="button" onclick="showPage('student-register')" class="hover:bg-blue-700 px-3 py-2 rounded">
+                    <i class="fas fa-user-plus mr-1"></i>生徒登録
+                </button>
+                <button type="button" onclick="showPage('teacher-login')" class="hover:bg-blue-700 px-3 py-2 rounded">
+                    <i class="fas fa-chalkboard-teacher mr-1"></i>講師ログイン
+                </button>
+                <button type="button" onclick="showPage('student-login')" class="hover:bg-blue-700 px-3 py-2 rounded">
+                    <i class="fas fa-sign-in-alt mr-1"></i>生徒ログイン
+                </button>
+            </div>
+        </div>
+    </nav>
 
     <!-- Home Page -->
     <div id="home" class="page mt-24">
         <div class="container mx-auto max-w-4xl px-4">
             <div class="text-center mb-12">
-                <h1 class="text-4xl font-bold text-gray-800 mb-4"> ピアノ教室予約管理システム</h1>
+                <h1 class="text-4xl font-bold text-gray-800 mb-4">ピアノ教室予約管理システム</h1>
                 <p class="text-xl text-gray-600 mb-8">個人運営ピアノ教室の完全予約管理システム</p>
             </div>
 
@@ -121,7 +104,9 @@
                     <i class="fas fa-user-plus text-4xl text-blue-500 mb-4"></i>
                     <h3 class="text-xl font-semibold mb-3">生徒登録</h3>
                     <p class="text-gray-600 mb-4">年1回の希望時間提出で自動スケジュール決定</p>
-                    
+                    <button type="button" onclick="showPage('student-register')" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                        登録画面
+                    </button>
                 </div>
 
                 <div class="bg-white p-6 rounded-lg shadow-md text-center">
@@ -129,9 +114,8 @@
                     <h3 class="text-xl font-semibold mb-3">講師管理</h3>
                     <p class="text-gray-600 mb-4">稼働時間設定・予約状況確認・申請管理</p>
                     <button type="button" onclick="showPage('teacher-login')" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
-    管理画面
-</button>
-
+                        管理画面
+                    </button>
                 </div>
 
                 <div class="bg-white p-6 rounded-lg shadow-md text-center">
@@ -139,9 +123,8 @@
                     <h3 class="text-xl font-semibold mb-3">生徒ポータル</h3>
                     <p class="text-gray-600 mb-4">予約確認・キャンセル・振替申請</p>
                     <button type="button" onclick="showPage('student-login')" class="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600">
-    ログイン
-</button>
-
+                        ログイン
+                    </button>
                 </div>
             </div>
 
@@ -203,7 +186,7 @@
     <div id="student-register" class="page mt-24">
         <div class="container mx-auto max-w-2xl px-4">
             <div class="bg-white rounded-lg shadow-md p-8">
-                <h2 class="text-2xl font-bold mb-6 text-center"> 生徒登録フォーム</h2>
+                <h2 class="text-2xl font-bold mb-6 text-center">生徒登録フォーム</h2>
                 <p class="text-gray-600 text-center mb-8">年1回の希望時間提出で固定スケジュールが決まります</p>
                 
                 <form id="studentRegisterForm">
@@ -246,23 +229,23 @@
                             </div>
 
                             <!-- First Choice -->
-<div class="border border-gray-200 rounded-md p-4">
-    <h4 class="font-medium mb-3 text-blue-600">第1希望</h4>
-    <div id="calendarChoice1"></div>
-</div>
+                            <div class="border border-gray-200 rounded-md p-4">
+                                <h4 class="font-medium mb-3 text-blue-600">第1希望</h4>
+                                <div id="calendarChoice1"></div>
+                            </div>
 
-<!-- Second Choice -->
-<div class="border border-gray-200 rounded-md p-4">
-    <h4 class="font-medium mb-3 text-green-600">第2希望</h4>
-    <div id="calendarChoice2"></div>
-</div>
+                            <!-- Second Choice -->
+                            <div class="border border-gray-200 rounded-md p-4">
+                                <h4 class="font-medium mb-3 text-green-600">第2希望</h4>
+                                <div id="calendarChoice2"></div>
+                            </div>
 
-<!-- Third Choice -->
-<div class="border border-gray-200 rounded-md p-4">
-    <h4 class="font-medium mb-3 text-purple-600">第3希望</h4>
-    <div id="calendarChoice3"></div>
-</div>
-
+                            <!-- Third Choice -->
+                            <div class="border border-gray-200 rounded-md p-4">
+                                <h4 class="font-medium mb-3 text-purple-600">第3希望</h4>
+                                <div id="calendarChoice3"></div>
+                            </div>
+                        </div>
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">
@@ -369,11 +352,11 @@
                         <button onclick="showTeacherTab('students')" id="studentsTab" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
                             <i class="fas fa-users mr-2"></i>生徒一覧
                         </button>
+                        <button onclick="showTeacherTab('pendingCalendar')" id="pendingCalendarTab" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
+                            <i class="fas fa-calendar-plus mr-2"></i>申請カレンダー
+                        </button>
                     </div>
                 </div>
-<button onclick="showTeacherTab('pendingCalendar')" id="pendingCalendarTab" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
-    <i class="fas fa-calendar-plus mr-2"></i>申請カレンダー
-</button>
 
                 <!-- Schedule Tab -->
                 <div id="scheduleTabContent" class="teacherTabContent p-6">
@@ -425,51 +408,42 @@
                 <div id="studentsTabContent" class="teacherTabContent p-6" style="display: none;">
                     <h3 class="text-lg font-semibold mb-4">生徒一覧</h3>
                     <div id="studentsList">
-                
                         <!-- Generated by JavaScript -->
                     </div>
-                    <!-- Manual Assign Tab -->
-<div id="manualAssignTabContent" class="teacherTabContent p-6" style="display: none;">
-    <h3 class="text-lg font-semibold mb-4">手動割り振り</h3>
-    <div id="manualAssignFormContainer">
-        <p class="text-gray-500">生徒を選択してください。</p>
-    </div>
-</div>
-
                 </div>
-                <!-- Pending Requests Calendar Tab -->
-<div id="pendingCalendarTabContent" class="teacherTabContent p-6" style="display: none;">
-    <h3 class="text-lg font-semibold mb-4">承認待ち申請カレンダー</h3>
-    <div id="pendingCalendar" style="height: 600px;"></div>
-</div>
 
+                <!-- Pending Requests Calendar Tab -->
+                <div id="pendingCalendarTabContent" class="teacherTabContent p-6" style="display: none;">
+                    <h3 class="text-lg font-semibold mb-4">承認待ち申請カレンダー</h3>
+                    <div id="pendingCalendar" style="height: 600px;"></div>
+                </div>
+
+                <!-- Manual Assign Tab -->
+                <div id="manualAssignTabContent" class="teacherTabContent p-6" style="display: none;">
+                    <h3 class="text-lg font-semibold mb-4">手動予約追加</h3>
+                    <form id="manualAssignForm" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">生徒選択</label>
+                            <select id="manualStudentSelect" required class="w-full border rounded p-2"></select>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-sm font-medium mb-1">日付</label>
+                                <input type="date" id="manualDate" required class="w-full border rounded p-2" />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-1">時間</label>
+                                <select id="manualTime" required class="w-full border rounded p-2"></select>
+                            </div>
+                        </div>
+                        <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                            予約を追加
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
-    <!-- Manual Assign Tab -->
-<div id="manualAssignTabContent" class="teacherTabContent p-6" style="display: none;">
-    <h3 class="text-lg font-semibold mb-4">手動予約追加</h3>
-    <form id="manualAssignForm" class="space-y-4">
-        <div>
-            <label class="block text-sm font-medium mb-1">生徒選択</label>
-            <select id="manualStudentSelect" required class="w-full border rounded p-2"></select>
-        </div>
-        <div class="grid grid-cols-2 gap-2">
-            <div>
-                <label class="block text-sm font-medium mb-1">日付</label>
-                <input type="date" id="manualDate" required class="w-full border rounded p-2" />
-            </div>
-            <div>
-                <label class="block text-sm font-medium mb-1">時間</label>
-                <select id="manualTime" required class="w-full border rounded p-2"></select>
-            </div>
-        </div>
-        <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
-            予約を追加
-        </button>
-    </form>
-</div>
-
 
     <!-- Student Login Page -->
     <div id="student-login" class="page mt-24">
@@ -592,52 +566,35 @@
                     </form>
                 </div>
             </div>
+
             <!-- 新規レッスン候補カレンダー -->
-<div class="bg-white rounded-lg shadow-md p-6 mb-6">
-    <h3 class="text-lg font-semibold mb-4 text-blue-500">
-        <i class="fas fa-calendar-alt mr-2"></i>先生の稼働スケジュール
-    </h3>
-    <p class="text-gray-600 mb-4">○の枠だけ選択できます（最大3つまで）</p>
-    <div id="studentAvailabilityCalendar"></div>
-</div>
-<!-- 新規レッスン申請 -->
-<div class="bg-white rounded-lg shadow-md p-6">
-    <h3 class="text-lg font-semibold mb-4 text-blue-500">
-        <i class="fas fa-plus-circle mr-2"></i>
-        新規レッスン申請
-    </h3>
-    <p class="text-gray-600 mb-4">新しく希望するレッスン日時を申請します</p>
-    <form id="newLessonForm">
-        <div class="space-y-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">希望曜日</label>
-                <select id="newLessonDay" required class="w-full p-2 border border-gray-300 rounded">
-                    <option value="">選択してください</option>
-                    <option value="月">月曜日</option>
-                    <option value="火">火曜日</option>
-                    <option value="水">水曜日</option>
-                    <option value="木">木曜日</option>
-                    <option value="金">金曜日</option>
-                    <option value="土">土曜日</option>
-                    <option value="日">日曜日</option>
-                </select>
+            <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                <h3 class="text-lg font-semibold mb-4 text-blue-500">
+                    <i class="fas fa-calendar-alt mr-2"></i>先生の稼働スケジュール
+                </h3>
+                <p class="text-gray-600 mb-4">○の枠だけ選択できます（最大3つまで）</p>
+                <div id="studentAvailabilityCalendar"></div>
             </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">希望時間</label>
-                <select id="newLessonTime" required class="w-full p-2 border border-gray-300 rounded">
-                    <option value="">選択してください</option>
-                </select>
+
+            <!-- 新規レッスン申請 -->
+            <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                <h3 class="text-lg font-semibold mb-4 text-blue-500">
+                    <i class="fas fa-plus-circle mr-2"></i>
+                    新規レッスン申請
+                </h3>
+                <p class="text-gray-600 mb-4">新しく希望するレッスン日時を申請します</p>
+                <form id="newLessonForm">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">理由</label>
+                            <textarea id="newLessonReason" rows="2" class="w-full p-2 border border-gray-300 rounded"></textarea>
+                        </div>
+                        <button type="submit" class="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600">
+                            申請する
+                        </button>
+                    </div>
+                </form>
             </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">理由</label>
-                <textarea id="newLessonReason" rows="2" class="w-full p-2 border border-gray-300 rounded"></textarea>
-            </div>
-            <button type="submit" class="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600">
-                申請する
-            </button>
-        </div>
-    </form>
-</div>
 
             <!-- Request History -->
             <div class="bg-white rounded-lg shadow-md p-6">
@@ -653,328 +610,389 @@
     </div>
 
     <script>
-
         // Global variables
         let currentUser = null;
         let currentUserType = null;
         let teacherCalendar = null;
 
         function addWeeklyBookingsUntilFiscalEnd(student, day, time) {
-    let bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+            let bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
 
-    const startDate = new Date();
-    const targetDay = { '日':0,'月':1,'火':2,'水':3,'木':4,'金':5,'土':6 }[day];
+            const startDate = new Date();
+            const targetDay = { '日':0,'月':1,'火':2,'水':3,'木':4,'金':5,'土':6 }[day];
 
-    let firstLessonDate = new Date(startDate);
-    while (firstLessonDate.getDay() !== targetDay) {
-        firstLessonDate.setDate(firstLessonDate.getDate() + 1);
-    }
-
-    const year = startDate.getMonth() >= 4 ? startDate.getFullYear() + 1 : startDate.getFullYear();
-    const fiscalEnd = new Date(`${year}-03-31T23:59:59`);
-
-    let current = new Date(firstLessonDate);
-    while (current <= fiscalEnd) {
-        bookings.push({
-            id: Date.now().toString() + Math.random(),
-            studentId: student.id,
-            studentName: student.name,
-            day,
-            time,
-            date: current.toISOString().split('T')[0],
-            type: 'regular',
-            status: 'confirmed'
-        });
-        current.setDate(current.getDate() + 7);
-    }
-
-    localStorage.setItem('bookings', JSON.stringify(bookings));
-}
-
-
-       function initSystem() {
-    loadTimeOptions();
-    loadMakeupTimeOptions();
-    generateScheduleTable();
-
-    // teacher-dashboard が表示されているときだけ処理する
-    if (document.getElementById('teacher-dashboard')) {
-        try {
-            updateDashboardStats();
-            loadStudentsList();
-            loadRequestsList();
-        } catch (e) {
-            console.warn('講師画面の初期化エラー:', e);
-        }
-    }
-
-    // student-portal が表示されているときだけ処理する
-    if (document.getElementById('student-portal')) {
-        try {
-            loadStudentRequests();
-        } catch (e) {
-            console.warn('生徒画面の初期化エラー:', e);
-        }
-    }
-}
-
-
-window.showPage = function(pageId) {
-    // 全ページを非表示
-    document.querySelectorAll('.page').forEach(page => {
-        page.classList.remove('active');
-    });
-
-    // 対象ページを表示（存在チェック付き）
-    const target = document.getElementById(pageId);
-    if (!target) {
-        console.error(`ページ "${pageId}" が見つかりません`);
-        return;
-    }
-    target.classList.add('active');
-
-    // ページ別の初期化処理
-    switch (pageId) {
-        case 'teacher-login':
-            document.getElementById('teacherLoginForm')?.reset();
-            initLoginForms(); // ← 追加（フォームのイベント再登録）
-            break;
-        case 'student-login':
-            document.getElementById('studentLoginForm')?.reset();
-            initLoginForms(); // ← 追加
-            break;
-        case 'teacher-dashboard':
-            setTimeout(() => {
-                generateScheduleTable?.();
-                updateDashboardStats?.();
-                loadStudentsList?.();
-                loadRequestsList?.();
-                populateManualTimeOptions?.(); // ← これ追加
-        populateManualStudentOptions?.(); // ← これ追加
-                if (document.getElementById('teacherCalendar')) {
-                    initTeacherCalendar?.();
-                }
-
-                renderPendingCalendar();
-
-            }, 100);
-            break;
-        case 'student-register':
-            if (document.getElementById('calendarChoice1')) {
-                initStudentAvailabilityCalendarForRegister?.();
+            let firstLessonDate = new Date(startDate);
+            while (firstLessonDate.getDay() !== targetDay) {
+                firstLessonDate.setDate(firstLessonDate.getDate() + 1);
             }
-            break;
-        case 'student-portal':
-            loadStudentSchedule?.();
-            loadStudentRequests?.();
-            if (document.getElementById('studentAvailabilityCalendar')) {
-                initStudentAvailabilityCalendar?.();
+
+            const year = startDate.getMonth() >= 4 ? startDate.getFullYear() + 1 : startDate.getFullYear();
+            const fiscalEnd = new Date(`${year}-03-31T23:59:59`);
+
+            let current = new Date(firstLessonDate);
+            while (current <= fiscalEnd) {
+                bookings.push({
+                    id: Date.now().toString() + Math.random(),
+                    studentId: student.id,
+                    studentName: student.name,
+                    day,
+                    time,
+                    date: current.toISOString().split('T')[0],
+                    type: 'regular',
+                    status: 'confirmed'
+                });
+                current.setDate(current.getDate() + 7);
             }
-            break;
-    }
-};
 
-
-// DOMロード時の初期表示
-document.addEventListener('DOMContentLoaded', function() {
-    initSystem();
-        initLoginForms(); // ← 追加
-    showPage('home'); // 最初はホームを表示
-});
-
-       // 希望時間の選択肢をロード（9:00〜20:30まで、30分刻み）
-function loadTimeOptions() {
-    const timeSelects = ['choice1Time', 'choice2Time', 'choice3Time'];
-
-    timeSelects.forEach(id => {
-        const select = document.getElementById(id);
-        if (!select) return; // ← これでエラーを防止
-
-        // 初期選択肢
-        select.innerHTML = '<option value="">選択してください</option>';
-
-        for (let hour = 9; hour <= 20; hour++) {
-            for (let minute = 0; minute < 60; minute += 30) {
-                const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-                const endHour = minute === 30 ? hour + 1 : hour;
-                const endMinute = minute === 30 ? 0 : 30;
-                const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
-
-                const opt = document.createElement('option');
-                opt.value = timeStr;
-                opt.textContent = `${timeStr} - ${endTimeStr}`;
-                select.appendChild(opt);
-            }
+            localStorage.setItem('bookings', JSON.stringify(bookings));
         }
-    });
-}
 
-
-// 振替レッスンの時間選択肢をロード（先生スケジュールと連動）
-function loadMakeupTimeOptions() {
-    const select = document.getElementById('makeupToTime');
-    const dateInput = document.getElementById('makeupToDate');
-
-    // HTML上に対象の要素が存在していなければ処理を中断
-    if (!select || !dateInput) return;
-
-    select.innerHTML = '<option value="">時間選択</option>';
-
-    const teacherSchedule = JSON.parse(localStorage.getItem('teacherSchedule') || '{}');
-    const daySelect = dateInput.value;
-    if (!daySelect) return;
-
-    const day = new Date(daySelect).getDay(); // 0=日,1=月...
-    const dayNames = ['日','月','火','水','木','金','土'];
-    const dayName = dayNames[day];
-
-    for (let hour = 9; hour <= 20; hour++) {
-        for (let minute = 0; minute < 60; minute += 30) {
-            const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-            const endHour = minute === 30 ? hour + 1 : hour;
-            const endMinute = minute === 30 ? 0 : 30;
-            const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
-
-            const key = `${dayName}_${timeStr}`;
-            if (teacherSchedule[key]) {
-                const opt = document.createElement('option');
-                opt.value = timeStr;
-                opt.textContent = `${timeStr} - ${endTimeStr}`;
-                select.appendChild(opt);
-            }
-        }
-    }
-}
-
-
-
-   // Student registration
-const studentRegisterForm = document.getElementById('studentRegisterForm');
-if (studentRegisterForm) {
-    studentRegisterForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-
-        const choices = [];
-        for (let i = 1; i <= 3; i++) {
-            const slot = localStorage.getItem(`registerChoice${i}`);
-            if (slot) {
-                const [day, time] = slot.split('_');
-                choices.push({ day, time });
+        function initSystem() {
+            loadTimeOptions();
+            loadMakeupTimeOptions();
+            
+            // Event listener for date changes
+            const makeupToDate = document.getElementById('makeupToDate');
+            if (makeupToDate) {
+                makeupToDate.addEventListener('change', loadMakeupTimeOptions);
             }
         }
 
-        const studentData = {
-            id: Date.now().toString(),
-            name: document.getElementById('studentName').value,
-            email: document.getElementById('studentEmail').value,
-            phone: document.getElementById('studentPhone').value,
-            choices: choices,
-            notes: document.getElementById('studentNotes').value,
-            registeredAt: new Date().toISOString(),
-            assignedSchedule: null
+        window.showPage = function(pageId) {
+            // 全ページを非表示
+            document.querySelectorAll('.page').forEach(page => {
+                page.classList.remove('active');
+            });
+
+            // 対象ページを表示
+            const target = document.getElementById(pageId);
+            if (!target) {
+                console.error(`ページ "${pageId}" が見つかりません`);
+                return;
+            }
+            target.classList.add('active');
+
+            // ページ別の初期化処理
+            switch (pageId) {
+                case 'teacher-dashboard':
+                    setTimeout(() => {
+                        generateScheduleTable();
+                        updateDashboardStats();
+                        loadStudentsList();
+                        loadRequestsList();
+                        populateManualTimeOptions();
+                        populateManualStudentOptions();
+                    }, 100);
+                    break;
+                case 'student-register':
+                    setTimeout(() => {
+                        initStudentAvailabilityCalendarForRegister();
+                    }, 100);
+                    break;
+                case 'student-portal':
+                    setTimeout(() => {
+                        loadStudentSchedule();
+                        loadStudentRequests();
+                        initStudentAvailabilityCalendar();
+                    }, 100);
+                    break;
+            }
         };
 
-        let students = JSON.parse(localStorage.getItem('students') || '[]');
-        students.push(studentData);
-        localStorage.setItem('students', JSON.stringify(students));
+        // DOMロード時の初期表示
+        document.addEventListener('DOMContentLoaded', function() {
+            initSystem();
+            showPage('home');
 
-        let requests = JSON.parse(localStorage.getItem('requests') || '[]');
-        studentData.choices.forEach((choice, index) => {
-            requests.push({
-                id: Date.now().toString() + index,
-                studentId: studentData.id,
-                studentName: studentData.name,
-                type: 'new',
-                day: choice.day,
-                time: choice.time,
-                reason: `第${index + 1}希望`,
-                status: 'pending',
-                createdAt: new Date().toISOString()
-            });
-        });
-        localStorage.setItem('requests', JSON.stringify(requests));
+            // Login form handlers
+            const teacherLoginForm = document.getElementById('teacherLoginForm');
+            if (teacherLoginForm) {
+                teacherLoginForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    const email = document.getElementById('teacherEmail').value;
+                    const password = document.getElementById('teacherPassword').value;
 
-        for (let i = 1; i <= 3; i++) {
-            localStorage.removeItem(`registerChoice${i}`);
-        }
+                    if (email === 'little.chopin-301@docomo.ne.jp' && password === 'kobuta121') {
+                        currentUser = { email: email };
+                        currentUserType = 'teacher';
+                        showPage('teacher-dashboard');
+                    } else {
+                        alert('メールアドレスまたはパスワードが間違っています。');
+                    }
+                });
+            }
 
-        alert('登録が完了しました！先生による承認後にスケジュールが確定します。');
-        studentRegisterForm.reset();
-        showPage('home');
-    });
-}
+            const studentLoginForm = document.getElementById('studentLoginForm');
+            if (studentLoginForm) {
+                studentLoginForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    const name = document.getElementById('loginStudentName').value;
+                    const email = document.getElementById('loginStudentEmail').value;
 
-        // Auto assign schedule
-        function autoAssignSchedule(student) {
-            const teacherSchedule = JSON.parse(localStorage.getItem('teacherSchedule') || '{}');
-            const existingBookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+                    const students = JSON.parse(localStorage.getItem('students') || '[]');
+                    const student = students.find(s => s.name === name && s.email === email);
 
-            // Try each choice in order
-            for (let choice of student.choices) {
-                if (!choice.day || !choice.time) continue;
+                    if (student) {
+                        currentUser = student;
+                        currentUserType = 'student';
+                        document.getElementById('currentStudentName').textContent = student.name;
+                        showPage('student-portal');
+                    } else {
+                        alert('お名前またはメールアドレスが見つかりません。');
+                    }
+                });
+            }
 
-                const timeKey = `${choice.day}_${choice.time}`;
-                
-                // Check if teacher is available
-                if (teacherSchedule[timeKey] === true) {
-                    // Check if slot is not already booked
-                    const isBooked = existingBookings.some(booking => 
-                        booking.day === choice.day && booking.time === choice.time
-                    );
+            // Student registration form
+            const studentRegisterForm = document.getElementById('studentRegisterForm');
+            if (studentRegisterForm) {
+                studentRegisterForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
 
-                    if (!isBooked) {
-                        // Assign this slot
-                        student.assignedSchedule = {
-                            day: choice.day,
-                            time: choice.time
-                        };
+                    const choices = [];
+                    for (let i = 1; i <= 3; i++) {
+                        const slot = localStorage.getItem(`registerChoice${i}`);
+                        if (slot) {
+                            const [day, time] = slot.split('_');
+                            choices.push({ day, time });
+                        }
+                    }
 
-                        // Create booking
-                        const booking = {
-                            id: Date.now().toString(),
-                            studentId: student.id,
-                            studentName: student.name,
+                    const studentData = {
+                        id: Date.now().toString(),
+                        name: document.getElementById('studentName').value,
+                        email: document.getElementById('studentEmail').value,
+                        phone: document.getElementById('studentPhone').value,
+                        choices: choices,
+                        notes: document.getElementById('studentNotes').value,
+                        registeredAt: new Date().toISOString(),
+                        assignedSchedule: null
+                    };
+
+                    let students = JSON.parse(localStorage.getItem('students') || '[]');
+                    students.push(studentData);
+                    localStorage.setItem('students', JSON.stringify(students));
+
+                    let requests = JSON.parse(localStorage.getItem('requests') || '[]');
+                    studentData.choices.forEach((choice, index) => {
+                        requests.push({
+                            id: Date.now().toString() + index,
+                            studentId: studentData.id,
+                            studentName: studentData.name,
+                            type: 'new',
                             day: choice.day,
                             time: choice.time,
-                            type: 'regular',
-                            status: 'confirmed'
-                        };
+                            reason: `第${index + 1}希望`,
+                            status: 'pending',
+                            createdAt: new Date().toISOString()
+                        });
+                    });
+                    localStorage.setItem('requests', JSON.stringify(requests));
 
-                        existingBookings.push(booking);
-                        localStorage.setItem('bookings', JSON.stringify(existingBookings));
+                    for (let i = 1; i <= 3; i++) {
+                        localStorage.removeItem(`registerChoice${i}`);
+                    }
 
-                        // Update student data
-                        let students = JSON.parse(localStorage.getItem('students') || '[]');
-                        const studentIndex = students.findIndex(s => s.id === student.id);
-                        if (studentIndex !== -1) {
-                            students[studentIndex] = student;
-                            localStorage.setItem('students', JSON.stringify(students));
-                        }
+                    alert('登録が完了しました！先生による承認後にスケジュールが確定します。');
+                    studentRegisterForm.reset();
+                    showPage('home');
+                });
+            }
 
+            // Cancel form
+            const cancelForm = document.getElementById('cancelForm');
+            if (cancelForm) {
+                cancelForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    const request = {
+                        id: Date.now().toString(),
+                        studentId: currentUser.id,
+                        studentName: currentUser.name,
+                        type: 'cancel',
+                        date: document.getElementById('cancelDate').value,
+                        reason: document.getElementById('cancelReason').value,
+                        status: 'pending',
+                        createdAt: new Date().toISOString()
+                    };
+
+                    let requests = JSON.parse(localStorage.getItem('requests') || '[]');
+                    requests.push(request);
+                    localStorage.setItem('requests', JSON.stringify(requests));
+
+                    alert('キャンセル申請を送信しました。承認をお待ちください。');
+                    cancelForm.reset();
+                    loadStudentRequests();
+                });
+            }
+
+            // Makeup form
+            const makeupForm = document.getElementById('makeupForm');
+            if (makeupForm) {
+                makeupForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    const request = {
+                        id: Date.now().toString(),
+                        studentId: currentUser.id,
+                        studentName: currentUser.name,
+                        type: 'makeup',
+                        fromDate: document.getElementById('makeupFromDate').value,
+                        toDate: document.getElementById('makeupToDate').value,
+                        toTime: document.getElementById('makeupToTime').value,
+                        reason: document.getElementById('makeupReason').value,
+                        status: 'pending',
+                        createdAt: new Date().toISOString()
+                    };
+
+                    let requests = JSON.parse(localStorage.getItem('requests') || '[]');
+                    requests.push(request);
+                    localStorage.setItem('requests', JSON.stringify(requests));
+
+                    alert('振替申請を送信しました。承認をお待ちください。');
+                    makeupForm.reset();
+                    loadStudentRequests();
+                });
+            }
+
+            // New lesson form
+            const newLessonForm = document.getElementById('newLessonForm');
+            if (newLessonForm) {
+                newLessonForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+
+                    const selectedSlots = JSON.parse(localStorage.getItem('studentSelectedSlots') || '[]');
+                    if (selectedSlots.length === 0) {
+                        alert('希望枠を○カレンダーから選択してください');
                         return;
+                    }
+
+                    const requests = JSON.parse(localStorage.getItem('requests') || '[]');
+                    const reason = document.getElementById('newLessonReason').value;
+                    
+                    selectedSlots.forEach((slot, index) => {
+                        const [day, time] = slot.split('_');
+                        requests.push({
+                            id: Date.now().toString() + '_' + index,
+                            studentId: currentUser.id,
+                            studentName: currentUser.name,
+                            type: 'new',
+                            day,
+                            time,
+                            reason: reason || `第${index + 1}希望`,
+                            status: 'pending',
+                            createdAt: new Date().toISOString()
+                        });
+                    });
+                    localStorage.setItem('requests', JSON.stringify(requests));
+
+                    alert('新規レッスン申請を送信しました。先生の承認をお待ちください。');
+                    localStorage.removeItem('studentSelectedSlots');
+                    newLessonForm.reset();
+                    loadStudentRequests();
+                });
+            }
+
+            // Manual assign form
+            const manualAssignForm = document.getElementById('manualAssignForm');
+            if (manualAssignForm) {
+                manualAssignForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+
+                    const email = document.getElementById('manualStudentSelect').value;
+                    const date = document.getElementById('manualDate').value;
+                    const time = document.getElementById('manualTime').value;
+
+                    const students = JSON.parse(localStorage.getItem('students') || '[]');
+                    const student = students.find(s => s.email === email);
+                    if (!student) {
+                        alert('生徒情報が見つかりません');
+                        return;
+                    }
+
+                    const confirmed = JSON.parse(localStorage.getItem('confirmedReservations') || '[]');
+                    const dateTime = new Date(`${date}T${time}`);
+
+                    confirmed.push({
+                        name: student.name,
+                        email: student.email,
+                        datetime: dateTime.toISOString(),
+                        reason: '講師による手動登録',
+                        type: 'manual'
+                    });
+
+                    localStorage.setItem('confirmedReservations', JSON.stringify(confirmed));
+                    alert('予約を追加しました');
+                    if (teacherCalendar) {
+                        initTeacherCalendar();
+                    }
+                    manualAssignForm.reset();
+                });
+            }
+        });
+
+        // 希望時間の選択肢をロード
+        function loadTimeOptions() {
+            const timeSelects = ['choice1Time', 'choice2Time', 'choice3Time'];
+
+            timeSelects.forEach(id => {
+                const select = document.getElementById(id);
+                if (!select) return;
+
+                select.innerHTML = '<option value="">選択してください</option>';
+
+                for (let hour = 9; hour <= 20; hour++) {
+                    for (let minute = 0; minute < 60; minute += 30) {
+                        const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+                        const endHour = minute === 30 ? hour + 1 : hour;
+                        const endMinute = minute === 30 ? 0 : 30;
+                        const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+
+                        const opt = document.createElement('option');
+                        opt.value = timeStr;
+                        opt.textContent = `${timeStr} - ${endTimeStr}`;
+                        select.appendChild(opt);
+                    }
+                }
+            });
+        }
+
+        // 振替レッスンの時間選択肢をロード
+        function loadMakeupTimeOptions() {
+            const select = document.getElementById('makeupToTime');
+            const dateInput = document.getElementById('makeupToDate');
+
+            if (!select || !dateInput) return;
+
+            select.innerHTML = '<option value="">時間選択</option>';
+
+            const teacherSchedule = JSON.parse(localStorage.getItem('teacherSchedule') || '{}');
+            const daySelect = dateInput.value;
+            if (!daySelect) return;
+
+            const day = new Date(daySelect).getDay();
+            const dayNames = ['日','月','火','水','木','金','土'];
+            const dayName = dayNames[day];
+
+            for (let hour = 9; hour <= 20; hour++) {
+                for (let minute = 0; minute < 60; minute += 30) {
+                    const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+                    const endHour = minute === 30 ? hour + 1 : hour;
+                    const endMinute = minute === 30 ? 0 : 30;
+                    const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+
+                    const key = `${dayName}_${timeStr}`;
+                    if (teacherSchedule[key]) {
+                        const opt = document.createElement('option');
+                        opt.value = timeStr;
+                        opt.textContent = `${timeStr} - ${endTimeStr}`;
+                        select.appendChild(opt);
                     }
                 }
             }
-
-            // If no slot could be assigned
-            alert('申し訳ありません。ご希望の時間に空きがありませんでした。講師より個別にご連絡いたします。');
         }
-
-        // Teacher login
-document.getElementById('teacherLoginForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    
-    const email = document.getElementById('teacherEmail').value;
-    const password = document.getElementById('teacherPassword').value;
-
-    if (email === 'little.chopin-301@docomo.ne.jp' && password === 'kobuta121') {
-        currentUser = { email: email };
-        currentUserType = 'teacher';
-        showPage('teacher-dashboard'); // ページ切り替えで初期化される
-    } else {
-        alert('メールアドレスまたはパスワードが間違っています。');
-    }
-});
 
         // Teacher logout
         function teacherLogout() {
@@ -982,26 +1000,6 @@ document.getElementById('teacherLoginForm').addEventListener('submit', function(
             currentUserType = null;
             showPage('home');
         }
-
-        // Student login
-document.getElementById('studentLoginForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    
-    const name = document.getElementById('loginStudentName').value;
-    const email = document.getElementById('loginStudentEmail').value;
-
-    const students = JSON.parse(localStorage.getItem('students') || '[]');
-    const student = students.find(s => s.name === name && s.email === email);
-
-    if (student) {
-        currentUser = student;
-        currentUserType = 'student';
-        document.getElementById('currentStudentName').textContent = student.name;
-        showPage('student-portal'); // ページ切り替えで初期化される
-    } else {
-        alert('お名前またはメールアドレスが見つかりません。');
-    }
-});
 
         // Student logout
         function studentLogout() {
@@ -1013,6 +1011,8 @@ document.getElementById('studentLoginForm').addEventListener('submit', function(
         // Generate schedule table for teacher
         function generateScheduleTable() {
             const table = document.getElementById('scheduleTable');
+            if (!table) return;
+            
             const days = ['月', '火', '水', '木', '金', '土', '日'];
             const teacherSchedule = JSON.parse(localStorage.getItem('teacherSchedule') || '{}');
             
@@ -1049,7 +1049,7 @@ document.getElementById('studentLoginForm').addEventListener('submit', function(
         }
 
         // Toggle availability slot
-        function toggleSlot(key) {
+        window.toggleSlot = function(key) {
             const teacherSchedule = JSON.parse(localStorage.getItem('teacherSchedule') || '{}');
             teacherSchedule[key] = !teacherSchedule[key];
             localStorage.setItem('teacherSchedule', JSON.stringify(teacherSchedule));
@@ -1065,381 +1065,315 @@ document.getElementById('studentLoginForm').addEventListener('submit', function(
         }
 
         // Save schedule
-function saveSchedule() {
-    const slots = document.querySelectorAll('.time-slot');
-    const teacherSchedule = {};
-    slots.forEach(slot => {
-        const key = slot.getAttribute('data-key');
-        teacherSchedule[key] = slot.classList.contains('available');
-    });
-    localStorage.setItem('teacherSchedule', JSON.stringify(teacherSchedule));
-    alert('スケジュールが保存されました。');
-}
+        window.saveSchedule = function() {
+            alert('スケジュールが保存されました。');
+        }
 
-        
+        // Teacher tab navigation
+        window.showTeacherTab = function(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.teacherTabContent').forEach(content => {
+                content.style.display = 'none';
+            });
 
-  // Teacher tab navigation
-function showTeacherTab(tabName) {
-    // Hide all tab contents
-    document.querySelectorAll('.teacherTabContent').forEach(content => {
-        content.style.display = 'none';
-    });
+            // Show selected tab content
+            const tabContent = document.getElementById(tabName + 'TabContent');
+            if (tabContent) {
+                tabContent.style.display = 'block';
+            }
 
-    // Show selected tab content
-    document.getElementById(tabName + 'TabContent').style.display = 'block';
+            // Update tab buttons
+            const tabs = ['schedule', 'calendar', 'requests', 'students', 'pendingCalendar'];
+            tabs.forEach(tab => {
+                const btn = document.getElementById(tab + 'Tab');
+                if (btn) {
+                    if (tab === tabName) {
+                        btn.className = 'px-4 py-2 bg-blue-500 text-white rounded';
+                    } else {
+                        btn.className = 'px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300';
+                    }
+                }
+            });
 
-    // Update tab buttons
-    document.querySelectorAll('#teacher-dashboard .p-4.border-b button').forEach(btn => {
-        btn.className = 'px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300';
-    });
-    document.getElementById(tabName + 'Tab').className = 'px-4 py-2 bg-blue-500 text-white rounded';
-
-    // タブごとの処理
-    if (tabName === 'calendar') {
-        setTimeout(initTeacherCalendar, 100);
-    }
-    if (tabName === 'pendingCalendar') {
-        setTimeout(initPendingCalendar, 100);
-    }
-    if (tabName === 'schedule') {
-        generateScheduleTable();
-    }
-    if (tabName === 'manualAssign') {
-        // openManualAssign で描画するのでここは何もしない
-    }
-}
-function initTeacherCalendar() {
-    if (teacherCalendar) teacherCalendar.destroy();
-
-    teacherCalendar = new FullCalendar.Calendar(document.getElementById('teacherCalendar'), {
-        initialView: 'timeGridWeek',
-        locale: 'ja',
-        allDaySlot: false,
-        slotMinTime: '09:00:00',
-        slotMaxTime: '21:00:00',
-        slotDuration: '00:30:00',
-        events: getConfirmedReservationsForCalendar(),
-        eventClick: function(info) {
-            if (confirm(`${info.event.title} を削除しますか？`)) {
-                deleteReservationById(info.event.id);
-                info.event.remove();
-                alert("予約を削除しました");
+            // タブごとの処理
+            if (tabName === 'calendar') {
+                setTimeout(initTeacherCalendar, 100);
+            }
+            if (tabName === 'pendingCalendar') {
+                setTimeout(initPendingCalendar, 100);
+            }
+            if (tabName === 'schedule') {
+                generateScheduleTable();
             }
         }
-    });
 
-    teacherCalendar.render();
-}
-function getConfirmedReservationsForCalendar() {
-    const reservations = JSON.parse(localStorage.getItem('confirmedReservations') || '[]');
+        function initTeacherCalendar() {
+            if (teacherCalendar) teacherCalendar.destroy();
 
-    return reservations.map((r, index) => ({
-        id: index.toString(),
-        title: r.name,
-        start: r.datetime,
-        end: getEndTime(r.datetime),
-        color: '#2563eb'
-    }));
-}
-function getEndTime(startISO) {
-    const start = new Date(startISO);
-    start.setMinutes(start.getMinutes() + 30);
-    return start.toISOString();
-}
-function deleteReservationById(id) {
-    let reservations = JSON.parse(localStorage.getItem('confirmedReservations') || '[]');
-    reservations.splice(Number(id), 1);
-    localStorage.setItem('confirmedReservations', JSON.stringify(reservations));
-}
+            const calendarEl = document.getElementById('teacherCalendar');
+            if (!calendarEl) return;
 
-        // Get next date for a specific day of week
-        function getNextDate(dayName) {
-            const days = {
-                '日': 0, '月': 1, '火': 2, '水': 3, '木': 4, '金': 5, '土': 6
-            };
-            const today = new Date();
-            const targetDay = days[dayName];
-            const todayDay = today.getDay();
-            const daysUntilTarget = (targetDay - todayDay + 7) % 7 || 7;
-            
-            const targetDate = new Date(today);
-            targetDate.setDate(today.getDate() + daysUntilTarget);
-            
-            return targetDate.toISOString().split('T')[0];
+            teacherCalendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'timeGridWeek',
+                locale: 'ja',
+                allDaySlot: false,
+                slotMinTime: '09:00:00',
+                slotMaxTime: '21:00:00',
+                slotDuration: '00:30:00',
+                events: getConfirmedReservationsForCalendar(),
+                eventClick: function(info) {
+                    if (confirm(`${info.event.title} を削除しますか？`)) {
+                        deleteReservationById(info.event.id);
+                        info.event.remove();
+                        alert("予約を削除しました");
+                    }
+                }
+            });
+
+            teacherCalendar.render();
+        }
+
+        function getConfirmedReservationsForCalendar() {
+            const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+            const events = [];
+
+            bookings.forEach(booking => {
+                if (booking.status === 'confirmed') {
+                    events.push({
+                        id: booking.id,
+                        title: booking.studentName,
+                        start: `${booking.date}T${booking.time}`,
+                        end: getEndTime(`${booking.date}T${booking.time}`),
+                        color: '#2563eb'
+                    });
+                }
+            });
+
+            return events;
+        }
+
+        function getEndTime(startISO) {
+            const start = new Date(startISO);
+            start.setMinutes(start.getMinutes() + 30);
+            return start.toISOString();
+        }
+
+        function deleteReservationById(id) {
+            let bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+            bookings = bookings.filter(b => b.id !== id);
+            localStorage.setItem('bookings', JSON.stringify(bookings));
+            updateDashboardStats();
         }
 
         // Update dashboard statistics
-        function deleteBooking(bookingId) {
-    let bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
-    bookings = bookings.filter(b => b.id !== bookingId);
-    localStorage.setItem('bookings', JSON.stringify(bookings));
-    updateDashboardStats();
-}
-
-function addBooking(dateStr) {
-    let bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
-    bookings.push({
-        id: Date.now().toString(),
-        studentId: null,
-        studentName: "手動追加",
-        date: dateStr.split("T")[0],
-        time: dateStr.split("T")[1].substring(0,5),
-        type: 'manual',
-        status: 'confirmed'
-    });
-    localStorage.setItem('bookings', JSON.stringify(bookings));
-    updateDashboardStats();
-}
         function updateDashboardStats() {
             const students = JSON.parse(localStorage.getItem('students') || '[]');
             const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
             const requests = JSON.parse(localStorage.getItem('requests') || '[]');
             const pendingRequests = requests.filter(r => r.status === 'pending');
 
-            document.getElementById('totalStudents').textContent = students.length;
-            document.getElementById('weeklyLessons').textContent = bookings.length;
-            document.getElementById('pendingRequests').textContent = pendingRequests.length;
-            document.getElementById('monthlyRevenue').textContent = `¥${bookings.length * 8000}`;
+            const totalStudentsEl = document.getElementById('totalStudents');
+            const weeklyLessonsEl = document.getElementById('weeklyLessons');
+            const pendingRequestsEl = document.getElementById('pendingRequests');
+            const monthlyRevenueEl = document.getElementById('monthlyRevenue');
+
+            if (totalStudentsEl) totalStudentsEl.textContent = students.length;
+            if (weeklyLessonsEl) weeklyLessonsEl.textContent = bookings.length;
+            if (pendingRequestsEl) pendingRequestsEl.textContent = pendingRequests.length;
+            if (monthlyRevenueEl) monthlyRevenueEl.textContent = `¥${bookings.length * 8000}`;
         }
 
         // Load students list
-function loadStudentsList() {
-    const students = JSON.parse(localStorage.getItem('students') || '[]');
-    const container = document.getElementById('studentsList');
-    
-    if (students.length === 0) {
-        container.innerHTML = '<p class="text-gray-500">登録された生徒はまだいません。</p>';
-        return;
-    }
+        function loadStudentsList() {
+            const students = JSON.parse(localStorage.getItem('students') || '[]');
+            const container = document.getElementById('studentsList');
+            
+            if (!container) return;
 
-    container.innerHTML = students.map(student => `
-        <div class="border border-gray-200 rounded-md p-4 mb-4">
-            <div class="flex justify-between items-start">
-                <div>
-                    <h4 class="font-semibold text-lg">${student.name}</h4>
-                    <p class="text-gray-600">${student.email}</p>
-                    ${student.phone ? `<p class="text-gray-600">${student.phone}</p>` : ''}
-                </div>
-                <div class="text-right">
-                    <div class="text-sm text-gray-500">登録日</div>
-                    <div class="text-sm">${new Date(student.registeredAt).toLocaleDateString('ja-JP')}</div>
-                </div>
-            </div>
-            ${student.assignedSchedule ? `
-                <div class="mt-3 bg-blue-50 p-3 rounded">
-                    <div class="text-sm font-medium text-blue-800">割り当てスケジュール</div>
-                    <div class="text-blue-600">毎週${student.assignedSchedule.day}曜日 ${student.assignedSchedule.time}〜</div>
-                </div>
-            ` : `
-                <div class="mt-3 bg-yellow-50 p-3 rounded">
-                    <div class="text-sm font-medium text-yellow-800">スケジュール未割り当て</div>
-                    <div class="text-yellow-600">先生の承認待ちです</div>
-                </div>
-            `}
-            ${student.notes ? `
-    <div class="mt-3">
-        <div class="text-sm font-medium text-gray-700">備考</div>
-        <div class="text-sm text-gray-600">${student.notes}</div>
-    </div>
-` : ''}
-<div class="mt-3 text-right">
-    <button onclick="deleteStudent('${student.id}')" 
-            class="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600">
-        削除
-    </button>
- </div>
-</div>
-`).join('');
-}
-// 生徒削除処理
-window.deleteStudent = function(studentId) {
-    let students = JSON.parse(localStorage.getItem('students') || '[]');
-    students = students.filter(s => s.id !== studentId);
-    localStorage.setItem('students', JSON.stringify(students));
+            if (students.length === 0) {
+                container.innerHTML = '<p class="text-gray-500">登録された生徒はまだいません。</p>';
+                return;
+            }
 
-    // その生徒の申請も削除
-    let requests = JSON.parse(localStorage.getItem('requests') || '[]');
-    requests = requests.filter(r => r.studentId !== studentId);
-    localStorage.setItem('requests', JSON.stringify(requests));
+            container.innerHTML = students.map(student => `
+                <div class="border border-gray-200 rounded-md p-4 mb-4">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h4 class="font-semibold text-lg">${student.name}</h4>
+                            <p class="text-gray-600">${student.email}</p>
+                            ${student.phone ? `<p class="text-gray-600">${student.phone}</p>` : ''}
+                        </div>
+                        <div class="text-right">
+                            <div class="text-sm text-gray-500">登録日</div>
+                            <div class="text-sm">${new Date(student.registeredAt).toLocaleDateString('ja-JP')}</div>
+                        </div>
+                    </div>
+                    ${student.assignedSchedule ? `
+                        <div class="mt-3 bg-blue-50 p-3 rounded">
+                            <div class="text-sm font-medium text-blue-800">割り当てスケジュール</div>
+                            <div class="text-blue-600">毎週${student.assignedSchedule.day}曜日 ${student.assignedSchedule.time}〜</div>
+                        </div>
+                    ` : `
+                        <div class="mt-3 bg-yellow-50 p-3 rounded">
+                            <div class="text-sm font-medium text-yellow-800">スケジュール未割り当て</div>
+                            <div class="text-yellow-600">先生の承認待ちです</div>
+                        </div>
+                    `}
+                    ${student.notes ? `
+                        <div class="mt-3">
+                            <div class="text-sm font-medium text-gray-700">備考</div>
+                            <div class="text-sm text-gray-600">${student.notes}</div>
+                        </div>
+                    ` : ''}
+                    <div class="mt-3 text-right space-x-2">
+                        <button onclick="openManualAssign('${student.id}')" 
+                                class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600">
+                            手動割り振り
+                        </button>
+                        <button onclick="deleteStudent('${student.id}')" 
+                                class="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600">
+                            削除
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
 
-    // その生徒の予約も削除
-    let bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
-    bookings = bookings.filter(b => b.studentId !== studentId);
-    localStorage.setItem('bookings', JSON.stringify(bookings));
+        // Delete student
+        window.deleteStudent = function(studentId) {
+            if (!confirm('本当にこの生徒を削除しますか？')) return;
+            
+            let students = JSON.parse(localStorage.getItem('students') || '[]');
+            students = students.filter(s => s.id !== studentId);
+            localStorage.setItem('students', JSON.stringify(students));
 
-    alert('生徒を削除しました。');
-    loadStudentsList();
-    loadRequestsList();
-    updateDashboardStats();
-};
+            let requests = JSON.parse(localStorage.getItem('requests') || '[]');
+            requests = requests.filter(r => r.studentId !== studentId);
+            localStorage.setItem('requests', JSON.stringify(requests));
+
+            let bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+            bookings = bookings.filter(b => b.studentId !== studentId);
+            localStorage.setItem('bookings', JSON.stringify(bookings));
+
+            alert('生徒を削除しました。');
+            loadStudentsList();
+            loadRequestsList();
+            updateDashboardStats();
+        };
+
         // Load requests list
         function loadRequestsList() {
             const requests = JSON.parse(localStorage.getItem('requests') || '[]');
             const container = document.getElementById('requestsList');
             
+            if (!container) return;
+
             if (requests.length === 0) {
                 container.innerHTML = '<p class="text-gray-500">申請はありません。</p>';
                 return;
             }
 
-            container.innerHTML = requests.map(request => `
-                <div class="border border-gray-200 rounded-md p-4 mb-4">
-                    <div class="flex justify-between items-start">
-                        <div>
-                            <h4 class="font-semibold">${request.studentName}</h4>
-                            <div class="text-sm text-gray-600 mb-2">
-                                ${request.type === 'cancel' ? 'キャンセル申請' : '振替申請'}
+            const sortedRequests = requests.sort((a, b) => 
+                new Date(b.createdAt) - new Date(a.createdAt)
+            );
+
+            container.innerHTML = sortedRequests.map(request => {
+                let content = '';
+                
+                if (request.type === 'new') {
+                    content = `
+                        <h4 class="font-semibold">${request.studentName}</h4>
+                        <div class="text-sm text-gray-600 mb-2">新規レッスン申請</div>
+                        <p><strong>希望曜日:</strong> ${request.day}曜日</p>
+                        <p><strong>希望時間:</strong> ${request.time}</p>
+                        <p><strong>理由:</strong> ${request.reason}</p>
+                    `;
+                } else if (request.type === 'cancel') {
+                    content = `
+                        <h4 class="font-semibold">${request.studentName}</h4>
+                        <div class="text-sm text-gray-600 mb-2">キャンセル申請</div>
+                        <p><strong>キャンセル希望日:</strong> ${request.date}</p>
+                        <p><strong>理由:</strong> ${request.reason}</p>
+                    `;
+                } else if (request.type === 'makeup') {
+                    content = `
+                        <h4 class="font-semibold">${request.studentName}</h4>
+                        <div class="text-sm text-gray-600 mb-2">振替申請</div>
+                        <p><strong>振替元:</strong> ${request.fromDate}</p>
+                        <p><strong>振替先:</strong> ${request.toDate} ${request.toTime}</p>
+                        <p><strong>理由:</strong> ${request.reason}</p>
+                    `;
+                }
+
+                return `
+                    <div class="border border-gray-200 rounded-md p-4 mb-4">
+                        <div class="flex justify-between items-start">
+                            <div>${content}</div>
+                            <div class="text-right">
+                                <div class="text-sm text-gray-500 mb-2">
+                                    ${new Date(request.createdAt).toLocaleDateString('ja-JP')}
+                                </div>
+                                <div class="text-sm px-2 py-1 rounded ${
+                                    request.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                    request.status === 'approved' ? 'bg-green-100 text-green-800' :
+                                    'bg-red-100 text-red-800'
+                                }">
+                                    ${
+                                        request.status === 'pending' ? '承認待ち' :
+                                        request.status === 'approved' ? '承認済み' :
+                                        '却下'
+                                    }
+                                </div>
                             </div>
-                            ${request.type === 'cancel' ? `
-                                <p><strong>キャンセル希望日:</strong> ${request.date}</p>
-                            ` : `
-                                <p><strong>振替元:</strong> ${request.fromDate}</p>
-                                <p><strong>振替先:</strong> ${request.toDate} ${request.toTime}</p>
-                            `}
-                            <p><strong>理由:</strong> ${request.reason}</p>
                         </div>
-                        <div class="text-right">
-                            <div class="text-sm text-gray-500 mb-2">
-                                ${new Date(request.createdAt).toLocaleDateString('ja-JP')}
+                        ${request.status === 'pending' ? `
+                            <div class="mt-4 flex space-x-2">
+                                <button onclick="approveRequest('${request.id}')" 
+                                        class="bg-green-500 text-white px-4 py-2 rounded text-sm hover:bg-green-600">
+                                    承認
+                                </button>
+                                <button onclick="rejectRequest('${request.id}')" 
+                                        class="bg-red-500 text-white px-4 py-2 rounded text-sm hover:bg-red-600">
+                                    却下
+                                </button>
                             </div>
-                            <div class="text-sm px-2 py-1 rounded ${
-                                request.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                request.status === 'approved' ? 'bg-green-100 text-green-800' :
-                                'bg-red-100 text-red-800'
-                            }">
-                                ${
-                                    request.status === 'pending' ? '承認待ち' :
-                                    request.status === 'approved' ? '承認済み' :
-                                    '却下'
-                                }
-                            </div>
-                        </div>
+                        ` : ''}
                     </div>
-                    ${request.status === 'pending' ? `
-                        <div class="mt-4 flex space-x-2">
-                            <button onclick="approveRequest('${request.id}')" 
-                                    class="bg-green-500 text-white px-4 py-2 rounded text-sm hover:bg-green-600">
-                                承認
-                            </button>
-                            <button onclick="rejectRequest('${request.id}')" 
-                                    class="bg-red-500 text-white px-4 py-2 rounded text-sm hover:bg-red-600">
-                                却下
-                            </button>
-                        </div>
-                    ` : ''}
-                </div>
-            `).join('');
+                `;
+            }).join('');
         }
 
-      // 承認処理修正版（年度末まで毎週）
-function approveRequest(requestId) {
-    let requests = JSON.parse(localStorage.getItem('requests') || '[]');
-    const requestIndex = requests.findIndex(r => r.id === requestId);
+        // Approve request
+        window.approveRequest = function(requestId) {
+            let requests = JSON.parse(localStorage.getItem('requests') || '[]');
+            const requestIndex = requests.findIndex(r => r.id === requestId);
 
-    if (requestIndex !== -1) {
-        const req = requests[requestIndex];
-        requests[requestIndex].status = 'approved';
+            if (requestIndex !== -1) {
+                const req = requests[requestIndex];
+                requests[requestIndex].status = 'approved';
 
-        if (req.type === 'new') {
-            let students = JSON.parse(localStorage.getItem('students') || '[]');
-            let bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+                if (req.type === 'new') {
+                    let students = JSON.parse(localStorage.getItem('students') || '[]');
+                    const student = students.find(s => s.id === req.studentId);
+                    
+                    if (student) {
+                        student.assignedSchedule = { day: req.day, time: req.time };
+                        localStorage.setItem('students', JSON.stringify(students));
+                        addWeeklyBookingsUntilFiscalEnd(student, req.day, req.time);
+                    }
+                }
 
-            const student = students.find(s => s.id === req.studentId);
-            if (student) {
-                // 生徒にスケジュールを割り当て
-                student.assignedSchedule = { day: req.day, time: req.time };
-                localStorage.setItem('students', JSON.stringify(students));
-                addWeeklyBookingsUntilFiscalEnd(student, req.day, req.time);
-
-                localStorage.setItem('bookings', JSON.stringify(bookings));
+                localStorage.setItem('requests', JSON.stringify(requests));
+                loadRequestsList();
+                loadStudentsList();
+                updateDashboardStats();
+                if (teacherCalendar) initTeacherCalendar();
+                alert('申請を承認しました。');
             }
         }
-
-        localStorage.setItem('requests', JSON.stringify(requests));
-        loadRequestsList();
-        loadStudentsList();
-        updateDashboardStats();
-        alert('申請を承認しました。');
-    }
-}
-// 承認待ち申請カレンダー初期化
-function initPendingCalendar() {
-    const requests = JSON.parse(localStorage.getItem('requests') || '[]');
-    const pending = requests.filter(r => r.status === 'pending');
-
-    const events = pending.map(req => {
-    if (req.type === 'new') {
-    return {
-        title: `${req.studentName} ${req.time}`, // ← 曜日削除、名前＋時間だけ
-        start: getNextDate(req.day) + 'T' + req.time,
-        backgroundColor: '#facc15',
-        borderColor: '#ca8a04',
-        extendedProps: { studentId: req.studentId }
-    };
-}
-else if (req.type === 'makeup') {
-            return {
-                title: `${req.studentName} 振替申請`,
-                start: req.toDate + 'T' + req.toTime,
-                backgroundColor: '#34d399',
-                borderColor: '#059669',
-                extendedProps: { studentId: req.studentId }
-            };
-        } else if (req.type === 'cancel') {
-            return {
-                title: `${req.studentName} キャンセル申請`,
-                start: req.date,
-                backgroundColor: '#f87171',
-                borderColor: '#dc2626',
-                allDay: true,
-                extendedProps: { studentId: req.studentId }
-            };
-        }
-        return null;
-    }).filter(e => e);
-
-    const calendarEl = document.getElementById('pendingCalendar');
-    if (!calendarEl) return;
-
-    // すでにカレンダーが描画されていれば破棄
-    if (calendarEl._calendar) {
-        calendarEl._calendar.destroy();
-    }
-
-    const pendingCalendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'timeGridWeek',
-        locale: 'ja',
-        headerToolbar: false,
-        slotMinTime: '09:00',
-        slotMaxTime: '21:00',
-        slotDuration: '00:30',
-        events: events,
-        height: 600,
-        editable: true,   // ← ここにまとめて書く
-        eventReceive: function(info) {
-            const event = info.event;
-            if (event.extendedProps.studentId) {
-                const studentId = event.extendedProps.studentId;
-                const date = event.startStr.split('T')[0];
-                const time = event.startStr.split('T')[1].substring(0,5);
-                manualAssignSave(studentId, getDayName(new Date(date).getDay()), time);
-            }
-        }
-    });
-
-    pendingCalendar.render();
-    calendarEl._calendar = pendingCalendar;
-}
-
-// 曜日番号から「月/火/水…」に変換
-function getDayName(dayIndex) {
-    const days = ['日','月','火','水','木','金','土'];
-    return days[dayIndex];
-}
-
 
         // Reject request
-        function rejectRequest(requestId) {
+        window.rejectRequest = function(requestId) {
             let requests = JSON.parse(localStorage.getItem('requests') || '[]');
             const requestIndex = requests.findIndex(r => r.id === requestId);
             
@@ -1455,10 +1389,16 @@ function getDayName(dayIndex) {
         // Load student schedule
         function loadStudentSchedule() {
             const container = document.getElementById('studentSchedule');
+            if (!container) return;
             
             if (currentUser && currentUser.assignedSchedule) {
                 const schedule = currentUser.assignedSchedule;
-                const endTime = getEndTime(schedule.time);
+                const endHour = parseInt(schedule.time.split(':')[0]) + (parseInt(schedule.time.split(':')[1]) >= 30 ? 1 : 0);
+                const endMinute = parseInt(schedule.time.split(':')[1]) + 30 >= 60 ? 
+                    parseInt(schedule.time.split(':')[1]) + 30 - 60 : 
+                    parseInt(schedule.time.split(':')[1]) + 30;
+                const endTime = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+                
                 container.innerHTML = `
                     <div class="text-center">
                         <div class="text-2xl font-bold text-blue-600 mb-2">
@@ -1479,765 +1419,331 @@ function getDayName(dayIndex) {
             }
         }
 
-        // Get end time (30 minutes later)
-        function getEndTime(startTime) {
-            const [hour, minute] = startTime.split(':').map(Number);
-            const endMinute = minute + 30;
-            const endHour = endMinute >= 60 ? hour + 1 : hour;
-            const finalMinute = endMinute >= 60 ? endMinute - 60 : endMinute;
-            
-            return `${endHour.toString().padStart(2, '0')}:${finalMinute.toString().padStart(2, '0')}`;
-        }
-
-        // Cancel form submission
-        document.getElementById('cancelForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const request = {
-                id: Date.now().toString(),
-                studentId: currentUser.id,
-                studentName: currentUser.name,
-                type: 'cancel',
-                date: document.getElementById('cancelDate').value,
-                reason: document.getElementById('cancelReason').value,
-                status: 'pending',
-                createdAt: new Date().toISOString()
-            };
-
-            let requests = JSON.parse(localStorage.getItem('requests') || '[]');
-            requests.push(request);
-            localStorage.setItem('requests', JSON.stringify(requests));
-
-            alert('キャンセル申請を送信しました。承認をお待ちください。');
-            document.getElementById('cancelForm').reset();
-            loadStudentRequests();
-        });
-
-        // Makeup form submission
-        document.getElementById('makeupForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const request = {
-                id: Date.now().toString(),
-                studentId: currentUser.id,
-                studentName: currentUser.name,
-                type: 'makeup',
-                fromDate: document.getElementById('makeupFromDate').value,
-                toDate: document.getElementById('makeupToDate').value,
-                toTime: document.getElementById('makeupToTime').value,
-                reason: document.getElementById('makeupReason').value,
-                status: 'pending',
-                createdAt: new Date().toISOString()
-            };
-
-            let requests = JSON.parse(localStorage.getItem('requests') || '[]');
-            requests.push(request);
-            localStorage.setItem('requests', JSON.stringify(requests));
-
-            alert('振替申請を送信しました。承認をお待ちください。');
-            document.getElementById('makeupForm').reset();
-            loadStudentRequests();
-        });
-// 新規レッスン申請フォーム処理（○×カレンダー候補付き）
-document.getElementById('newLessonForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-
-    const selectedSlots = JSON.parse(localStorage.getItem('studentSelectedSlots') || '[]');
-    if (selectedSlots.length === 0) {
-        alert('希望枠を○カレンダーから選択してください');
-        return;
-    }
-
-    const requests = JSON.parse(localStorage.getItem('requests') || '[]');
-    selectedSlots.forEach((slot, index) => {
-        const [day, time] = slot.split('_');
-        requests.push({
-            id: Date.now().toString() + '_' + index,
-            studentId: currentUser.id,
-            studentName: currentUser.name,
-            type: 'new',
-            day,
-            time,
-            reason: `第${index + 1}希望`,
-            status: 'pending',
-            createdAt: new Date().toISOString()
-        });
-    });
-    localStorage.setItem('requests', JSON.stringify(requests));
-
-    alert('新規レッスン申請を送信しました。先生の承認をお待ちください。');
-    localStorage.removeItem('studentSelectedSlots');
-    document.getElementById('newLessonForm').reset();
-    loadStudentRequests();
-});
-
-
-
-// 新規レッスンの時間選択肢をロード（先生スケジュールと連動）
-function loadNewLessonTimeOptions() {
-    const select = document.getElementById('newLessonTime');
-    if (!select) return;
-    select.innerHTML = '<option value="">選択してください</option>';
-
-    const teacherSchedule = JSON.parse(localStorage.getItem('teacherSchedule') || '{}');
-    const day = document.getElementById('newLessonDay')?.value;
-    if (!day) return;
-
-    for (let hour = 9; hour <= 20; hour++) {
-        for (let minute = 0; minute < 60; minute += 30) {
-            const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-            const endHour = minute === 30 ? hour + 1 : hour;
-            const endMinute = minute === 30 ? 0 : 30;
-            const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
-            
-            const key = `${day}_${timeStr}`;
-            if (teacherSchedule[key] === true) {
-                select.innerHTML += `<option value="${timeStr}">${timeStr} - ${endTimeStr}</option>`;
-            }
-        }
-    }
-}
-
-
-
         // Load student requests
         function loadStudentRequests() {
+            if (!currentUser) return;
+            
             const requests = JSON.parse(localStorage.getItem('requests') || '[]');
-            const studentRequests = requests.filter(r => r.studentId === currentUser?.id);
+            const studentRequests = requests.filter(r => r.studentId === currentUser.id);
             const container = document.getElementById('studentRequests');
             
+            if (!container) return;
+
             if (studentRequests.length === 0) {
                 container.innerHTML = '<p class="text-gray-500">申請履歴はありません。</p>';
                 return;
             }
 
-            container.innerHTML = studentRequests.map(request => `
-                <div class="border border-gray-200 rounded-md p-4 mb-4">
-                    <div class="flex justify-between items-start">
-                        <div>
-                            <div class="font-medium mb-2">
-                                ${request.type === 'cancel' ? 'キャンセル申請' : '振替申請'}
-                            </div>
-                            ${request.type === 'cancel' ? `
-                                <p class="text-sm text-gray-600"><strong>キャンセル希望日:</strong> ${request.date}</p>
-                            ` : `
-                                <p class="text-sm text-gray-600"><strong>振替元:</strong> ${request.fromDate}</p>
-                                <p class="text-sm text-gray-600"><strong>振替先:</strong> ${request.toDate} ${request.toTime}</p>
-                            `}
-                            <p class="text-sm text-gray-600"><strong>理由:</strong> ${request.reason}</p>
-                        </div>
-                        <div class="text-right">
-                            <div class="text-sm text-gray-500 mb-2">
-                                ${new Date(request.createdAt).toLocaleDateString('ja-JP')}
-                            </div>
-                            <div class="text-sm px-2 py-1 rounded ${
-                                request.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                request.status === 'approved' ? 'bg-green-100 text-green-800' :
-                                'bg-red-100 text-red-800'
-                            }">
-                                ${
-                                    request.status === 'pending' ? '承認待ち' :
-                                    request.status === 'approved' ? '承認済み' :
-                                    '却下'
-                                }
+            container.innerHTML = studentRequests.map(request => {
+                let content = '';
+                
+                if (request.type === 'new') {
+                    content = `
+                        <div class="font-medium mb-2">新規レッスン申請</div>
+                        <p class="text-sm text-gray-600"><strong>希望曜日:</strong> ${request.day}曜日</p>
+                        <p class="text-sm text-gray-600"><strong>希望時間:</strong> ${request.time}</p>
+                        <p class="text-sm text-gray-600"><strong>理由:</strong> ${request.reason}</p>
+                    `;
+                } else if (request.type === 'cancel') {
+                    content = `
+                        <div class="font-medium mb-2">キャンセル申請</div>
+                        <p class="text-sm text-gray-600"><strong>キャンセル希望日:</strong> ${request.date}</p>
+                        <p class="text-sm text-gray-600"><strong>理由:</strong> ${request.reason}</p>
+                    `;
+                } else if (request.type === 'makeup') {
+                    content = `
+                        <div class="font-medium mb-2">振替申請</div>
+                        <p class="text-sm text-gray-600"><strong>振替元:</strong> ${request.fromDate}</p>
+                        <p class="text-sm text-gray-600"><strong>振替先:</strong> ${request.toDate} ${request.toTime}</p>
+                        <p class="text-sm text-gray-600"><strong>理由:</strong> ${request.reason}</p>
+                    `;
+                }
+
+                return `
+                    <div class="border border-gray-200 rounded-md p-4 mb-4">
+                        <div class="flex justify-between items-start">
+                            <div>${content}</div>
+                            <div class="text-right">
+                                <div class="text-sm text-gray-500 mb-2">
+                                    ${new Date(request.createdAt).toLocaleDateString('ja-JP')}
+                                </div>
+                                <div class="text-sm px-2 py-1 rounded ${
+                                    request.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                    request.status === 'approved' ? 'bg-green-100 text-green-800' :
+                                    'bg-red-100 text-red-800'
+                                }">
+                                    ${
+                                        request.status === 'pending' ? '承認待ち' :
+                                        request.status === 'approved' ? '承認済み' :
+                                        '却下'
+                                    }
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         }
-// 生徒用稼働カレンダー表示
-// 生徒登録フォーム用 ○×カレンダー描画
-function initStudentAvailabilityCalendarForRegister() {
-    const teacherSchedule = JSON.parse(localStorage.getItem('teacherSchedule') || '{}');
-    const days = ['月', '火', '水', '木', '金', '土', '日'];
 
-    for (let choiceNum = 1; choiceNum <= 3; choiceNum++) {
-        const container = document.getElementById(`calendarChoice${choiceNum}`);
-        if (!container) continue;
-        let selectedSlot = null;
+        // Student availability calendar for registration
+        function initStudentAvailabilityCalendarForRegister() {
+            const teacherSchedule = JSON.parse(localStorage.getItem('teacherSchedule') || '{}');
+            const days = ['月', '火', '水', '木', '金', '土', '日'];
 
-        let html = '<table class="w-full border-collapse">';
-        html += '<thead><tr class="bg-gray-50"><th class="p-2">時間</th>';
-        days.forEach(d => html += `<th class="p-2 text-center">${d}</th>`);
-        html += '</tr></thead><tbody>';
+            for (let choiceNum = 1; choiceNum <= 3; choiceNum++) {
+                const container = document.getElementById(`calendarChoice${choiceNum}`);
+                if (!container) continue;
 
-        for (let hour = 9; hour <= 20; hour++) {
-            for (let minute = 0; minute < 60; minute += 30) {
-                const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-                const endHour = minute === 30 ? hour + 1 : hour;
-                const endMinute = minute === 30 ? 0 : 30;
-                const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+                let html = '<table class="w-full border-collapse">';
+                html += '<thead><tr class="bg-gray-50"><th class="p-2">時間</th>';
+                days.forEach(d => html += `<th class="p-2 text-center">${d}</th>`);
+                html += '</tr></thead><tbody>';
 
-                html += `<tr><td class="p-2 font-medium">${timeStr} - ${endTimeStr}</td>`;
-                days.forEach(day => {
-                    const key = `${day}_${timeStr}`;
-                    const isAvailable = teacherSchedule[key] === true;
-                    if (isAvailable) {
-                        html += `<td class="p-2 text-center cursor-pointer bg-green-100 hover:bg-green-200" data-key="${key}">○</td>`;
-                    } else {
-                        html += `<td class="p-2 text-center bg-red-100">×</td>`;
+                for (let hour = 9; hour <= 20; hour++) {
+                    for (let minute = 0; minute < 60; minute += 30) {
+                        const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+                        const endHour = minute === 30 ? hour + 1 : hour;
+                        const endMinute = minute === 30 ? 0 : 30;
+                        const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+
+                        html += `<tr><td class="p-2 font-medium text-sm">${timeStr} - ${endTimeStr}</td>`;
+                        days.forEach(day => {
+                            const key = `${day}_${timeStr}`;
+                            const isAvailable = teacherSchedule[key] === true;
+                            if (isAvailable) {
+                                html += `<td class="p-2 text-center cursor-pointer bg-green-100 hover:bg-green-200" data-key="${key}" data-choice="${choiceNum}">○</td>`;
+                            } else {
+                                html += `<td class="p-2 text-center bg-red-100">×</td>`;
+                            }
+                        });
+                        html += '</tr>';
                     }
+                }
+                html += '</tbody></table>';
+                container.innerHTML = html;
+
+                // クリックで選択
+                container.querySelectorAll('td[data-key]').forEach(cell => {
+                    cell.addEventListener('click', function() {
+                        // 同じ選択肢内の既存選択をクリア
+                        container.querySelectorAll('td[data-key]').forEach(c => {
+                            c.classList.remove('bg-blue-300');
+                            c.textContent = '○';
+                        });
+                        
+                        // 新しい選択を設定
+                        this.classList.add('bg-blue-300');
+                        this.textContent = '✓';
+                        
+                        const selectedKey = this.getAttribute('data-key');
+                        localStorage.setItem(`registerChoice${choiceNum}`, selectedKey);
+                    });
                 });
-                html += '</tr>';
             }
         }
-        html += '</tbody></table>';
-        container.innerHTML = html;
 
-        // クリックで選択
-        container.querySelectorAll('td[data-key]').forEach(cell => {
-            cell.addEventListener('click', () => {
-                container.querySelectorAll('td[data-key]').forEach(c => c.classList.remove('bg-blue-300'));
-                cell.classList.add('bg-blue-300');
-                selectedSlot = cell.getAttribute('data-key');
-                localStorage.setItem(`registerChoice${choiceNum}`, selectedSlot);
-            });
-        });
-    }
-}
+        // Student availability calendar
+        function initStudentAvailabilityCalendar() {
+            const container = document.getElementById('studentAvailabilityCalendar');
+            if (!container) return;
 
-function initStudentAvailabilityCalendar() {
-    const container = document.getElementById('studentAvailabilityCalendar');
-    if (!container) return;
+            const teacherSchedule = JSON.parse(localStorage.getItem('teacherSchedule') || '{}');
+            const days = ['月', '火', '水', '木', '金', '土', '日'];
 
-    const teacherSchedule = JSON.parse(localStorage.getItem('teacherSchedule') || '{}');
-    const days = ['月', '火', '水', '木', '金', '土', '日'];
+            let html = '<table class="w-full border-collapse">';
+            html += '<thead><tr class="bg-gray-50"><th class="p-2">時間</th>';
+            days.forEach(d => html += `<th class="p-2 text-center">${d}</th>`);
+            html += '</tr></thead><tbody>';
 
-    let html = '<table class="w-full border-collapse">';
-    html += '<thead><tr class="bg-gray-50"><th class="p-2">時間</th>';
-    days.forEach(d => html += `<th class="p-2 text-center">${d}</th>`);
-    html += '</tr></thead><tbody>';
+            let selectedSlots = JSON.parse(localStorage.getItem('studentSelectedSlots') || '[]');
 
-    const selectedSlots = [];
+            for (let hour = 9; hour <= 20; hour++) {
+                for (let minute = 0; minute < 60; minute += 30) {
+                    const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+                    const endHour = minute === 30 ? hour + 1 : hour;
+                    const endMinute = minute === 30 ? 0 : 30;
+                    const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+                    
+                    html += `<tr><td class="p-2 font-medium text-sm">${timeStr} - ${endTimeStr}</td>`;
 
-    for (let hour = 9; hour <= 20; hour++) {
-        for (let minute = 0; minute < 60; minute += 30) {
-            const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-            const endHour = minute === 30 ? hour + 1 : hour;
-            const endMinute = minute === 30 ? 0 : 30;
-            const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
-            
-            html += `<tr><td class="p-2 font-medium">${timeStr} - ${endTimeStr}</td>`;
+                    days.forEach(day => {
+                        const key = `${day}_${timeStr}`;
+                        const isAvailable = teacherSchedule[key] === true;
+                        const isSelected = selectedSlots.includes(key);
+                        
+                        if (isAvailable) {
+                            const bgClass = isSelected ? 'bg-blue-300' : 'bg-green-100 hover:bg-green-200';
+                            const text = isSelected ? '✓' : '○';
+                            html += `<td class="p-2 text-center cursor-pointer ${bgClass}" data-key="${key}">${text}</td>`;
+                        } else {
+                            html += `<td class="p-2 text-center bg-red-100">×</td>`;
+                        }
+                    });
 
-            days.forEach(day => {
-                const key = `${day}_${timeStr}`;
-                const isAvailable = teacherSchedule[key] === true;
-                if (isAvailable) {
-                    html += `<td class="p-2 text-center cursor-pointer bg-green-100 hover:bg-green-200" data-key="${key}">○</td>`;
-                } else {
-                    html += `<td class="p-2 text-center bg-red-100">×</td>`;
+                    html += '</tr>';
                 }
-            });
-
-            html += '</tr>';
-        }
-    }
-    html += '</tbody></table>';
-    container.innerHTML = html;
-
-    // ○クリックで選択（最大3つ）
-    container.querySelectorAll('td[data-key]').forEach(cell => {
-        cell.addEventListener('click', () => {
-            const key = cell.getAttribute('data-key');
-            if (selectedSlots.includes(key)) {
-                selectedSlots.splice(selectedSlots.indexOf(key), 1);
-                cell.classList.remove('bg-blue-300');
-            } else {
-                if (selectedSlots.length >= 3) {
-                    alert('選択できるのは最大3つまでです');
-                    return;
-                }
-                selectedSlots.push(key);
-                cell.classList.add('bg-blue-300');
             }
-            localStorage.setItem('studentSelectedSlots', JSON.stringify(selectedSlots));
-        });
-    });
-}
+            html += '</tbody></table>';
+            container.innerHTML = html;
 
-// 手動割り振りタブを開く
-window.openManualAssign = function(studentId) {
-    const students = JSON.parse(localStorage.getItem('students') || '[]');
-    const student = students.find(s => s.id === studentId);
-    if (!student) return alert('生徒が見つかりません');
-
-    showTeacherTab('manualAssign');
-
-    const container = document.getElementById('manualAssignFormContainer');
-    container.innerHTML = `
-        <div class="bg-white p-6 rounded shadow-md">
-            <h4 class="text-lg font-bold mb-4">${student.name} さんの割り振り</h4>
-            <form id="manualAssignForm">
-                <div class="mb-4">
-                    <label class="block mb-2 font-medium">曜日</label>
-                    <select id="manualDay" class="p-2 border rounded w-full" required>
-                        <option value="">選択してください</option>
-                        <option value="月">月曜日</option>
-                        <option value="火">火曜日</option>
-                        <option value="水">水曜日</option>
-                        <option value="木">木曜日</option>
-                        <option value="金">金曜日</option>
-                        <option value="土">土曜日</option>
-                        <option value="日">日曜日</option>
-                    </select>
-                </div>
-                <div class="mb-4">
-                    <label class="block mb-2 font-medium">時間</label>
-                    <select id="manualTime" class="p-2 border rounded w-full" required>
-                        ${generateTimeOptions()}
-                    </select>
-                </div>
-                <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
-                    割り当てる
-                </button>
-            </form>
-        </div>
-    `;
-
-    document.getElementById('manualAssignForm').onsubmit = function(e) {
-        e.preventDefault();
-        const day = document.getElementById('manualDay').value;
-        const time = document.getElementById('manualTime').value;
-        manualAssignSave(studentId, day, time);
-    };
-};
-
-// 時間選択肢を生成
-function generateTimeOptions() {
-    let options = '<option value="">選択してください</option>';
-    for (let hour = 9; hour <= 20; hour++) {
-        for (let minute = 0; minute < 60; minute += 30) {
-            const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-            const endHour = minute === 30 ? hour + 1 : hour;
-            const endMinute = minute === 30 ? 0 : 30;
-            const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
-            options += `<option value="${timeStr}">${timeStr} - ${endTimeStr}</option>`;
+            // ○クリックで選択（最大3つ）
+            container.querySelectorAll('td[data-key]').forEach(cell => {
+                cell.addEventListener('click', function() {
+                    const key = this.getAttribute('data-key');
+                    let selectedSlots = JSON.parse(localStorage.getItem('studentSelectedSlots') || '[]');
+                    
+                    if (selectedSlots.includes(key)) {
+                        selectedSlots = selectedSlots.filter(s => s !== key);
+                        this.classList.remove('bg-blue-300');
+                        this.classList.add('bg-green-100', 'hover:bg-green-200');
+                        this.textContent = '○';
+                    } else {
+                        if (selectedSlots.length >= 3) {
+                            alert('選択できるのは最大3つまでです');
+                            return;
+                        }
+                        selectedSlots.push(key);
+                        this.classList.remove('bg-green-100', 'hover:bg-green-200');
+                        this.classList.add('bg-blue-300');
+                        this.textContent = '✓';
+                    }
+                    
+                    localStorage.setItem('studentSelectedSlots', JSON.stringify(selectedSlots));
+                });
+            });
         }
-    }
-    return options;
-}
 
-// 割り振り保存処理
-function manualAssignSave(studentId, day, time) {
-    let students = JSON.parse(localStorage.getItem('students') || '[]');
-    let bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
-    const student = students.find(s => s.id === studentId);
+        // Manual assign
+        window.openManualAssign = function(studentId) {
+            const students = JSON.parse(localStorage.getItem('students') || '[]');
+            const student = students.find(s => s.id === studentId);
+            if (!student) return alert('生徒が見つかりません');
 
-    if (student) {
-        student.assignedSchedule = { day, time };
-        localStorage.setItem('students', JSON.stringify(students));
+            showTeacherTab('manualAssign');
 
-        addWeeklyBookingsUntilFiscalEnd(student, day, time);
-
-        localStorage.setItem('bookings', JSON.stringify(bookings));
-
-        alert(`${student.name} さんに毎週${day}曜日 ${time}のレッスンを割り当てました。`);
-        loadStudentsList();
-        updateDashboardStats();
-        if (teacherCalendar) initTeacherCalendar();
-        showTeacherTab('students'); // 割り当て完了後は生徒一覧に戻す
-    }
-}
-// 新規レッスン申請：曜日を選んだら時間リストを更新
-document.getElementById('newLessonDay').addEventListener('change', loadNewLessonTimeOptions);
-// 振替申請：日付を選んだら時間リストを更新
-document.getElementById('makeupToDate').addEventListener('change', loadMakeupTimeOptions);
-
-function initLoginForms() {
-    const teacherForm = document.getElementById('teacherLoginForm');
-    if (teacherForm) {
-        teacherForm.onsubmit = function(e) {
-            e.preventDefault();
-            const email = document.getElementById('teacherEmail').value;
-            const password = document.getElementById('teacherPassword').value;
-
-            if (email === 'little.chopin-301@docomo.ne.jp' && password === 'kobuta121') {
-                currentUser = { email: email };
-                currentUserType = 'teacher';
-                showPage('teacher-dashboard');
-            } else {
-                alert('メールアドレスまたはパスワードが間違っています。');
+            // Select the student
+            const select = document.getElementById('manualStudentSelect');
+            if (select) {
+                select.value = student.email;
             }
         };
-    }
 
-    const studentForm = document.getElementById('studentLoginForm');
-    if (studentForm) {
-        studentForm.onsubmit = function(e) {
-            e.preventDefault();
-            const name = document.getElementById('loginStudentName').value;
-            const email = document.getElementById('loginStudentEmail').value;
+        // Pending calendar
+        function initPendingCalendar() {
+            const requests = JSON.parse(localStorage.getItem('requests') || '[]');
+            const pending = requests.filter(r => r.status === 'pending');
+
+            const events = pending.map(req => {
+                if (req.type === 'new') {
+                    return {
+                        title: `${req.studentName} ${req.time}`,
+                        start: getNextDate(req.day) + 'T' + req.time,
+                        backgroundColor: '#facc15',
+                        borderColor: '#ca8a04',
+                        extendedProps: { requestId: req.id }
+                    };
+                } else if (req.type === 'makeup') {
+                    return {
+                        title: `${req.studentName} 振替申請`,
+                        start: req.toDate + 'T' + req.toTime,
+                        backgroundColor: '#34d399',
+                        borderColor: '#059669',
+                        extendedProps: { requestId: req.id }
+                    };
+                } else if (req.type === 'cancel') {
+                    return {
+                        title: `${req.studentName} キャンセル申請`,
+                        start: req.date,
+                        backgroundColor: '#f87171',
+                        borderColor: '#dc2626',
+                        allDay: true,
+                        extendedProps: { requestId: req.id }
+                    };
+                }
+                return null;
+            }).filter(e => e);
+
+            const calendarEl = document.getElementById('pendingCalendar');
+            if (!calendarEl) return;
+
+            if (calendarEl._calendar) {
+                calendarEl._calendar.destroy();
+            }
+
+            const pendingCalendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'timeGridWeek',
+                locale: 'ja',
+                slotMinTime: '09:00',
+                slotMaxTime: '21:00',
+                slotDuration: '00:30',
+                events: events,
+                height: 600,
+                eventClick: function(info) {
+                    const requestId = info.event.extendedProps.requestId;
+                    if (confirm('この申請を承認しますか？')) {
+                        approveRequest(requestId);
+                        initPendingCalendar();
+                    }
+                }
+            });
+
+            pendingCalendar.render();
+            calendarEl._calendar = pendingCalendar;
+        }
+
+        // Get next date for specific day
+        function getNextDate(dayName) {
+            const days = {
+                '日': 0, '月': 1, '火': 2, '水': 3, '木': 4, '金': 5, '土': 6
+            };
+            const today = new Date();
+            const targetDay = days[dayName];
+            const todayDay = today.getDay();
+            const daysUntilTarget = (targetDay - todayDay + 7) % 7 || 7;
+            
+            const targetDate = new Date(today);
+            targetDate.setDate(today.getDate() + daysUntilTarget);
+            
+            return targetDate.toISOString().split('T')[0];
+        }
+
+        // Manual time options
+        function populateManualTimeOptions() {
+            const select = document.getElementById('manualTime');
+            if (!select) return;
+
+            select.innerHTML = '<option value="">時間を選択</option>';
+
+            for (let hour = 9; hour <= 20; hour++) {
+                for (let minute = 0; minute < 60; minute += 30) {
+                    const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+                    const endHour = minute === 30 ? hour + 1 : hour;
+                    const endMinute = minute === 30 ? 0 : 30;
+                    const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+
+                    const opt = document.createElement('option');
+                    opt.value = timeStr;
+                    opt.textContent = `${timeStr} - ${endTimeStr}`;
+                    select.appendChild(opt);
+                }
+            }
+        }
+
+        // Manual student options
+        function populateManualStudentOptions() {
+            const select = document.getElementById('manualStudentSelect');
+            if (!select) return;
 
             const students = JSON.parse(localStorage.getItem('students') || '[]');
-            const student = students.find(s => s.name === name && s.email === email);
+            select.innerHTML = '<option value="">生徒を選択</option>';
 
-            if (student) {
-                currentUser = student;
-                currentUserType = 'student';
-                document.getElementById('currentStudentName').textContent = student.name;
-                showPage('student-portal');
-            } else {
-                alert('お名前またはメールアドレスが見つかりません。');
-            }
-        };
-    }
-}
-function handleTeacherLogin() {
-  const email = document.getElementById('teacher-email')?.value.trim();
-  const password = document.getElementById('teacher-password')?.value;
-
-  // 本物の先生情報（メールは固定、パスワードは自由に変更可）
-  const validEmail = 'little.chopin-301@docomo.ne.jp';
-  const validPassword = 'kobuta121'; // ← あなたが決めてOK
-
-  if (email === validEmail && password === validPassword) {
-    alert('ログイン成功！');
-    showPage('teacher-dashboard'); // ← ここで管理画面へ遷移
-  } else {
-    alert('メールアドレスまたはパスワードが正しくありません。');
-  }
-}
-
-
-
-    </script>
-    <script>
-  function handleStudentLogin() {
-    const name = document.getElementById('student-name')?.value.trim();
-    const email = document.getElementById('student-email')?.value.trim();
-
-    if (!name || !email) {
-      alert('名前とメールアドレスを入力してください。');
-      return;
-    }
-
-    const students = JSON.parse(localStorage.getItem('students') || '[]');
-    const match = students.find(s => s.name === name && s.email === email);
-
-    if (match) {
-      alert(`${match.name} さん、ログイン成功しました！`);
-      showPage('student-portal');
-    } else {
-      alert('名前またはメールアドレスが一致しません。');
-    }
-  }
-// ✅ 講師：承認待ち申請カレンダーを表示
-function renderPendingCalendar() {
-  const el = document.getElementById('pendingCalendar');
-  if (!el) return;
-
-  const raw = localStorage.getItem('studentRequests');
-  const requests = raw ? JSON.parse(raw) : [];
-
-  const events = requests.map((r, idx) => ({
-    id: idx,
-    title: r.name,
-    start: r.datetime,
-    allDay: false
-  }));
-
-  const calendar = new FullCalendar.Calendar(el, {
-    initialView: 'timeGridWeek',
-    locale: 'ja',
-    slotMinTime: '09:00:00',
-    slotMaxTime: '21:00:00',
-    height: 600,
-    events,
-    eventClick: function (info) {
-      if (confirm(`${info.event.title} さんの申請を承認しますか？`)) {
-        approveRequestFromCalendar(info.event.id);
-        renderPendingCalendar(); // カレンダーを再描画
-        renderTeacherCalendar(); // 承認後の予約カレンダー更新
-      }
-    }
-  });
-
-  calendar.render();
-}
-
-// ✅ 承認処理（申請→承認済みに移動）
-function approveRequestFromCalendar(requestId) {
-  const raw = localStorage.getItem('studentRequests');
-  const confirmedRaw = localStorage.getItem('confirmedReservations');
-
-  const requests = raw ? JSON.parse(raw) : [];
-  const confirmed = confirmedRaw ? JSON.parse(confirmedRaw) : [];
-
-  const target = requests[requestId];
-  if (!target) return;
-
-  // 確定予約に追加（毎週繰り返し用）
-  confirmed.push({
-    name: target.name,
-    email: target.email,
-    datetime: target.datetime
-  });
-
-  // 承認済みに保存
-  localStorage.setItem('confirmedReservations', JSON.stringify(confirmed));
-
-  // 承認済みに移したら削除
-  requests.splice(requestId, 1);
-  localStorage.setItem('studentRequests', JSON.stringify(requests));
-}
-
-// ✅ 講師の予約カレンダーを表示（承認済み予約を描画）
-function renderTeacherCalendar() {
-  const el = document.getElementById('teacherCalendar');
-  if (!el) return;
-
-  const raw = localStorage.getItem('confirmedReservations');
-  const reservations = raw ? JSON.parse(raw) : [];
-
-  const events = [];
-
-  reservations.forEach((res, idx) => {
-    // 登録日を取得
-    const startDate = new Date(res.datetime);
-    const title = `${res.name}`;
-
-    // 現在日から年度末まで、1週間ごとに繰り返し追加
-    const year = new Date().getMonth() >= 3 ? new Date().getFullYear() + 1 : new Date().getFullYear();
-    const fiscalEnd = new Date(`${year}-03-31T23:59:59`);
-
-    let current = new Date(startDate);
-    while (current <= fiscalEnd) {
-      const dateStr = current.toISOString().split('T')[0];
-      const timeStr = res.datetime.split('T')[1]; // 例: "14:00:00"
-
-      events.push({
-        id: `${res.name}-${dateStr}-${timeStr}`,
-        title,
-        start: `${dateStr}T${timeStr}`,
-        allDay: false
-      });
-
-      // 次の週へ
-      current.setDate(current.getDate() + 7);
-    }
-  });
-
-  const calendar = new FullCalendar.Calendar(el, {
-    initialView: 'timeGridWeek',
-    locale: 'ja',
-    slotMinTime: '09:00:00',
-    slotMaxTime: '21:00:00',
-    height: 600,
-    events
-  });
-
-  calendar.render();
-}
-
-  // 表形式で表示
-  let html = `
-    <table class="w-full border border-gray-300">
-      <thead>
-        <tr class="bg-gray-100">
-          <th class="p-2 border">曜日</th>
-          <th class="p-2 border">時間</th>
-        </tr>
-      </thead>
-      <tbody>
-  `;
-
-  myReservations.forEach(res => {
-    const dt = new Date(res.datetime);
-    const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
-    const day = dayNames[dt.getDay()];
-    const time = dt.toTimeString().slice(0, 5); // "HH:MM"
-
-    html += `<tr>
-      <td class="p-2 border text-center">${day}</td>
-      <td class="p-2 border text-center">${time}</td>
-    </tr>`;
-  });
-
-  html += '</tbody></table>';
-  container.innerHTML = html;
-
-
-function loadRequestsList() {
-    const container = document.getElementById('requestsList');
-    if (!container) return;
-
-    const pendingRaw = localStorage.getItem('pendingReservations');
-    const pending = pendingRaw ? JSON.parse(pendingRaw) : [];
-
-    if (pending.length === 0) {
-        container.innerHTML = `<p class="text-gray-500">現在、申請はありません。</p>`;
-        return;
-    }
-
-    container.innerHTML = '';
-
-    pending.forEach((req, idx) => {
-        const div = document.createElement('div');
-        div.className = "border rounded p-4 mb-4 shadow";
-
-        const dt = new Date(req.datetime);
-        const day = dt.toLocaleDateString('ja-JP', { weekday: 'short', year: 'numeric', month: '2-digit', day: '2-digit' });
-        const time = dt.toTimeString().slice(0, 5);
-
-        div.innerHTML = `
-            <p><strong>氏名：</strong>${req.name}</p>
-            <p><strong>メール：</strong>${req.email}</p>
-            <p><strong>希望日時：</strong>${day} ${time}</p>
-            <p><strong>理由：</strong>${req.reason || '（未記入）'}</p>
-            <div class="mt-2 space-x-2">
-                <button onclick="approveRequest(${idx})" class="bg-green-500 text-white px-4 py-1 rounded hover:bg-green-600">承認</button>
-                <button onclick="rejectRequest(${idx})" class="bg-red-500 text-white px-4 py-1 rounded hover:bg-red-600">却下</button>
-            </div>
-        `;
-        container.appendChild(div);
-    });
-}
-function approveRequest(index) {
-    const pending = JSON.parse(localStorage.getItem('pendingReservations') || '[]');
-    const confirmed = JSON.parse(localStorage.getItem('confirmedReservations') || '[]');
-
-    const request = pending[index];
-    if (!request) return;
-
-    confirmed.push(request);
-    pending.splice(index, 1);
-
-    localStorage.setItem('confirmedReservations', JSON.stringify(confirmed));
-    localStorage.setItem('pendingReservations', JSON.stringify(pending));
-
-    alert('申請を承認しました');
-    loadRequestsList(); // 画面更新
-    renderTeacherCalendar(); // カレンダー更新
-}
-function rejectRequest(index) {
-    const pending = JSON.parse(localStorage.getItem('pendingReservations') || '[]');
-    if (!pending[index]) return;
-
-    pending.splice(index, 1);
-    localStorage.setItem('pendingReservations', JSON.stringify(pending));
-
-    alert('申請を却下しました');
-    loadRequestsList(); // 画面更新
-}
-
-function populateManualTimeOptions() {
-    const select = document.getElementById('manualTime');
-    if (!select) return;
-
-    select.innerHTML = '<option value="">時間を選択</option>';
-
-    for (let hour = 9; hour <= 20; hour++) {
-        for (let minute = 0; minute < 60; minute += 30) {
-            const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-            const endHour = minute === 30 ? hour + 1 : hour;
-            const endMinute = minute === 30 ? 0 : 30;
-            const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
-
-            const opt = document.createElement('option');
-            opt.value = timeStr;
-            opt.textContent = `${timeStr} - ${endTimeStr}`;
-            select.appendChild(opt);
+            students.forEach(student => {
+                const opt = document.createElement('option');
+                opt.value = student.email;
+                opt.textContent = `${student.name}（${student.email}）`;
+                select.appendChild(opt);
+            });
         }
-    }
-}
-function populateManualStudentOptions() {
-    const select = document.getElementById('manualStudentSelect');
-    if (!select) return;
-
-    const students = JSON.parse(localStorage.getItem('students') || '[]');
-    select.innerHTML = '<option value="">生徒を選択</option>';
-
-    students.forEach(student => {
-        const opt = document.createElement('option');
-        opt.value = student.email;
-        opt.textContent = `${student.name}（${student.email}）`;
-        select.appendChild(opt);
-    });
-}
-document.getElementById('manualAssignForm')?.addEventListener('submit', function(e) {
-    e.preventDefault();
-
-    const email = document.getElementById('manualStudentSelect').value;
-    const date = document.getElementById('manualDate').value;
-    const time = document.getElementById('manualTime').value;
-
-    const students = JSON.parse(localStorage.getItem('students') || '[]');
-    const student = students.find(s => s.email === email);
-    if (!student) {
-        alert('生徒情報が見つかりません');
-        return;
-    }
-
-    const confirmed = JSON.parse(localStorage.getItem('confirmedReservations') || '[]');
-    const dateTime = new Date(`${date}T${time}`);
-
-    confirmed.push({
-        name: student.name,
-        email: student.email,
-        datetime: dateTime.toISOString(),
-        reason: '講師による手動登録',
-        type: 'manual'
-    });
-
-    localStorage.setItem('confirmedReservations', JSON.stringify(confirmed));
-    alert('予約を追加しました');
-    renderTeacherCalendar?.();
-    loadStudentSchedule?.();
-});
-// ⛳ 生徒がキャンセル申請
-document.getElementById('cancelForm')?.addEventListener('submit', function (e) {
-    e.preventDefault();
-    const date = document.getElementById('cancelDate').value;
-    const reason = document.getElementById('cancelReason').value;
-
-    const cancelRequest = {
-        id: Date.now(),
-        type: 'cancel',
-        student: currentUser,
-        date,
-        reason,
-        status: 'pending'
-    };
-
-    saveRequest(cancelRequest);
-    alert('キャンセル申請が送信されました。');
-    this.reset();
-});
-
-// ⛳ 生徒が振替申請
-document.getElementById('makeupForm')?.addEventListener('submit', function (e) {
-    e.preventDefault();
-    const fromDate = document.getElementById('makeupFromDate').value;
-    const toDate = document.getElementById('makeupToDate').value;
-    const toTime = document.getElementById('makeupToTime').value;
-    const reason = document.getElementById('makeupReason').value;
-
-    const makeupRequest = {
-        id: Date.now(),
-        type: 'makeup',
-        student: currentUser,
-        fromDate,
-        toDate,
-        toTime,
-        reason,
-        status: 'pending'
-    };
-
-    saveRequest(makeupRequest);
-    alert('振替申請が送信されました。');
-    this.reset();
-});
-
-// 💾 申請保存ロジック
-function saveRequest(request) {
-    const requests = JSON.parse(localStorage.getItem('requests') || '[]');
-    requests.push(request);
-    localStorage.setItem('requests', JSON.stringify(requests));
-    loadStudentRequests?.(); // 生徒ポータル履歴に反映
-}
-
-</script>
-
+    </script>
 </body>
 </html>
