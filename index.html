@@ -2035,21 +2035,6 @@ function initStudentAvailabilityCalendarForRegister(teacherSchedule) {
     }
 }
 
-html += '</tbody></table>';
-container.innerHTML = html;
-
-// 保存された選択を復元
-const saved = localStorage.getItem(`registerChoice${choiceNum}`);
-if (saved) {
-    // ...
-}
-                    const btn = document.getElementById(`choice${choiceNum}_${saved}`);
-                    if (btn) {
-                        btn.classList.remove('bg-green-100');
-                        btn.classList.add('bg-blue-500', 'text-white');
-                    }
-                
-        
 
         window.selectTimeSlot = function(choiceNum, key) {
             // 既存の選択をクリア
