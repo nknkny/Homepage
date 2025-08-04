@@ -7,6 +7,7 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/interaction@6.1.10/index.global.min.js"></script>
     
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -33,10 +34,6 @@
         .time-slot.booked {
             background-color: #dbeafe;
             border-color: #2563eb;
-        }
-        .fc-event {
-            border: none !important;
-            background: linear-gradient(45deg, #3b82f6, #1d4ed8) !important;
         }
         .page {
             display: none;
@@ -72,12 +69,10 @@
         /* 予約カレンダーのイベントを30分枠にぴったり収める */
         .fc-timegrid-event {
             /* 30分枠の高さにぴったり合わせる */
-            inset: 0 !important;
-            height: calc(100% - 1px) !important;
             font-size: 11px !important;
             padding: 2px 4px !important;
             overflow: hidden;
-            margin: 0 !important;
+            border-radius: 4px !important;
         }
 
         /* イベントの内容を中央揃え */
@@ -93,6 +88,12 @@
             overflow: hidden;
             text-overflow: ellipsis;
             font-weight: 500;
+        }
+
+        /* カレンダーのドラッグ中のスタイル */
+        .fc-event-dragging {
+            opacity: 0.75;
+            cursor: move;
         }
 
         /* 承認待ちカレンダー専用のスタイル */
@@ -408,6 +409,13 @@
                 <!-- Calendar Tab -->
                 <div id="calendarTabContent" class="teacherTabContent p-6" style="display: none;">
                     <h3 class="text-lg font-semibold mb-4">予約カレンダー</h3>
+                    <div class="mb-4 p-4 bg-gray-50 rounded-lg">
+                        <p class="text-sm text-gray-600 mb-2">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            予約をドラッグして移動できます。クリックで削除できます。
+                        </p>
+                        <div id="studentColorLegendCalendar" class="flex flex-wrap gap-2 mt-2"></div>
+                    </div>
                     <div id="teacherCalendar" style="height: 600px;"></div>
                 </div>
 
@@ -433,7 +441,7 @@
                     <div class="mb-4 p-4 bg-gray-50 rounded-lg">
                         <p class="text-sm text-gray-600 mb-2">
                             <i class="fas fa-info-circle mr-1"></i>
-                            カレンダー上の申請をクリックすると承認できます
+                            カレンダー上の申請をクリックすると承認・拒否できます。ドラッグして移動もできます。
                         </p>
                         <div id="studentColorLegend" class="flex flex-wrap gap-2 mt-2"></div>
                     </div>
@@ -664,6 +672,7 @@
         let currentUser = null;
         let currentUserType = null;
         let teacherCalendar = null;
+        let pendingCalendar = null;
         let scheduleListener = null;
         let studentsListener = null;
         let requestsListener = null;
@@ -1285,11 +1294,60 @@
         // Calendar Functions
         // ==========================================
         
+        // 生徒ごとの色を管理
+        const studentColors = {};
+        const colorPalette = [
+            { bg: '#3B82F6', border: '#2563EB' }, // 青
+            { bg: '#10B981', border: '#059669' }, // 緑
+            { bg: '#F59E0B', border: '#D97706' }, // オレンジ
+            { bg: '#EF4444', border: '#DC2626' }, // 赤
+            { bg: '#8B5CF6', border: '#7C3AED' }, // 紫
+            { bg: '#EC4899', border: '#DB2777' }, // ピンク
+            { bg: '#14B8A6', border: '#0D9488' }, // ティール
+            { bg: '#F97316', border: '#EA580C' }, // オレンジレッド
+            { bg: '#6366F1', border: '#4F46E5' }, // インディゴ
+            { bg: '#84CC16', border: '#65A30D' }, // ライム
+        ];
+        let colorIndex = 0;
+
+        // 生徒IDから色を取得する関数
+        function getStudentColor(studentId) {
+            if (!studentColors[studentId]) {
+                studentColors[studentId] = colorPalette[colorIndex % colorPalette.length];
+                colorIndex++;
+            }
+            return studentColors[studentId];
+        }
+
         async function initTeacherCalendar() {
             if (teacherCalendar) teacherCalendar.destroy();
 
             const calendarEl = document.getElementById('teacherCalendar');
             if (!calendarEl) return;
+
+            const students = await getFromFirebase('students') || {};
+            const bookings = await getFromFirebase('bookings') || {};
+            
+            // 生徒に色を割り当て
+            Object.values(students).forEach(student => {
+                getStudentColor(student.id);
+            });
+
+            // 色の凡例を表示
+            const legendContainer = document.getElementById('studentColorLegendCalendar');
+            if (legendContainer) {
+                legendContainer.innerHTML = '';
+                Object.values(students).forEach(student => {
+                    const color = getStudentColor(student.id);
+                    const legendItem = document.createElement('div');
+                    legendItem.className = 'flex items-center space-x-2';
+                    legendItem.innerHTML = `
+                        <div class="w-4 h-4 rounded" style="background-color: ${color.bg}"></div>
+                        <span class="text-sm">${student.name}</span>
+                    `;
+                    legendContainer.appendChild(legendItem);
+                });
+            }
 
             const events = await getConfirmedReservationsForCalendar();
 
@@ -1306,6 +1364,8 @@
                     minute: '2-digit',
                     meridiem: false
                 },
+                editable: true,
+                droppable: true,
                 events: events,
                 eventClick: function(info) {
                     if (confirm(`${info.event.title} を削除しますか？`)) {
@@ -1313,6 +1373,19 @@
                         info.event.remove();
                         alert("予約を削除しました");
                     }
+                },
+                eventDrop: async function(info) {
+                    // ドロップ後の処理
+                    const bookingId = info.event.id;
+                    const newDate = info.event.start.toISOString().split('T')[0];
+                    const newTime = info.event.start.toTimeString().slice(0, 5);
+                    
+                    await updateFirebase(`bookings/${bookingId}`, {
+                        date: newDate,
+                        time: newTime
+                    });
+                    
+                    alert('予約を移動しました');
                 }
             });
 
@@ -1325,12 +1398,14 @@
 
             Object.values(bookings).forEach(booking => {
                 if (booking.status === 'confirmed') {
+                    const color = getStudentColor(booking.studentId);
                     events.push({
                         id: booking.id,
                         title: booking.studentName,
-                        start: `${booking.date}T${booking.time}`,
-                        end: getEndTime(`${booking.date}T${booking.time}`),
-                        color: '#2563eb'
+                        start: `${booking.date}T${booking.time}:00`,
+                        end: getEndTime(`${booking.date}T${booking.time}:00`),
+                        backgroundColor: color.bg,
+                        borderColor: color.border
                     });
                 }
             });
@@ -1348,22 +1423,6 @@
             await db.ref(`bookings/${id}`).remove();
         }
 
-        // 生徒ごとの色を管理
-        const studentColors = {};
-        const colorPalette = [
-            { bg: '#3B82F6', border: '#2563EB' }, // 青
-            { bg: '#10B981', border: '#059669' }, // 緑
-            { bg: '#F59E0B', border: '#D97706' }, // オレンジ
-            { bg: '#EF4444', border: '#DC2626' }, // 赤
-            { bg: '#8B5CF6', border: '#7C3AED' }, // 紫
-            { bg: '#EC4899', border: '#DB2777' }, // ピンク
-            { bg: '#14B8A6', border: '#0D9488' }, // ティール
-            { bg: '#F97316', border: '#EA580C' }, // オレンジレッド
-            { bg: '#6366F1', border: '#4F46E5' }, // インディゴ
-            { bg: '#84CC16', border: '#65A30D' }, // ライム
-        ];
-        let colorIndex = 0;
-
         async function initPendingCalendar() {
             const requests = await getFromFirebase('requests') || {};
             const pending = Object.values(requests).filter(r => r.status === 'pending');
@@ -1376,10 +1435,7 @@
 
             const uniqueStudents = {};
             pending.forEach(req => {
-                if (!studentColors[req.studentId]) {
-                    studentColors[req.studentId] = colorPalette[colorIndex % colorPalette.length];
-                    colorIndex++;
-                }
+                const color = getStudentColor(req.studentId);
                 uniqueStudents[req.studentId] = req.studentName;
             });
 
@@ -1401,30 +1457,32 @@
                 const color = studentColors[req.studentId];
                 
                 if (req.type === 'new') {
-                    // 時間とともに名前も表示
-                    const endHour = parseInt(req.time.split(':')[0]) + (parseInt(req.time.split(':')[1]) >= 30 ? 1 : 0);
-                    const endMinute = parseInt(req.time.split(':')[1]) + 30 >= 60 ? 
-                        parseInt(req.time.split(':')[1]) + 30 - 60 : 
-                        parseInt(req.time.split(':')[1]) + 30;
-                    const endTime = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+                    const nextDate = getNextDate(req.day);
+                    const startDateTime = `${nextDate}T${req.time}:00`;
                     
                     return {
+                        id: req.id,
                         title: `${req.studentName}`,
-                        start: getNextDate(req.day) + 'T' + req.time,
+                        start: startDateTime,
+                        end: getEndTime(startDateTime),
                         backgroundColor: color.bg,
                         borderColor: color.border,
                         textColor: '#FFFFFF',
                         extendedProps: { 
                             requestId: req.id, 
                             studentName: req.studentName,
-                            time: `${req.time}-${endTime}`,
-                            reason: req.reason
+                            day: req.day,
+                            time: req.time,
+                            reason: req.reason,
+                            type: 'new'
                         }
                     };
                 } else if (req.type === 'makeup') {
                     return {
+                        id: req.id,
                         title: `${req.studentName} (振替)`,
-                        start: req.toDate + 'T' + req.toTime,
+                        start: `${req.toDate}T${req.toTime}:00`,
+                        end: getEndTime(`${req.toDate}T${req.toTime}:00`),
                         backgroundColor: color.bg,
                         borderColor: color.border,
                         textColor: '#FFFFFF',
@@ -1436,6 +1494,7 @@
                     };
                 } else if (req.type === 'cancel') {
                     return {
+                        id: req.id,
                         title: `${req.studentName} (キャンセル)`,
                         start: req.date,
                         backgroundColor: color.bg,
@@ -1455,16 +1514,16 @@
             const calendarEl = document.getElementById('pendingCalendar');
             if (!calendarEl) return;
 
-            if (calendarEl._calendar) {
-                calendarEl._calendar.destroy();
+            if (pendingCalendar) {
+                pendingCalendar.destroy();
             }
 
-            const pendingCalendar = new FullCalendar.Calendar(calendarEl, {
+            pendingCalendar = new FullCalendar.Calendar(calendarEl, {
                 initialView: 'timeGridWeek',
                 locale: 'ja',
                 headerToolbar: {
-                    left: '',
-                    center: '',
+                    left: 'prev,next today',
+                    center: 'title',
                     right: ''
                 },
                 titleFormat: { year: 'numeric', month: 'short' },
@@ -1477,6 +1536,8 @@
                 weekNumbers: false,
                 dayHeaders: true,
                 nowIndicator: true,
+                editable: true,
+                droppable: true,
                 events: events,
                 height: 600,
                 eventTimeFormat: {
@@ -1487,26 +1548,49 @@
                 eventClick: function(info) {
                     const requestId = info.event.extendedProps.requestId;
                     const studentName = info.event.extendedProps.studentName;
-                    const time = info.event.extendedProps.time || '';
                     const type = info.event.extendedProps.type || '新規申請';
                     const reason = info.event.extendedProps.reason || '';
                     
                     let message = `${studentName}さんの${type}`;
-                    if (time) message += `\n時間: ${time}`;
                     if (reason) message += `\n理由: ${reason}`;
-                    message += '\n\n承認しますか？';
+                    message += '\n\nどうしますか？';
                     
-                    if (confirm(message)) {
+                    const action = confirm(message + '\n\nOK: 承認\nキャンセル: 拒否を選択');
+                    
+                    if (action) {
                         approveRequest(requestId);
-                        initPendingCalendar();
+                    } else {
+                        if (confirm('本当に拒否しますか？')) {
+                            rejectRequest(requestId);
+                        }
                     }
+                    setTimeout(() => initPendingCalendar(), 500);
+                },
+                eventDrop: async function(info) {
+                    // ドロップ後の処理
+                    const requestId = info.event.extendedProps.requestId;
+                    const newDate = info.event.start.toISOString().split('T')[0];
+                    const newTime = info.event.start.toTimeString().slice(0, 5);
+                    const dayName = ['日', '月', '火', '水', '木', '金', '土'][info.event.start.getDay()];
+                    
+                    if (info.event.extendedProps.type === 'new') {
+                        await updateFirebase(`requests/${requestId}`, {
+                            day: dayName,
+                            time: newTime
+                        });
+                    } else if (info.event.extendedProps.type === '振替申請') {
+                        await updateFirebase(`requests/${requestId}`, {
+                            toDate: newDate,
+                            toTime: newTime
+                        });
+                    }
+                    
+                    alert('申請を移動しました');
                 },
                 eventDidMount: function(info) {
                     // ツールチップの追加
                     const time = info.event.extendedProps.time || '';
-                    const tooltipText = time ? 
-                        `${info.event.title} ${time} - クリックで承認` : 
-                        `${info.event.title} - クリックで承認`;
+                    const tooltipText = `${info.event.title} - クリックで承認/拒否、ドラッグで移動`;
                     
                     info.el.setAttribute('title', tooltipText);
                     info.el.style.fontSize = '11px';
@@ -1518,7 +1602,6 @@
             });
 
             pendingCalendar.render();
-            calendarEl._calendar = pendingCalendar;
         }
 
         // ==========================================
@@ -1913,39 +1996,62 @@
                         const endMinute = minute === 30 ? 0 : 30;
                         const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
 
-                        html += `<tr><td class="p-2 font-medium text-sm">${timeStr} - ${endTimeStr}</td>`;
+                        html += `<tr><td class="p-2 font-medium text-html += `<tr><td class="p-2 font-medium text-sm">${timeStr}-${endTimeStr}</td>`;
+
                         days.forEach(day => {
                             const key = `${day}_${timeStr}`;
                             const isAvailable = teacherSchedule[key] === true;
-                            if (isAvailable) {
-                                html += `<td class="p-2 text-center cursor-pointer bg-green-100 hover:bg-green-200" data-key="${key}" data-choice="${choiceNum}">○</td>`;
-                            } else {
-                                html += `<td class="p-2 text-center bg-red-100">×</td>`;
-                            }
+                            const slotId = `choice${choiceNum}_${key}`;
+                            
+                            html += `<td class="p-2 text-center">
+                                <button type="button" 
+                                        class="w-full h-8 rounded ${isAvailable ? 'bg-green-100 hover:bg-green-200' : 'bg-gray-100 cursor-not-allowed'}"
+                                        onclick="${isAvailable ? `selectTimeSlot(${choiceNum}, '${key}')` : ''}"
+                                        id="${slotId}"
+                                        ${!isAvailable ? 'disabled' : ''}>
+                                    ${isAvailable ? '○' : '×'}
+                                </button>
+                            </td>`;
                         });
+
                         html += '</tr>';
                     }
                 }
+
                 html += '</tbody></table>';
                 container.innerHTML = html;
 
-                // クリックで選択
-                container.querySelectorAll('td[data-key]').forEach(cell => {
-                    cell.addEventListener('click', function() {
-                        // 同じ選択肢内の既存選択をクリア
-                        container.querySelectorAll('td[data-key]').forEach(c => {
-                            c.classList.remove('bg-blue-300');
-                            c.textContent = '○';
-                        });
-                        
-                        // 新しい選択を設定
-                        this.classList.add('bg-blue-300');
-                        this.textContent = '✓';
-                        
-                        const selectedKey = this.getAttribute('data-key');
-                        localStorage.setItem(`registerChoice${choiceNum}`, selectedKey);
-                    });
-                });
+                // 保存された選択を復元
+                const saved = localStorage.getItem(`registerChoice${choiceNum}`);
+                if (saved) {
+                    const btn = document.getElementById(`choice${choiceNum}_${saved}`);
+                    if (btn) {
+                        btn.classList.remove('bg-green-100');
+                        btn.classList.add('bg-blue-500', 'text-white');
+                    }
+                }
+            }
+        }
+
+        window.selectTimeSlot = function(choiceNum, key) {
+            // 既存の選択をクリア
+            for (let i = 1; i <= 3; i++) {
+                const saved = localStorage.getItem(`registerChoice${i}`);
+                if (saved) {
+                    const btn = document.getElementById(`choice${i}_${saved}`);
+                    if (btn && btn.classList.contains('bg-blue-500')) {
+                        btn.classList.remove('bg-blue-500', 'text-white');
+                        btn.classList.add('bg-green-100');
+                    }
+                }
+            }
+
+            // 新しい選択を保存
+            localStorage.setItem(`registerChoice${choiceNum}`, key);
+            const selectedBtn = document.getElementById(`choice${choiceNum}_${key}`);
+            if (selectedBtn) {
+                selectedBtn.classList.remove('bg-green-100');
+                selectedBtn.classList.add('bg-blue-500', 'text-white');
             }
         }
 
@@ -1954,176 +2060,185 @@
             if (!container) return;
 
             const days = ['月', '火', '水', '木', '金', '土', '日'];
+            const selectedSlots = JSON.parse(localStorage.getItem('studentSelectedSlots') || '[]');
 
             let html = '<table class="w-full border-collapse">';
             html += '<thead><tr class="bg-gray-50"><th class="p-2">時間</th>';
             days.forEach(d => html += `<th class="p-2 text-center">${d}</th>`);
             html += '</tr></thead><tbody>';
 
-            let selectedSlots = JSON.parse(localStorage.getItem('studentSelectedSlots') || '[]');
-
             for (let hour = 9; hour <= 20; hour++) {
                 for (let minute = 0; minute < 60; minute += 30) {
                     const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
                     const endHour = minute === 30 ? hour + 1 : hour;
                     const endMinute = minute === 30 ? 0 : 30;
                     const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
-                    
-                    html += `<tr><td class="p-2 font-medium text-sm">${timeStr} - ${endTimeStr}</td>`;
+
+                    html += `<tr><td class="p-2 font-medium text-sm">${timeStr}-${endTimeStr}</td>`;
 
                     days.forEach(day => {
                         const key = `${day}_${timeStr}`;
                         const isAvailable = teacherSchedule[key] === true;
                         const isSelected = selectedSlots.includes(key);
                         
-                        if (isAvailable) {
-                            const bgClass = isSelected ? 'bg-blue-300' : 'bg-green-100 hover:bg-green-200';
-                            const text = isSelected ? '✓' : '○';
-                            html += `<td class="p-2 text-center cursor-pointer ${bgClass}" data-key="${key}">${text}</td>`;
-                        } else {
-                            html += `<td class="p-2 text-center bg-red-100">×</td>`;
-                        }
+                        html += `<td class="p-2 text-center">
+                            <button type="button" 
+                                    class="w-full h-8 rounded ${
+                                        isSelected ? 'bg-blue-500 text-white' : 
+                                        isAvailable ? 'bg-green-100 hover:bg-green-200' : 
+                                        'bg-gray-100 cursor-not-allowed'
+                                    }"
+                                    onclick="${isAvailable ? `toggleStudentSlot('${key}')` : ''}"
+                                    data-slot="${key}"
+                                    ${!isAvailable ? 'disabled' : ''}>
+                                ${isAvailable ? (isSelected ? '✓' : '○') : '×'}
+                            </button>
+                        </td>`;
                     });
 
                     html += '</tr>';
                 }
             }
+
             html += '</tbody></table>';
             container.innerHTML = html;
+        }
 
-            // ○クリックで選択（最大3つ）
-            container.querySelectorAll('td[data-key]').forEach(cell => {
-                cell.addEventListener('click', function() {
-                    const key = this.getAttribute('data-key');
-                    let selectedSlots = JSON.parse(localStorage.getItem('studentSelectedSlots') || '[]');
-                    
-                    if (selectedSlots.includes(key)) {
-                        selectedSlots = selectedSlots.filter(s => s !== key);
-                        this.classList.remove('bg-blue-300');
-                        this.classListthis.classList.add('bg-green-100', 'hover:bg-green-200');
-                        this.textContent = '○';
-                    } else {
-                        if (selectedSlots.length >= 3) {
-                            alert('選択できるのは最大3つまでです');
-                            return;
-                        }
-                        selectedSlots.push(key);
-                        this.classList.remove('bg-green-100', 'hover:bg-green-200');
-                        this.classList.add('bg-blue-300');
-                        this.textContent = '✓';
-                    }
-                    
-                    localStorage.setItem('studentSelectedSlots', JSON.stringify(selectedSlots));
-                });
-            });
+        window.toggleStudentSlot = function(key) {
+            let selectedSlots = JSON.parse(localStorage.getItem('studentSelectedSlots') || '[]');
+            
+            if (selectedSlots.includes(key)) {
+                selectedSlots = selectedSlots.filter(s => s !== key);
+            } else {
+                if (selectedSlots.length >= 3) {
+                    alert('選択できるのは最大3つまでです');
+                    return;
+                }
+                selectedSlots.push(key);
+            }
+
+            localStorage.setItem('studentSelectedSlots', JSON.stringify(selectedSlots));
+
+            // ボタンの表示を更新
+            const btn = document.querySelector(`[data-slot="${key}"]`);
+            if (btn) {
+                if (selectedSlots.includes(key)) {
+                    btn.classList.remove('bg-green-100');
+                    btn.classList.add('bg-blue-500', 'text-white');
+                    btn.textContent = '✓';
+                } else {
+                    btn.classList.remove('bg-blue-500', 'text-white');
+                    btn.classList.add('bg-green-100');
+                    btn.textContent = '○';
+                }
+            }
         }
 
         // ==========================================
-        // Manual Assignment
-        // ==========================================
-        
-        window.openManualAssign = async function(studentId) {
-            const students = await getFromFirebase('students') || {};
-            const student = students[studentId];
-            if (!student) return alert('生徒が見つかりません');
-
-            showTeacherTab('manualAssign');
-
-            // Select the student
-            const select = document.getElementById('manualStudentSelect');
-            if (select) {
-                select.value = student.email;
-            }
-        };
-
-        // ==========================================
-        // Helper Functions
+        // Utility Functions
         // ==========================================
         
         function getNextDate(dayName) {
-            const days = {
-                '日': 0, '月': 1, '火': 2, '水': 3, '木': 4, '金': 5, '土': 6
-            };
-            const today = new Date();
+            const days = { '日':0,'月':1,'火':2,'水':3,'木':4,'金':5,'土':6 };
             const targetDay = days[dayName];
-            const todayDay = today.getDay();
-            const daysUntilTarget = (targetDay - todayDay + 7) % 7 || 7;
             
-            const targetDate = new Date(today);
-            targetDate.setDate(today.getDate() + daysUntilTarget);
+            const today = new Date();
+            let nextDate = new Date(today);
             
-            return targetDate.toISOString().split('T')[0];
+            while (nextDate.getDay() !== targetDay) {
+                nextDate.setDate(nextDate.getDate() + 1);
+            }
+            
+            return nextDate.toISOString().split('T')[0];
         }
 
         async function loadMakeupTimeOptions() {
-            const select = document.getElementById('makeupToTime');
             const dateInput = document.getElementById('makeupToDate');
-
-            if (!select || !dateInput) return;
-
-            select.innerHTML = '<option value="">時間選択</option>';
-
+            const timeSelect = document.getElementById('makeupToTime');
+            
+            if (!dateInput || !timeSelect) return;
+            
+            const selectedDate = new Date(dateInput.value);
+            const dayName = ['日', '月', '火', '水', '木', '金', '土'][selectedDate.getDay()];
+            
             const teacherSchedule = await getFromFirebase('teacherSchedule') || {};
-            const daySelect = dateInput.value;
-            if (!daySelect) return;
-
-            const day = new Date(daySelect).getDay();
-            const dayNames = ['日','月','火','水','木','金','土'];
-            const dayName = dayNames[day];
-
+            
+            timeSelect.innerHTML = '<option value="">時間選択</option>';
+            
             for (let hour = 9; hour <= 20; hour++) {
                 for (let minute = 0; minute < 60; minute += 30) {
                     const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-                    const endHour = minute === 30 ? hour + 1 : hour;
-                    const endMinute = minute === 30 ? 0 : 30;
-                    const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
-
                     const key = `${dayName}_${timeStr}`;
+                    
                     if (teacherSchedule[key] === true) {
-                        const opt = document.createElement('option');
-                        opt.value = timeStr;
-                        opt.textContent = `${timeStr} - ${endTimeStr}`;
-                        select.appendChild(opt);
+                        const endHour = minute === 30 ? hour + 1 : hour;
+                        const endMinute = minute === 30 ? 0 : 30;
+                        const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+                        
+                        const option = document.createElement('option');
+                        option.value = timeStr;
+                        option.textContent = `${timeStr} - ${endTimeStr}`;
+                        timeSelect.appendChild(option);
                     }
                 }
             }
+        }
+
+        function populateManualStudentOptions() {
+            const select = document.getElementById('manualStudentSelect');
+            if (!select) return;
+
+            getFromFirebase('students').then(students => {
+                const studentsArray = Object.values(students || {});
+                select.innerHTML = '<option value="">生徒を選択してください</option>';
+                
+                studentsArray.forEach(student => {
+                    const option = document.createElement('option');
+                    option.value = student.email;
+                    option.textContent = student.name;
+                    select.appendChild(option);
+                });
+            });
         }
 
         function populateManualTimeOptions() {
             const select = document.getElementById('manualTime');
             if (!select) return;
 
-            select.innerHTML = '<option value="">時間を選択</option>';
-
+            select.innerHTML = '<option value="">時間を選択してください</option>';
+            
             for (let hour = 9; hour <= 20; hour++) {
                 for (let minute = 0; minute < 60; minute += 30) {
                     const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
                     const endHour = minute === 30 ? hour + 1 : hour;
                     const endMinute = minute === 30 ? 0 : 30;
                     const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
-
-                    const opt = document.createElement('option');
-                    opt.value = timeStr;
-                    opt.textContent = `${timeStr} - ${endTimeStr}`;
-                    select.appendChild(opt);
+                    
+                    const option = document.createElement('option');
+                    option.value = timeStr;
+                    option.textContent = `${timeStr} - ${endTimeStr}`;
+                    select.appendChild(option);
                 }
             }
         }
 
-        async function populateManualStudentOptions() {
-            const select = document.getElementById('manualStudentSelect');
-            if (!select) return;
-
-            const students = await getFromFirebase('students') || {};
-            select.innerHTML = '<option value="">生徒を選択</option>';
-
-            Object.values(students).forEach(student => {
-                const opt = document.createElement('option');
-                opt.value = student.email;
-                opt.textContent = `${student.name}（${student.email}）`;
-                select.appendChild(opt);
+        window.openManualAssign = function(studentId) {
+            showTeacherTab('manualAssign');
+            
+            getFromFirebase(`students/${studentId}`).then(student => {
+                if (student) {
+                    const select = document.getElementById('manualStudentSelect');
+                    if (select) {
+                        select.value = student.email;
+                    }
+                }
             });
         }
+
+        // ページ読み込み完了時にローディングを非表示
+        window.addEventListener('load', function() {
+            hideLoading();
+        });
     </script>
 </body>
 </html>
