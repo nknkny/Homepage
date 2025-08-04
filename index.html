@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -70,12 +69,22 @@
             }
         }
         
-        /* 予約カレンダーのイベントを小さく（30分枠の上半分だけ） */
+        /* 予約カレンダーのイベントを30分枠にぴったり収める */
         .fc-timegrid-event {
-            height: 50% !important;       /* ← 高さを半分に */
-            font-size: 12px !important;   /* ← 文字を小さく */
-            padding: 2px 4px !important;  /* ← コンパクトに */
+            /* 30分枠の高さにぴったり合わせる */
+            inset: 0 !important;
+            height: calc(100% - 1px) !important;
+            font-size: 11px !important;
+            padding: 2px 4px !important;
             overflow: hidden;
+            margin: 0 !important;
+        }
+
+        /* イベントの内容を中央揃え */
+        .fc-event-main {
+            display: flex;
+            align-items: center;
+            height: 100%;
         }
 
         /* タイトルをシンプルに（はみ出したら省略） */
@@ -83,6 +92,18 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            font-weight: 500;
+        }
+
+        /* 承認待ちカレンダー専用のスタイル */
+        #pendingCalendar .fc-timegrid-event {
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        #pendingCalendar .fc-timegrid-event:hover {
+            transform: scale(1.05);
+            z-index: 10;
         }
     </style>
 </head>
@@ -171,58 +192,6 @@
                     <button type="button" onclick="showPage('student-login')" class="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600">
                         ログイン
                     </button>
-                </div>
-            </div>
-
-            <div class="bg-white p-8 rounded-lg shadow-md">
-                <h2 class="text-2xl font-bold mb-6 text-center">システムの特徴</h2>
-                <div class="grid md:grid-cols-2 gap-6">
-                    <div class="space-y-4">
-                        <div class="flex items-start">
-                            <i class="fas fa-clock text-blue-500 mt-1 mr-3"></i>
-                            <div>
-                                <h4 class="font-semibold">30分刻み管理</h4>
-                                <p class="text-gray-600">すべての予約・管理を30分単位で統一</p>
-                            </div>
-                        </div>
-                        <div class="flex items-start">
-                            <i class="fas fa-magic text-blue-500 mt-1 mr-3"></i>
-                            <div>
-                                <h4 class="font-semibold">自動割当</h4>
-                                <p class="text-gray-600">希望時間から最適なスケジュールを自動生成</p>
-                            </div>
-                        </div>
-                        <div class="flex items-start">
-                            <i class="fas fa-mobile-alt text-blue-500 mt-1 mr-3"></i>
-                            <div>
-                                <h4 class="font-semibold">スマホ対応</h4>
-                                <p class="text-gray-600">どこからでも簡単アクセス・操作可能</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="space-y-4">
-                        <div class="flex items-start">
-                            <i class="fas fa-sync text-blue-500 mt-1 mr-3"></i>
-                            <div>
-                                <h4 class="font-semibold">リアルタイム同期</h4>
-                                <p class="text-gray-600">先生と生徒の情報が即座に反映</p>
-                            </div>
-                        </div>
-                        <div class="flex items-start">
-                            <i class="fas fa-exchange-alt text-blue-500 mt-1 mr-3"></i>
-                            <div>
-                                <h4 class="font-semibold">振替・キャンセル</h4>
-                                <p class="text-gray-600">オンラインで申請・承認処理</p>
-                            </div>
-                        </div>
-                        <div class="flex items-start">
-                            <i class="fas fa-calendar-alt text-blue-500 mt-1 mr-3"></i>
-                            <div>
-                                <h4 class="font-semibold">カレンダー表示</h4>
-                                <p class="text-gray-600">直感的な予約状況確認</p>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
@@ -370,16 +339,16 @@
                     <div class="text-sm opacity-80">登録生徒数</div>
                 </div>
                 <div class="bg-green-500 text-white p-4 rounded-lg">
-                    <div class="text-2xl font-bold" id="weeklyLessons">0</div>
-                    <div class="text-sm opacity-80">週間レッスン数</div>
+                    <div class="text-2xl font-bold" id="yearlyLessons">0</div>
+                    <div class="text-sm opacity-80">年間レッスン数</div>
                 </div>
                 <div class="bg-yellow-500 text-white p-4 rounded-lg">
                     <div class="text-2xl font-bold" id="pendingRequests">0</div>
                     <div class="text-sm opacity-80">承認待ち申請</div>
                 </div>
                 <div class="bg-purple-500 text-white p-4 rounded-lg">
-                    <div class="text-2xl font-bold" id="monthlyRevenue">¥0</div>
-                    <div class="text-sm opacity-80">月間予想収入</div>
+                    <div class="text-2xl font-bold" id="yearlyRevenue">¥0</div>
+                    <div class="text-sm opacity-80">年間予想収入</div>
                 </div>
             </div>
 
@@ -668,16 +637,15 @@
         // ==========================================
         
         // ⚠️ 重要: 以下の設定をあなたのFirebaseプロジェクトの設定に置き換えてください
-     const firebaseConfig = {
-    apiKey: "AIzaSyDuwQzcC9HlejgxpLAa8dK68xYwueoNmK4",
-    authDomain: "piano-lesson-system.firebaseapp.com",
-    projectId: "piano-lesson-system",
-    storageBucket: "piano-lesson-system.firebasestorage.app",
-    messagingSenderId: "94459879451",
-    appId: "1:94459879451:web:342958cd3531b61fb818be",
-    // ここにdatabaseURLを追加します
-    databaseURL: "https://piano-lesson-system-default-rtdb.asia-southeast1.firebasedatabase.app"
-};
+        const firebaseConfig = {
+            apiKey: "AIzaSyDuwQzcC9HlejgxpLAa8dK68xYwueoNmK4",
+            authDomain: "piano-lesson-system.firebaseapp.com",
+            projectId: "piano-lesson-system",
+            storageBucket: "piano-lesson-system.firebasestorage.app",
+            messagingSenderId: "94459879451",
+            appId: "1:94459879451:web:342958cd3531b61fb818be",
+            databaseURL: "https://piano-lesson-system-default-rtdb.asia-southeast1.firebasedatabase.app"
+        };
 
         // Firebase初期化
         let db;
@@ -1332,6 +1300,12 @@
                 slotMinTime: '09:00:00',
                 slotMaxTime: '21:00:00',
                 slotDuration: '00:30:00',
+                slotLabelInterval: '01:00:00',
+                eventTimeFormat: {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    meridiem: false
+                },
                 events: events,
                 eventClick: function(info) {
                     if (confirm(`${info.event.title} を削除しますか？`)) {
@@ -1427,13 +1401,25 @@
                 const color = studentColors[req.studentId];
                 
                 if (req.type === 'new') {
+                    // 時間とともに名前も表示
+                    const endHour = parseInt(req.time.split(':')[0]) + (parseInt(req.time.split(':')[1]) >= 30 ? 1 : 0);
+                    const endMinute = parseInt(req.time.split(':')[1]) + 30 >= 60 ? 
+                        parseInt(req.time.split(':')[1]) + 30 - 60 : 
+                        parseInt(req.time.split(':')[1]) + 30;
+                    const endTime = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+                    
                     return {
                         title: `${req.studentName}`,
                         start: getNextDate(req.day) + 'T' + req.time,
                         backgroundColor: color.bg,
                         borderColor: color.border,
                         textColor: '#FFFFFF',
-                        extendedProps: { requestId: req.id, studentName: req.studentName }
+                        extendedProps: { 
+                            requestId: req.id, 
+                            studentName: req.studentName,
+                            time: `${req.time}-${endTime}`,
+                            reason: req.reason
+                        }
                     };
                 } else if (req.type === 'makeup') {
                     return {
@@ -1442,7 +1428,11 @@
                         backgroundColor: color.bg,
                         borderColor: color.border,
                         textColor: '#FFFFFF',
-                        extendedProps: { requestId: req.id, studentName: req.studentName }
+                        extendedProps: { 
+                            requestId: req.id, 
+                            studentName: req.studentName,
+                            type: '振替申請'
+                        }
                     };
                 } else if (req.type === 'cancel') {
                     return {
@@ -1452,7 +1442,11 @@
                         borderColor: color.border,
                         textColor: '#FFFFFF',
                         allDay: true,
-                        extendedProps: { requestId: req.id, studentName: req.studentName }
+                        extendedProps: { 
+                            requestId: req.id, 
+                            studentName: req.studentName,
+                            type: 'キャンセル申請'
+                        }
                     };
                 }
                 return null;
@@ -1474,7 +1468,7 @@
                     right: ''
                 },
                 titleFormat: { year: 'numeric', month: 'short' },
-                dayHeaderFormat: { weekday: 'short' }, // 曜日のみ表示
+                dayHeaderFormat: { weekday: 'short' },
                 slotMinTime: '09:00',
                 slotMaxTime: '21:00',
                 slotDuration: '00:30',
@@ -1485,22 +1479,41 @@
                 nowIndicator: true,
                 events: events,
                 height: 600,
+                eventTimeFormat: {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    meridiem: false
+                },
                 eventClick: function(info) {
                     const requestId = info.event.extendedProps.requestId;
                     const studentName = info.event.extendedProps.studentName;
-                    if (confirm(`${studentName}さんの申請を承認しますか？`)) {
+                    const time = info.event.extendedProps.time || '';
+                    const type = info.event.extendedProps.type || '新規申請';
+                    const reason = info.event.extendedProps.reason || '';
+                    
+                    let message = `${studentName}さんの${type}`;
+                    if (time) message += `\n時間: ${time}`;
+                    if (reason) message += `\n理由: ${reason}`;
+                    message += '\n\n承認しますか？';
+                    
+                    if (confirm(message)) {
                         approveRequest(requestId);
                         initPendingCalendar();
                     }
                 },
                 eventDidMount: function(info) {
                     // ツールチップの追加
-                    info.el.setAttribute('title', `${info.event.title} - クリックで承認`);
-                    // イベントのスタイルを調整
-                    info.el.style.fontSize = '12px';
+                    const time = info.event.extendedProps.time || '';
+                    const tooltipText = time ? 
+                        `${info.event.title} ${time} - クリックで承認` : 
+                        `${info.event.title} - クリックで承認`;
+                    
+                    info.el.setAttribute('title', tooltipText);
+                    info.el.style.fontSize = '11px';
                     info.el.style.padding = '2px 4px';
                     info.el.style.borderRadius = '4px';
                     info.el.style.cursor = 'pointer';
+                    info.el.style.fontWeight = '500';
                 }
             });
 
@@ -1521,15 +1534,21 @@
             const bookingsArray = Object.values(bookings);
             const pendingRequests = Object.values(requests).filter(r => r.status === 'pending');
 
+            // 年間レッスン数を計算（確定済みの予約数）
+            const yearlyLessons = bookingsArray.filter(b => b.status === 'confirmed').length;
+            
+            // 年間予想収入を計算（1レッスン1750円）
+            const yearlyRevenue = yearlyLessons * 1750;
+
             const totalStudentsEl = document.getElementById('totalStudents');
-            const weeklyLessonsEl = document.getElementById('weeklyLessons');
+            const yearlyLessonsEl = document.getElementById('yearlyLessons');
             const pendingRequestsEl = document.getElementById('pendingRequests');
-            const monthlyRevenueEl = document.getElementById('monthlyRevenue');
+            const yearlyRevenueEl = document.getElementById('yearlyRevenue');
 
             if (totalStudentsEl) totalStudentsEl.textContent = studentsArray.length;
-            if (weeklyLessonsEl) weeklyLessonsEl.textContent = bookingsArray.length;
+            if (yearlyLessonsEl) yearlyLessonsEl.textContent = yearlyLessons;
             if (pendingRequestsEl) pendingRequestsEl.textContent = pendingRequests.length;
-            if (monthlyRevenueEl) monthlyRevenueEl.textContent = `¥${bookingsArray.length * 8000}`;
+            if (yearlyRevenueEl) yearlyRevenueEl.textContent = `¥${yearlyRevenue.toLocaleString()}`;
         }
 
         async function loadStudentsList() {
@@ -1981,7 +2000,7 @@
                     if (selectedSlots.includes(key)) {
                         selectedSlots = selectedSlots.filter(s => s !== key);
                         this.classList.remove('bg-blue-300');
-                        this.classList.add('bg-green-100', 'hover:bg-green-200');
+                        this.classListthis.classList.add('bg-green-100', 'hover:bg-green-200');
                         this.textContent = '○';
                     } else {
                         if (selectedSlots.length >= 3) {
