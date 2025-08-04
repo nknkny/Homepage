@@ -1989,41 +1989,47 @@
                 days.forEach(d => html += `<th class="p-2 text-center">${d}</th>`);
                 html += '</tr></thead><tbody>';
 
-                for (let hour = 9; hour <= 20; hour++) {
-                    for (let minute = 0; minute < 60; minute += 30) {
-                        const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-                        const endHour = minute === 30 ? hour + 1 : hour;
-                        const endMinute = minute === 30 ? 0 : 30;
-                        const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
+             for (let hour = 9; hour <= 20; hour++) {
+    for (let minute = 0; minute < 60; minute += 30) {
+        const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        const endHour = minute === 30 ? hour + 1 : hour;
+        const endMinute = minute === 30 ? 0 : 30;
+        const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
 
-                        html += `<tr><td class="p-2 font-medium text-html += `<tr><td class="p-2 font-medium text-sm">${timeStr}-${endTimeStr}</td>`;
+        // この行が重複していました
+        // html += `<tr><td class="p-2 font-medium text-html += `<tr><td class="p-2 font-medium text-sm">${timeStr}-${endTimeStr}</td>`;
+        
+        // 修正後の正しいコード
+        html += `<tr><td class="p-2 font-medium text-sm">${timeStr}-${endTimeStr}</td>`;
 
-                        days.forEach(day => {
-                            const key = `${day}_${timeStr}`;
-                            const isAvailable = teacherSchedule[key] === true;
-                            const slotId = `choice${choiceNum}_${key}`;
-                            
-                            html += `<td class="p-2 text-center">
-                                <button type="button" 
-                                        class="w-full h-8 rounded ${isAvailable ? 'bg-green-100 hover:bg-green-200' : 'bg-gray-100 cursor-not-allowed'}"
-                                        onclick="${isAvailable ? `selectTimeSlot(${choiceNum}, '${key}')` : ''}"
-                                        id="${slotId}"
-                                        ${!isAvailable ? 'disabled' : ''}>
-                                    ${isAvailable ? '○' : '×'}
-                                </button>
-                            </td>`;
-                        });
+        days.forEach(day => {
+            const key = `${day}_${timeStr}`;
+            const isAvailable = teacherSchedule[key] === true;
+            const slotId = `choice${choiceNum}_${key}`;
+            
+            html += `<td class="p-2 text-center">
+                <button type="button" 
+                        class="w-full h-8 rounded ${isAvailable ? 'bg-green-100 hover:bg-green-200' : 'bg-gray-100 cursor-not-allowed'}"
+                        onclick="${isAvailable ? `selectTimeSlot(${choiceNum}, '${key}')` : ''}"
+                        id="${slotId}"
+                        ${!isAvailable ? 'disabled' : ''}>
+                    ${isAvailable ? '○' : '×'}
+                </button>
+            </td>`;
+        });
 
-                        html += '</tr>';
-                    }
-                }
+        html += '</tr>';
+    }
+}
 
-                html += '</tbody></table>';
-                container.innerHTML = html;
+html += '</tbody></table>';
+container.innerHTML = html;
 
-                // 保存された選択を復元
-                const saved = localStorage.getItem(`registerChoice${choiceNum}`);
-                if (saved) {
+// 保存された選択を復元
+const saved = localStorage.getItem(`registerChoice${choiceNum}`);
+if (saved) {
+    // ...
+}
                     const btn = document.getElementById(`choice${choiceNum}_${saved}`);
                     if (btn) {
                         btn.classList.remove('bg-green-100');
@@ -2031,7 +2037,7 @@
                     }
                 }
             }
-        }
+        
 
         window.selectTimeSlot = function(choiceNum, key) {
             // 既存の選択をクリア
