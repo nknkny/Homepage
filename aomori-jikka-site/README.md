@@ -1,21 +1,19 @@
-# 青森の実家係 公式サイト（営業開始前版）
+# 空き家レスキュー「青森の実家係」公式サイト
 
-無料の静的サイトです。Cloudflare PagesのDirect Uploadで公開できます。
+Cloudflare Pagesへ無料公開する静的サイトです。
 
-## 変更する場所
-`site-config.js` だけを編集すれば、屋号、氏名、住所、電話、メール、対応地域、受付時間、公開URL、問い合わせURL、決済URLを全ページへ反映できます。
+## 現在の状態
+- お問い合わせ：電話・メールで受付可能
+- オンライン申込み・決済：準備中
+- 公開希望URL：`https://aomori-akiya-rescue.pages.dev`
+- 検索エンジン：営業開始前のため noindex
 
-## 営業開始前に必ず入力
-- 屋号、氏名、事業住所、電話、メール
-- 通常対応地域、巡回時加算地域・加算額、対応範囲外
-- 受付時間、サービス開始日
-- 問い合わせフォームURL
-- 月額決済URL、巡回決済URL、解約フォームURL
-- 特商法表記の決済方法
-- スポット巡回のキャンセル条件
+## 変更箇所
+事業者情報、地域、料金、URL等は `site-config.js` に集約しています。
 
-## 公開
-フォルダ内のファイルをZIP化し、Cloudflare PagesのDirect Uploadへアップロードします。公開後の `*.pages.dev` URLを `site-config.js` の `currentUrl` と契約書へ記載してください。
-
-## 注意
-現在は `serviceStatus: "prelaunch"` です。申込みURL等が空欄の場合、ボタンは準備中表示になります。実際に販売開始する前に法的表示と運用の最終確認を行ってください。
+## 営業開始時
+1. Stripeの月額会費・会員現地確認・非会員現地確認の決済URLを作成
+2. `site-config.js` に各URLを入力
+3. `serviceStatus` を `live` に変更
+4. 全HTMLの noindex を削除し、robots.txtを更新
+5. Cloudflare Pagesへ再アップロード
