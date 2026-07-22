@@ -1,0 +1,20 @@
+window.SITE_CONFIG = {
+  siteName: "青森の実家係",
+  operatorTradeName: "［屋号を入力］",
+  operatorName: "［氏名を入力］",
+  operatorAddress: "［事業住所を入力］",
+  phone: "［電話番号を入力］",
+  email: "［事業用メールを入力］",
+  businessHours: "平日9:00〜18:00（案）",
+  serviceStatus: "prelaunch",
+  normalArea: "［通常対応地域を入力］",
+  surchargeArea: "［巡回時加算地域と加算額を入力］",
+  outOfArea: "［対応範囲外を入力］",
+  surchargeNote: "地域加算、駐車料金等は申込確定前に表示します。",
+  membershipPaymentUrl: "",
+  patrolPaymentUrl: "",
+  inquiryUrl: "",
+  cancellationUrl: "",
+  launchDate: "［サービス開始日］",
+  currentUrl: "［公開後のURL］"
+};
