@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://nknkny.github.io/Homepage/sitemap.xml
