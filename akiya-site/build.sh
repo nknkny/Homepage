@@ -5,7 +5,7 @@ B64_FILE="$(mktemp)"
 TAR_FILE="$(mktemp)"
 trap 'rm -f "$B64_FILE" "$TAR_FILE"' EXIT
 
-cat site.tar.gz.b64.part-* > "$B64_FILE"
+cat site.tar.gz.b64.part-* | tr -d '[:space:]' > "$B64_FILE"
 printf '%s  %s\n' '8060787d61de8f6a7261eec49befa81e8c668b610a84a979c1d871cafab3a308' "$B64_FILE" | sha256sum -c -
 base64 -d "$B64_FILE" > "$TAR_FILE"
 printf '%s  %s\n' '37d3b64277b57b7584657b6200193a03d422559353fe6a0bd766d5e572b5a7c6' "$TAR_FILE" | sha256sum -c -
