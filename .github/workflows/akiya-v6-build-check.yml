@@ -26,7 +26,6 @@ jobs:
           from html.parser import HTMLParser
           from pathlib import Path
           from urllib.parse import urlsplit, unquote
-          import re
           import sys
 
           root = Path('akiya-site/dist').resolve()
@@ -67,6 +66,7 @@ jobs:
                       if term in text:
                           errors.append(f'Forbidden public term {term}: {path.relative_to(root)}')
 
+          all_html = ''.join(p.read_text(encoding='utf-8') for p in html_files)
           for page in html_files:
               text = page.read_text(encoding='utf-8')
               parser = Parser()
@@ -105,7 +105,7 @@ jobs:
 
           api = (root / 'assets/api.js').read_text(encoding='utf-8')
           for action in ['register_member', 'member_login', 'get_dashboard', 'create_inspection_request', 'update_profile', 'request_password_reset', 'reset_password', 'recover_identifier', 'unsubscribe', 'delete_account']:
-              if action not in ''.join(p.read_text(encoding='utf-8') for p in html_files) and action not in api:
+              if action not in all_html and action not in api:
                   errors.append(f'Missing frontend action: {action}')
 
           if errors:
@@ -117,6 +117,6 @@ jobs:
       - name: Verify archive is reproducible
         run: |
           cd akiya-site
-          cat site.tar.gz.b64.part-* > /tmp/site.tar.gz.b64
+          cat site.tar.gz.b64.part-* | tr -d '[:space:]' > /tmp/site.tar.gz.b64
           test "$(wc -c < /tmp/site.tar.gz.b64)" -eq 177084
           echo '8060787d61de8f6a7261eec49befa81e8c668b610a84a979c1d871cafab3a308  /tmp/site.tar.gz.b64' | sha256sum -c -
