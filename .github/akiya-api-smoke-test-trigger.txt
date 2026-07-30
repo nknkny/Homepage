@@ -1,1 +1,2 @@
 Run the temporary Akiya Rescue API verification workflow.
+Second pass with corrected Google Apps Script response parsing.
