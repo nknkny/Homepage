@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - '.github/workflows/akiya-api-final-check.yml'
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
