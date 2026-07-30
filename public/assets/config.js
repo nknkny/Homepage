@@ -5,3 +5,4 @@ window.AKIYA_CONFIG = {
   SPREADSHEET_ID: "12nRr3Fkq8tYZWd-MQvdQXpeO9p9cGuT3CvtRnL_omw8",
   TURNSTILE_SITE_KEY: ""
 };
+// API verification trigger: 2026-07-30
