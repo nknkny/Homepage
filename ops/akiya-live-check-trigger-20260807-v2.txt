@@ -1,0 +1,4 @@
+Akiya live production verification trigger v2
+Frontend build: 2026-08-07-turnstile-refresh
+API build: 2026-08-06-insurance-optional
+Triggered at: 2026-08-07 JST
