@@ -1,2 +1,9 @@
 User-agent: *
 Allow: /
+Disallow: /member.html
+Disallow: /profile.html
+Disallow: /request.html
+Disallow: /checkout.html
+Disallow: /payment-success.html
+Disallow: /newsletter-unsubscribe.html
+Sitemap: https://rapid-hat-f45c.jmdjdtdjdt.workers.dev/sitemap.xml

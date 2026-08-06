@@ -1,0 +1,7 @@
+siteVersion=2026-08-06-insurance-optional
+apiRequiredBuild=2026-08-06-insurance-optional
+paymentMode=final_confirmation_then_stripe_or_bank
+newsletterMode=google_sheets_admin_sidebar_opt_in_queue
+invoiceRegistrationNumber=T5810907887896
+invoiceRegistrationDate=2025-01-01
+taxMode=manual_inclusive_jp_10_percent

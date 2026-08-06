@@ -4,6 +4,7 @@
   const pending=new Map();
   const apiUrl=String(cfg.API_URL||'').trim();
   const requiredBuild=String(cfg.REQUIRED_API_BUILD||'').trim();
+  const siteOrigin=String(cfg.SITE_ORIGIN||'').trim();
   const defaultTimeout=Math.max(15000,Math.min(90000,Number(cfg.API_TIMEOUT_MS)||45000));
 
   function randomHex(bytes){
@@ -14,6 +15,7 @@
   }
   function uid(prefix='WEB'){return prefix+'-'+Date.now().toString(36).toUpperCase()+'-'+randomHex(12)}
   function validApiUrl(url){return /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(url)}
+  function validSiteOrigin(origin){return /^https:\/\/[a-z0-9.-]+(?::\d+)?$/i.test(origin)&&origin===window.location.origin}
   function trustedApiMessageOrigin(origin){
     origin=String(origin||'');
     return origin==='https://script.google.com'||origin==='https://script.googleusercontent.com'||/^https:\/\/[a-z0-9-]+-script\.googleusercontent\.com$/i.test(origin);
@@ -26,6 +28,7 @@
   }
   function submit(action,data,timeout){
     if(!validApiUrl(apiUrl))return Promise.resolve({ok:false,code:'API_NOT_DEPLOYED',message:'現在、登録・依頼受付を利用できません。時間をおいて再度お試しください。'});
+    if(!validSiteOrigin(siteOrigin))return Promise.resolve({ok:false,code:'SITE_ORIGIN_MISMATCH',message:'このページからは登録・依頼受付を利用できません。公式サイトを開き直してください。'});
     const clientRequestId=uid(String(action||'WEB').slice(0,18).replace(/[^A-Za-z0-9_-]/g,'_'));
     return new Promise((resolve,reject)=>{
       const iframe=document.createElement('iframe');
@@ -38,7 +41,7 @@
       form.target=iframe.name;
       form.hidden=true;
       form.acceptCharset='UTF-8';
-      const payload=Object.assign({},data||{},{action:String(action||''),clientRequestId});
+      const payload=Object.assign({},data||{},{action:String(action||''),clientRequestId,responseOrigin:siteOrigin});
       Object.entries(payload).forEach(([k,v])=>{
         if(v===undefined||v===null)return;
         const input=document.createElement('input');
@@ -79,10 +82,17 @@
     if(!data||typeof data!=='object'||data.source!=='akiya-rescue-api'||!data.clientRequestId)return;
     const item=pending.get(String(data.clientRequestId));
     if(!item)return;
-    if(item.source!==event.source&&!trustedApiMessageOrigin(event.origin))return;
+    if(!trustedApiMessageOrigin(event.origin))return;
     item.done(data);
   });
-  function token(){return localStorage.getItem('akiya_session')||''}
-  function setToken(value){value?localStorage.setItem('akiya_session',String(value)):localStorage.removeItem('akiya_session')}
+  function token(){
+    const legacy=localStorage.getItem('akiya_session')||'';
+    if(legacy){sessionStorage.setItem('akiya_session',legacy);localStorage.removeItem('akiya_session')}
+    return sessionStorage.getItem('akiya_session')||''
+  }
+  function setToken(value){
+    localStorage.removeItem('akiya_session');
+    value?sessionStorage.setItem('akiya_session',String(value)):sessionStorage.removeItem('akiya_session')
+  }
   window.AkiyaAPI={submit,token,setToken,uid};
 })();
