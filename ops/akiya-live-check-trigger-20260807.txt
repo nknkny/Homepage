@@ -1,0 +1,3 @@
+Akiya live production verification trigger
+Expected build: 2026-08-06-insurance-optional
+Triggered at: 2026-08-07 JST
