@@ -17,7 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      EXPECTED_BUILD: 2026-08-06-insurance-optional
+      EXPECTED_SITE_BUILD: 2026-08-07-turnstile-refresh
+      EXPECTED_API_BUILD: 2026-08-06-insurance-optional
       SITE_ORIGIN: https://rapid-hat-f45c.jmdjdtdjdt.workers.dev
       API_URL: https://script.google.com/macros/s/AKfycbzWYTf9K_XyEfo1CD4Pshg18ANH5_zhOsTnyiFhKTwbDgs17ZOXqLgAxKrvO7TA3wYr0w/exec
     steps:
@@ -33,8 +34,8 @@ jobs:
               "$SITE_ORIGIN/VERSION.txt?check=${GITHUB_SHA}-${i}" \
               -o live-check/VERSION.txt; then
               cat live-check/VERSION.txt
-              if grep -Fq "siteVersion=$EXPECTED_BUILD" live-check/VERSION.txt && \
-                 grep -Fq "apiRequiredBuild=$EXPECTED_BUILD" live-check/VERSION.txt; then
+              if grep -Fq "siteVersion=$EXPECTED_SITE_BUILD" live-check/VERSION.txt && \
+                 grep -Fq "apiRequiredBuild=$EXPECTED_API_BUILD" live-check/VERSION.txt; then
                 ok=1
                 break
               fi
@@ -42,7 +43,7 @@ jobs:
             sleep 15
           done
           if [ "$ok" -ne 1 ]; then
-            echo "Cloudflare production did not expose the expected build." >&2
+            echo "Cloudflare production did not expose the expected frontend/API build pair." >&2
             exit 1
           fi
 
@@ -54,8 +55,8 @@ jobs:
             "$SITE_ORIGIN/assets/config.js?check=$GITHUB_SHA" \
             -o live-check/config.js
           cat live-check/config.js
-          grep -Fq "FRONTEND_BUILD: \"$EXPECTED_BUILD\"" live-check/config.js
-          grep -Fq "REQUIRED_API_BUILD: \"$EXPECTED_BUILD\"" live-check/config.js
+          grep -Fq "FRONTEND_BUILD: \"$EXPECTED_SITE_BUILD\"" live-check/config.js
+          grep -Fq "REQUIRED_API_BUILD: \"$EXPECTED_API_BUILD\"" live-check/config.js
           grep -Fq "API_URL: \"$API_URL\"" live-check/config.js
           grep -Fq "SITE_ORIGIN: \"$SITE_ORIGIN\"" live-check/config.js
           if grep -Eq 'sk_(live|test)_[A-Za-z0-9]+' live-check/config.js; then
@@ -85,12 +86,11 @@ jobs:
           cat live-check/api-get.json
           python - <<'PY'
           import json, os
-          p=json.load(open('live-check/api-get.json', encoding='utf-8'))
-          expected=os.environ['EXPECTED_BUILD']
-          assert p.get('buildVersion') == expected, p
-          assert p.get('app') == '空き家レスキュー会員管理', p
-          assert 'ready' in p, p
-          assert 'paidSalesReady' in p, p
+          payload=json.load(open('live-check/api-get.json', encoding='utf-8'))
+          assert payload.get('buildVersion') == os.environ['EXPECTED_API_BUILD'], payload
+          assert payload.get('app') == '空き家レスキュー会員管理', payload
+          assert 'ready' in payload, payload
+          assert 'paidSalesReady' in payload, payload
           print('GET API build and health payload verified')
           PY
 
@@ -100,7 +100,6 @@ jobs:
           set -euo pipefail
           request_id="CI-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           curl --fail --silent --show-error --location --max-time 30 \
-            --request POST \
             --data-urlencode "action=get_dashboard" \
             --data-urlencode "clientRequestId=$request_id" \
             --data-urlencode "responseOrigin=$SITE_ORIGIN" \
@@ -108,7 +107,7 @@ jobs:
             "$API_URL" \
             -o live-check/api-post.html
           cat live-check/api-post.html
-          grep -Fq "$EXPECTED_BUILD" live-check/api-post.html
+          grep -Fq "$EXPECTED_API_BUILD" live-check/api-post.html
           grep -Fq "$request_id" live-check/api-post.html
           grep -Fq 'akiya-rescue-api' live-check/api-post.html
           grep -Eq 'AUTH_REQUIRED|NOT_FOUND|AUTH_FAILED' live-check/api-post.html
@@ -119,7 +118,8 @@ jobs:
         run: |
           {
             echo "## Akiya live production check"
-            echo "- Expected build: \`$EXPECTED_BUILD\`"
+            echo "- Frontend build: \`$EXPECTED_SITE_BUILD\`"
+            echo "- API build: \`$EXPECTED_API_BUILD\`"
             echo "- Site: \`$SITE_ORIGIN\`"
             echo "- Commit: \`$GITHUB_SHA\`"
             echo "- Completed: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
