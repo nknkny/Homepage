@@ -1,0 +1,1 @@
+Trigger independent Apps Script live verification after installing the API-only workflow.
