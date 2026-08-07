@@ -28,17 +28,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          openssl req -x509 -newkey rsa:3072 -nodes \
-            -keyout "$RUNNER_TEMP/resume-key.pem" \
-            -out "$RUNNER_TEMP/resume-cert.pem" \
-            -subj "/CN=akiya-bound-resolve-${GITHUB_RUN_ID}" -days 1 >/dev/null 2>&1
+          openssl req -x509 -newkey rsa:3072 -nodes -keyout "$RUNNER_TEMP/resume-key.pem" -out "$RUNNER_TEMP/resume-cert.pem" -subj "/CN=akiya-bound-resolve-${GITHUB_RUN_ID}" -days 1 >/dev/null 2>&1
           cert=$(base64 -w0 "$RUNNER_TEMP/resume-cert.pem")
           file=".github/auth/resume-${GITHUB_RUN_ID}.b64"
-          body=$(jq -n --arg r "$GITHUB_RUN_ID" --arg c "$cert" --arg f "$file" \
-            '{body:("GOOGLE_SESSION_RESUME_READY\nRUN_ID="+$r+"\nAUTH_CERT_B64="+$c+"\nAUTH_FILE="+$f)}')
-          curl -fsSL --retry 5 --retry-all-errors -X POST \
-            -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' \
-            -d "$body" "https://api.github.com/repos/$REPO/issues/$PR_NUMBER/comments" >/dev/null
+          body=$(jq -n --arg r "$GITHUB_RUN_ID" --arg c "$cert" --arg f "$file" '{body:("GOOGLE_SESSION_RESUME_READY\nRUN_ID="+$r+"\nAUTH_CERT_B64="+$c+"\nAUTH_FILE="+$f)}')
+          curl -fsSL --retry 5 --retry-all-errors -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/$REPO/issues/$PR_NUMBER/comments" >/dev/null
           enc=''
           for _ in $(seq 1 900); do
             ref=$(python -c 'import urllib.parse,os; print(urllib.parse.quote(os.environ["HEAD_REF"],safe=""))')
@@ -51,13 +45,11 @@ jobs:
           done
           test -n "$enc"
           printf '%s' "$enc" | base64 -d > "$RUNNER_TEMP/session.cms"
-          openssl cms -decrypt -inform DER -in "$RUNNER_TEMP/session.cms" \
-            -recip "$RUNNER_TEMP/resume-cert.pem" -inkey "$RUNNER_TEMP/resume-key.pem" \
-            -out "$HOME/.clasprc.json"
+          openssl cms -decrypt -inform DER -in "$RUNNER_TEMP/session.cms" -recip "$RUNNER_TEMP/resume-cert.pem" -inkey "$RUNNER_TEMP/resume-key.pem" -out "$HOME/.clasprc.json"
           chmod 600 "$HOME/.clasprc.json"
           echo SESSION_RESTORED=PASS
 
-      - name: Resolve legacy project key to canonical script
+      - name: Resolve deployment ownership explicitly
         shell: bash
         run: |
           set -euo pipefail
@@ -71,30 +63,33 @@ jobs:
             if [ "$label" = legacy ]; then sid="$OLD_PROJECT_KEY"; else sid="$LISTED_SCRIPT_ID"; fi
             dir="$RUNNER_TEMP/$label"
             mkdir -p "$dir"
-            cd "$dir"
-            echo "=== $label clone input: $sid ==="
-            "$CLASP" clone-script "$sid" > clone.out 2> clone.err
-            echo CLONE=PASS
-            echo CLASP_JSON_BEGIN
-            cat .clasp.json
-            echo CLASP_JSON_END
-            echo FILES_BEGIN
-            find . -maxdepth 2 -type f -printf '%P\n' | sort
-            echo FILES_END
+            printf '{"scriptId":"%s"}\n' "$sid" > "$dir/.clasp.json"
+            echo "=== $label explicit scriptId: $sid ==="
             echo DEPLOYMENTS_BEGIN
-            "$CLASP" --json list-deployments || true
+            "$CLASP" -P "$dir/.clasp.json" --json list-deployments > "$dir/deployments.json" 2> "$dir/deployments.err" || true
+            cat "$dir/deployments.json" 2>/dev/null || true
+            cat "$dir/deployments.err" 2>/dev/null || true
             echo DEPLOYMENTS_END
+            echo PULL_BEGIN
+            "$CLASP" -P "$dir/.clasp.json" pull > "$dir/pull.out" 2> "$dir/pull.err" || true
+            cat "$dir/pull.out" 2>/dev/null || true
+            cat "$dir/pull.err" 2>/dev/null || true
+            echo PULL_END
+            echo FILES_BEGIN
+            find "$dir" -maxdepth 2 -type f -printf '%P\n' | sort
+            echo FILES_END
             echo SOURCE_MARKERS_BEGIN
-            grep -RhoE "2026-[0-9]{2}-[0-9]{2}-[A-Za-z0-9_-]+|AKfycb[A-Za-z0-9_-]+|12nRr3Fkq8tYZWd-MQvdQXpeO9p9cGuT3CvtRnL_omw8" . --exclude='.clasp.json' | sort -u | head -100 || true
+            grep -RhoE "2026-[0-9]{2}-[0-9]{2}-[A-Za-z0-9_-]+|AKfycb[A-Za-z0-9_-]+|12nRr3Fkq8tYZWd-MQvdQXpeO9p9cGuT3CvtRnL_omw8" "$dir" --exclude='.clasp.json' | sort -u | head -100 || true
             echo SOURCE_MARKERS_END
           done
 
-          legacy_id=$(jq -r '.scriptId // empty' "$RUNNER_TEMP/legacy/.clasp.json")
-          listed_id=$(jq -r '.scriptId // empty' "$RUNNER_TEMP/listed/.clasp.json")
-          echo "LEGACY_CANONICAL_SCRIPT_ID=$legacy_id"
-          echo "LISTED_CANONICAL_SCRIPT_ID=$listed_id"
-          if (cd "$RUNNER_TEMP/legacy" && "$CLASP" --json list-deployments | grep -Fq "$TARGET_DEPLOYMENT"); then
+          if grep -Fq "$TARGET_DEPLOYMENT" "$RUNNER_TEMP/legacy/deployments.json" 2>/dev/null; then
             echo TARGET_DEPLOYMENT_FOUND_IN_LEGACY=PASS
           else
             echo TARGET_DEPLOYMENT_FOUND_IN_LEGACY=FAIL
+          fi
+          if grep -Fq "$TARGET_DEPLOYMENT" "$RUNNER_TEMP/listed/deployments.json" 2>/dev/null; then
+            echo TARGET_DEPLOYMENT_FOUND_IN_LISTED=PASS
+          else
+            echo TARGET_DEPLOYMENT_FOUND_IN_LISTED=FAIL
           fi
