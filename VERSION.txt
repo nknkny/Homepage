@@ -1,7 +1,4 @@
-siteVersion=2026-08-07-turnstile-refresh
-apiRequiredBuild=2026-08-06-insurance-optional
+siteVersion=2026-08-05-launch-complete
+apiRequiredBuild=2026-08-05-launch-complete
 paymentMode=final_confirmation_then_stripe_or_bank
 newsletterMode=google_sheets_admin_sidebar_opt_in_queue
-invoiceRegistrationNumber=T5810907887896
-invoiceRegistrationDate=2025-01-01
-taxMode=manual_inclusive_jp_10_percent
