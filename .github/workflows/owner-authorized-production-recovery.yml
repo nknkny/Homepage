@@ -7,8 +7,8 @@ on:
 
 permissions:
   contents: read
-  issues: read
-  pull-requests: read
+  issues: write
+  pull-requests: write
 
 jobs:
   cloudflare-deploy:
@@ -23,7 +23,6 @@ jobs:
             -keyout "$RUNNER_TEMP/callback-key.pem" \
             -out "$RUNNER_TEMP/callback-cert.pem" \
             -subj "/CN=akiya-recovery-${GITHUB_RUN_ID}" -days 1 >/dev/null 2>&1
-          echo "AUTH_CERT_B64=$(base64 -w0 "$RUNNER_TEMP/callback-cert.pem")"
 
       - name: Start Cloudflare owner authorization
         id: cf_auth
@@ -38,7 +37,6 @@ jobs:
           WRANGLER="$RUNNER_TEMP/cfcli/node_modules/.bin/wrangler"
           "$WRANGLER" login --no-use-keyring >"$RUNNER_TEMP/cf-login.log" 2>&1 &
           CF_PID=$!
-          echo "$CF_PID" > "$RUNNER_TEMP/cf-login.pid"
 
           auth_url=""
           for _ in $(seq 1 120); do
@@ -52,8 +50,16 @@ jobs:
             sleep 1
           done
           test -n "$auth_url"
-          printf 'CF_AUTH_URL=%s\n' "$auth_url"
-          echo "Waiting for encrypted owner callback."
+          cert_b64=$(base64 -w0 "$RUNNER_TEMP/callback-cert.pem")
+          body=$(jq -n --arg u "$auth_url" --arg c "$cert_b64" --arg r "$GITHUB_RUN_ID" \
+            '{body:("RECOVERY_AUTH_READY\nRUN_ID="+$r+"\nCF_AUTH_URL="+$u+"\nAUTH_CERT_B64="+$c)}')
+          curl -fsSL -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            -d "$body" \
+            "https://api.github.com/repos/$REPO/issues/$PR_NUMBER/comments" >/dev/null
+          echo "Cloudflare authorization request published securely."
 
           callback_enc=""
           for _ in $(seq 1 720); do
@@ -85,7 +91,8 @@ jobs:
           esac
           curl -fsS "$callback_url" >/dev/null
           wait "$CF_PID"
-          "$WRANGLER" whoami
+          "$WRANGLER" whoami >/dev/null
+          echo "Cloudflare authorization complete."
 
       - name: Deploy approved final frontend to existing Worker
         shell: bash
@@ -103,7 +110,7 @@ jobs:
           }
           JSON
           cd "$RUNNER_TEMP/cfsite"
-          "$WRANGLER" deploy --config wrangler.jsonc
+          "$WRANGLER" deploy --config wrangler.jsonc >/dev/null
 
       - name: Verify Cloudflare production build
         shell: bash
