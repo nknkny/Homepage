@@ -17,6 +17,7 @@ jobs:
       OLD_PROJECT_KEY: Mr8jtt7g-n-GmM5Z7OVWja83LjTh8Dp91
       LISTED_SCRIPT_ID: 1hpIpog0lvz8usrIQiLBuB8LwBuXsfIOzPyY_omFQF-KRYn0B6PgETqKp
       TARGET_DEPLOYMENT: AKfycbzWYTf9K_XyEfo1CD4Pshg18ANH5_zhOsTnyiFhKTwbDgs17ZOXqLgAxKrvO7TA3wYr0w
+      SPREADSHEET_ID: 12nRr3Fkq8tYZWd-MQvdQXpeO9p9cGuT3CvtRnL_omw8
       OWNER_EMAIL: jmdjdtdjdt@gmail.com
     steps:
       - name: Restore encrypted clasp session
@@ -49,7 +50,7 @@ jobs:
           chmod 600 "$HOME/.clasprc.json"
           echo SESSION_RESTORED=PASS
 
-      - name: Resolve deployment ownership explicitly
+      - name: Exhaust read-only resolution routes
         shell: bash
         run: |
           set -euo pipefail
@@ -57,39 +58,75 @@ jobs:
           CLASP="$RUNNER_TEMP/gcli/node_modules/.bin/clasp"
           "$CLASP" show-authorized-user --json > "$RUNNER_TEMP/user.json"
           jq -e --arg e "$OWNER_EMAIL" '.loggedIn==true and ((.email // "")|ascii_downcase)==($e|ascii_downcase)' "$RUNNER_TEMP/user.json" >/dev/null
-          echo OWNER_MATCH=PASS
+          "$CLASP" --json list-scripts --noShorten >/dev/null 2>&1 || true
+          access_token=$(jq -r '.tokens.default.access_token // empty' "$HOME/.clasprc.json")
+          test -n "$access_token"
+          echo OWNER_AND_TOKEN=PASS
 
-          for label in legacy listed; do
-            if [ "$label" = legacy ]; then sid="$OLD_PROJECT_KEY"; else sid="$LISTED_SCRIPT_ID"; fi
-            dir="$RUNNER_TEMP/$label"
-            mkdir -p "$dir"
-            printf '{"scriptId":"%s"}\n' "$sid" > "$dir/.clasp.json"
-            echo "=== $label explicit scriptId: $sid ==="
-            echo DEPLOYMENTS_BEGIN
-            "$CLASP" -P "$dir/.clasp.json" --json list-deployments > "$dir/deployments.json" 2> "$dir/deployments.err" || true
-            cat "$dir/deployments.json" 2>/dev/null || true
-            cat "$dir/deployments.err" 2>/dev/null || true
-            echo DEPLOYMENTS_END
-            echo PULL_BEGIN
-            "$CLASP" -P "$dir/.clasp.json" pull > "$dir/pull.out" 2> "$dir/pull.err" || true
-            cat "$dir/pull.out" 2>/dev/null || true
-            cat "$dir/pull.err" 2>/dev/null || true
-            echo PULL_END
-            echo FILES_BEGIN
-            find "$dir" -maxdepth 2 -type f -printf '%P\n' | sort
-            echo FILES_END
-            echo SOURCE_MARKERS_BEGIN
-            grep -RhoE "2026-[0-9]{2}-[0-9]{2}-[A-Za-z0-9_-]+|AKfycb[A-Za-z0-9_-]+|12nRr3Fkq8tYZWd-MQvdQXpeO9p9cGuT3CvtRnL_omw8" "$dir" --exclude='.clasp.json' | sort -u | head -100 || true
-            echo SOURCE_MARKERS_END
+          echo '=== APPS SCRIPT PROJECT PROBES ==='
+          for pair in "spreadsheet:$SPREADSHEET_ID" "oldkey:$OLD_PROJECT_KEY" "listed:$LISTED_SCRIPT_ID" "deployment:$TARGET_DEPLOYMENT"; do
+            label=${pair%%:*}; id=${pair#*:}
+            out="$RUNNER_TEMP/project-$label.json"
+            code=$(curl -sS -o "$out" -w '%{http_code}' -H "Authorization: Bearer $access_token" "https://script.googleapis.com/v1/projects/$id" || true)
+            echo "PROJECT_GET $label HTTP=$code"
+            jq '{scriptId,title,parentId,createTime,updateTime,error:(.error|{code,status,message})}' "$out" 2>/dev/null || head -c 800 "$out" || true
+            echo
           done
 
-          if grep -Fq "$TARGET_DEPLOYMENT" "$RUNNER_TEMP/legacy/deployments.json" 2>/dev/null; then
-            echo TARGET_DEPLOYMENT_FOUND_IN_LEGACY=PASS
-          else
-            echo TARGET_DEPLOYMENT_FOUND_IN_LEGACY=FAIL
-          fi
-          if grep -Fq "$TARGET_DEPLOYMENT" "$RUNNER_TEMP/listed/deployments.json" 2>/dev/null; then
-            echo TARGET_DEPLOYMENT_FOUND_IN_LISTED=PASS
-          else
-            echo TARGET_DEPLOYMENT_FOUND_IN_LISTED=FAIL
-          fi
+          echo '=== UNDOCUMENTED PARENT QUERY PROBE ==='
+          out="$RUNNER_TEMP/projects-parent.json"
+          code=$(curl -sS -o "$out" -w '%{http_code}' -G -H "Authorization: Bearer $access_token" --data-urlencode "parentId=$SPREADSHEET_ID" "https://script.googleapis.com/v1/projects" || true)
+          echo "PROJECTS_PARENT_QUERY HTTP=$code"
+          jq . "$out" 2>/dev/null | head -100 || head -c 1200 "$out" || true
+
+          echo '=== DRIVE V2 SCRIPT SEARCH ==='
+          for mode in all parent; do
+            if [ "$mode" = all ]; then q="mimeType='application/vnd.google-apps.script' and 'me' in owners"; else q="mimeType='application/vnd.google-apps.script' and '$SPREADSHEET_ID' in parents"; fi
+            out="$RUNNER_TEMP/drive-$mode.json"
+            code=$(curl -sS -o "$out" -w '%{http_code}' -G -H "Authorization: Bearer $access_token" --data-urlencode "q=$q" --data-urlencode 'maxResults=1000' "https://www.googleapis.com/drive/v2/files" || true)
+            echo "DRIVE_V2_$mode HTTP=$code"
+            jq '[.items[]? | {id,title,mimeType,parents,alternateLink,exportLinks}]' "$out" 2>/dev/null || head -c 1200 "$out" || true
+          done
+
+          echo '=== LEGACY EXPORT PROBES ==='
+          for pair in "oldkey:$OLD_PROJECT_KEY" "spreadsheet:$SPREADSHEET_ID" "listed:$LISTED_SCRIPT_ID"; do
+            label=${pair%%:*}; id=${pair#*:}
+            out="$RUNNER_TEMP/export-$label"
+            code=$(curl -sS -L -o "$out" -w '%{http_code}' -H "Authorization: Bearer $access_token" "https://script.google.com/feeds/download/export?id=$id&format=json" || true)
+            echo "LEGACY_EXPORT $label HTTP=$code SIZE=$(wc -c < "$out")"
+            python - "$out" <<'PY'
+          import json,sys,re
+          p=sys.argv[1]
+          try:
+              x=json.load(open(p))
+              print(json.dumps(x,ensure_ascii=False)[:4000])
+          except Exception:
+              s=open(p,'r',errors='replace').read()
+              s=re.sub(r'4/[A-Za-z0-9_-]+','[REDACTED_AUTH_CODE]',s)
+              print(s[:1000])
+          PY
+          done
+
+          echo '=== AUTHENTICATED EDITOR REDIRECT PROBES ==='
+          for id in "$OLD_PROJECT_KEY" "$SPREADSHEET_ID" "$LISTED_SCRIPT_ID"; do
+            echo "EDITOR_PROBE id=$id"
+            curl -sS -D - -o /dev/null --max-redirs 0 -H "Authorization: Bearer $access_token" "https://script.google.com/d/$id/edit?usp=drive_web" | sed -n '1,20p' || true
+          done
+
+          echo '=== CLOUD PROJECTS AND LOG MATCHES ==='
+          curl -sS -H "Authorization: Bearer $access_token" "https://cloudresourcemanager.googleapis.com/v1/projects?pageSize=200" -o "$RUNNER_TEMP/cloud-projects.json" || true
+          jq '[.projects[]? | {projectId,projectNumber,name,lifecycleState}]' "$RUNNER_TEMP/cloud-projects.json" 2>/dev/null | head -200 || true
+          jq -r '.projects[]?.projectId' "$RUNNER_TEMP/cloud-projects.json" 2>/dev/null | head -50 > "$RUNNER_TEMP/project-ids.txt" || true
+          while IFS= read -r pid; do
+            [ -n "$pid" ] || continue
+            payload=$(jq -n --arg r "projects/$pid" --arg d "$TARGET_DEPLOYMENT" '{resourceNames:[$r],filter:("labels.\"script.googleapis.com/deployment_id\"=\""+$d+"\""),orderBy:"timestamp desc",pageSize:10}')
+            out="$RUNNER_TEMP/log-$pid.json"
+            code=$(curl -sS -o "$out" -w '%{http_code}' -H "Authorization: Bearer $access_token" -H 'Content-Type: application/json' -d "$payload" "https://logging.googleapis.com/v2/entries:list" || true)
+            count=$(jq '.entries|length // 0' "$out" 2>/dev/null || echo 0)
+            if [ "$count" != 0 ] && [ "$count" != null ]; then
+              echo "LOG_MATCH project=$pid HTTP=$code count=$count"
+              jq '[.entries[] | {timestamp,logName,resource,labels,serviceContext:(.jsonPayload.serviceContext // null)}]' "$out" | head -200
+            fi
+          done < "$RUNNER_TEMP/project-ids.txt"
+
+          echo READ_ONLY_RESOLUTION_COMPLETE=PASS
