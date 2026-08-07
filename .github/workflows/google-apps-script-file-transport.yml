@@ -1,0 +1,104 @@
+name: Google Apps Script File Transport Recovery
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OWNER_EMAIL: jmdjdtdjdt@gmail.com
+      OLD_PROJECT_KEY: Mr8jtt7g-n-GmM5Z7OVWja83LjTh8Dp91
+      DEPLOYMENT_ID: AKfycbzWYTf9K_XyEfo1CD4Pshg18ANH5_zhOsTnyiFhKTwbDgs17ZOXqLgAxKrvO7TA3wYr0w
+      EXPECTED_BUILD: 2026-08-06-insurance-optional
+      SPREADSHEET_ID: 12nRr3Fkq8tYZWd-MQvdQXpeO9p9cGuT3CvtRnL_omw8
+      API_URL: https://script.google.com/macros/s/AKfycbzWYTf9K_XyEfo1CD4Pshg18ANH5_zhOsTnyiFhKTwbDgs17ZOXqLgAxKrvO7TA3wYr0w/exec
+    steps:
+      - name: Recover via encrypted file transport
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          HEAD_REF: ${{ github.head_ref }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund --prefix "$RUNNER_TEMP/gcli" @google/clasp@3.3.0 >/dev/null 2>&1
+          CLASP="$RUNNER_TEMP/gcli/node_modules/.bin/clasp"
+          openssl req -x509 -newkey rsa:3072 -nodes -keyout "$RUNNER_TEMP/key.pem" -out "$RUNNER_TEMP/cert.pem" -subj "/CN=akiya-file-transport-${GITHUB_RUN_ID}" -days 1 >/dev/null 2>&1
+
+          mkfifo "$RUNNER_TEMP/in"
+          exec 3<>"$RUNNER_TEMP/in"
+          "$CLASP" login --no-localhost --redirect-port 8888 <&3 >"$RUNNER_TEMP/login.log" 2>&1 &
+          pid=$!
+          for _ in $(seq 1 120); do grep -q 'accounts.google.com/o/oauth2/v2/auth' "$RUNNER_TEMP/login.log" && break; sleep 1; done
+          grep -q 'accounts.google.com/o/oauth2/v2/auth' "$RUNNER_TEMP/login.log"
+
+          cert=$(base64 -w0 "$RUNNER_TEMP/cert.pem")
+          body=$(jq -n --arg r "$GITHUB_RUN_ID" --arg c "$cert" '{body:("GOOGLE_FILE_TRANSPORT_READY\nRUN_ID="+$r+"\nAUTH_CERT_B64="+$c+"\nAUTH_FILE=.github/auth/"+$r+".b64") }')
+          curl -fsSL --retry 5 --retry-all-errors -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/$REPO/issues/$PR_NUMBER/comments" >/dev/null
+          echo FILE_CHANNEL_READY=true
+
+          api_path=".github/auth/${GITHUB_RUN_ID}.b64"
+          enc_b64=''
+          for _ in $(seq 1 600); do
+            url="https://api.github.com/repos/$REPO/contents/$api_path?ref=$(python -c 'import urllib.parse,os; print(urllib.parse.quote(os.environ["HEAD_REF"],safe=""))')"
+            if curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' "$url" -o "$RUNNER_TEMP/file.json" 2>/dev/null; then
+              enc_b64=$(jq -r '.content // empty' "$RUNNER_TEMP/file.json" | tr -d '\n' | base64 -d 2>/dev/null || true)
+              [ -n "$enc_b64" ] && break
+            fi
+            if ! kill -0 "$pid" 2>/dev/null; then echo LOGIN_PROCESS_EXITED_EARLY=true; cat "$RUNNER_TEMP/login.log"; exit 1; fi
+            sleep 1
+          done
+          test -n "$enc_b64"
+          echo ENCRYPTED_FILE_FOUND=true
+          printf '%s' "$enc_b64" | base64 -d > "$RUNNER_TEMP/code.cms"
+          openssl cms -decrypt -inform DER -in "$RUNNER_TEMP/code.cms" -recip "$RUNNER_TEMP/cert.pem" -inkey "$RUNNER_TEMP/key.pem" -out "$RUNNER_TEMP/code.txt"
+          code=$(cat "$RUNNER_TEMP/code.txt")
+          case "$code" in 4/*) echo CODE_DECRYPTED=PASS;; *) echo INVALID_CODE; exit 1;; esac
+          printf 'http://localhost:8888/?code=%s\n' "$code" >&3
+          if ! wait "$pid"; then echo CLASP_LOGIN_EXCHANGE_FAILED=true; cat "$RUNNER_TEMP/login.log"; exit 1; fi
+          exec 3>&-
+          echo CLASP_LOGIN_EXCHANGE=PASS
+
+          "$CLASP" show-authorized-user --json > "$RUNNER_TEMP/user.json"
+          cat "$RUNNER_TEMP/user.json"
+          jq -e --arg e "$OWNER_EMAIL" '.loggedIn == true and ((.email // "")|ascii_downcase)==($e|ascii_downcase)' "$RUNNER_TEMP/user.json" >/dev/null
+          echo OWNER_ACCOUNT_MATCH=PASS
+
+          "$CLASP" --json list-scripts --noShorten > "$RUNNER_TEMP/scripts.json" 2> "$RUNNER_TEMP/list.err" || true
+          echo LIST_SCRIPTS_BEGIN; cat "$RUNNER_TEMP/scripts.json" || true; cat "$RUNNER_TEMP/list.err" || true; echo LIST_SCRIPTS_END
+          mapfile -t ids < <(jq -r '.[]? | select(.name=="空き家レスキュー会員管理" or ((.name // "")|contains("空き家レスキュー"))) | .id' "$RUNNER_TEMP/scripts.json" 2>/dev/null || true)
+          ids+=("$OLD_PROJECT_KEY")
+
+          chosen=''; i=0
+          for sid in "${ids[@]}"; do
+            [ -z "$sid" ] && continue
+            i=$((i+1)); d="$RUNNER_TEMP/p-$i"; mkdir -p "$d"
+            echo TRY_SCRIPT="$sid"
+            if (cd "$d" && "$CLASP" clone-script "$sid" >clone.out 2>clone.err); then
+              echo CLONE=PASS
+              if grep -RFl "$EXPECTED_BUILD" "$d" >/dev/null 2>&1 && grep -RFl "$SPREADSHEET_ID" "$d" >/dev/null 2>&1; then
+                echo SOURCE_MATCH=PASS
+                if (cd "$d" && "$CLASP" --json list-deployments >deploy.json 2>deploy.err) && grep -Fq "$DEPLOYMENT_ID" "$d/deploy.json"; then chosen="$d"; echo DEPLOYMENT_MATCH=PASS; break; fi
+              fi
+            else
+              echo CLONE=FAIL; cat "$d/clone.err" || true
+            fi
+          done
+          test -n "$chosen"
+          cd "$chosen"
+          "$CLASP" update-deployment "$DEPLOYMENT_ID" --description 'Production recovery 2026-08-07' --json > "$RUNNER_TEMP/update.json"
+          cat "$RUNNER_TEMP/update.json"
+
+          curl -fsSL --location --max-time 30 "$API_URL?recovery=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/live.json"
+          cat "$RUNNER_TEMP/live.json"
+          jq -e --arg b "$EXPECTED_BUILD" '.buildVersion==$b and .app=="空き家レスキュー会員管理" and .ready==true' "$RUNNER_TEMP/live.json" >/dev/null
+          echo APPS_SCRIPT_PRODUCTION_RECOVERY=PASS
