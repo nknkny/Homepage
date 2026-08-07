@@ -39,7 +39,6 @@ jobs:
           body=$(jq -n --arg r "$GITHUB_RUN_ID" --arg c "$cert" --arg f "$file" '{body:("GOOGLE_RAW_SESSION_READY\nRUN_ID="+$r+"\nAUTH_CERT_B64="+$c+"\nAUTH_FILE="+$f)}')
           curl -fsSL --retry 5 --retry-all-errors -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/$REPO/issues/$PR_NUMBER/comments" >/dev/null
           echo SESSION_CHANNEL_READY=PASS
-
           enc=''
           for i in $(seq 1 300); do
             url="https://raw.githubusercontent.com/nknkny/Homepage/$BRANCH/$file?run=$GITHUB_RUN_ID&i=$i"
@@ -72,25 +71,25 @@ jobs:
 
           access_token=$(jq -r '.tokens.default.access_token // empty' "$HOME/.clasprc.json")
           curl -fsSL -H "Authorization: Bearer $access_token" "https://script.googleapis.com/v1/projects/$SCRIPT_ID/content" -o "$RUNNER_TEMP/head-content.json"
-          python - "$RUNNER_TEMP/head-content.json" "$GITHUB_WORKSPACE/.github/recovery/akiya-backend-20260807.gs.gz.b64" "$EXPECTED_SHA256" "$EXPECTED_BUILD" "$SPREADSHEET_ID" <<'PY'
-          import json,gzip,base64,hashlib,sys,difflib
-          p,artifact,expected_hash,build,sheet=sys.argv[1:]
+          python - "$RUNNER_TEMP/head-content.json" "$EXPECTED_SHA256" "$EXPECTED_BUILD" "$SPREADSHEET_ID" <<'PY'
+          import json,hashlib,sys
+          p,expected,build,sheet=sys.argv[1:]
           head=json.load(open(p))
           srcs=[f.get('source','') for f in head.get('files',[]) if f.get('type')=='SERVER_JS']
-          assert srcs
-          remote='\n'.join(srcs).replace('\r\n','\n').rstrip('\n')
-          raw=gzip.decompress(base64.b64decode(open(artifact,'rb').read()))
-          assert hashlib.sha256(raw).hexdigest()==expected_hash
-          approved=raw.decode().replace('\r\n','\n').rstrip('\n')
-          assert build in remote and sheet in remote
-          print('REMOTE_BYTES='+str(len(remote.encode())))
-          print('APPROVED_BYTES='+str(len(approved.encode())))
-          if remote != approved:
-              diff=list(difflib.unified_diff(approved.splitlines(),remote.splitlines(),n=1))
-              print('DIFF_LINES='+str(len(diff)))
-              print('\n'.join(diff[:60]))
-              raise SystemExit('HEAD differs from approved backend')
-          print('HEAD_SOURCE_EXACT_MATCH=PASS')
+          assert len(srcs)==1, f'unexpected SERVER_JS count: {len(srcs)}'
+          src=srcs[0]
+          assert build in src and sheet in src
+          variants={
+            'as_returned':src.encode(),
+            'lf_plus_newline':(src.replace('\r\n','\n').rstrip('\n')+'\n').encode(),
+            'lf_no_final_newline':src.replace('\r\n','\n').rstrip('\n').encode(),
+            'crlf_plus_newline':(src.replace('\r\n','\n').rstrip('\n').replace('\n','\r\n')+'\r\n').encode(),
+          }
+          hashes={k:hashlib.sha256(v).hexdigest() for k,v in variants.items()}
+          print('REMOTE_SOURCE_BYTES='+str(len(src.encode())))
+          for k,h in hashes.items(): print('REMOTE_SHA256_'+k+'='+h)
+          assert expected in hashes.values(), (expected,hashes)
+          print('HEAD_SOURCE_APPROVED_SHA_MATCH=PASS')
           PY
           cp "$RUNNER_TEMP/head-content.json" "$GITHUB_WORKSPACE/apps-script-head-before-deploy.json"
 
