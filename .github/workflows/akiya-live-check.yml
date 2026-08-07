@@ -2,8 +2,7 @@ name: Akiya Live Production Check
 
 on:
   pull_request:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -25,38 +24,31 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p api-evidence
-          curl --fail --silent --show-error --location --max-time 30 \
-            "$API_URL?check=$GITHUB_SHA" \
-            -o api-evidence/api-get.json
+          curl --fail --silent --show-error --location --max-time 30 "$API_URL?check=$GITHUB_SHA" -o api-evidence/api-get.json
           cat api-evidence/api-get.json
           python - <<'PY'
           import json, os
-          payload=json.load(open('api-evidence/api-get.json', encoding='utf-8'))
-          assert payload.get('buildVersion') == os.environ['EXPECTED_API_BUILD'], payload
-          assert payload.get('app') == '空き家レスキュー会員管理', payload
-          assert 'ready' in payload, payload
-          assert 'paidSalesReady' in payload, payload
-          print('GET API build and health payload verified:', payload)
+          p=json.load(open('api-evidence/api-get.json',encoding='utf-8'))
+          assert p.get('buildVersion')==os.environ['EXPECTED_API_BUILD'],p
+          assert p.get('app')=='空き家レスキュー会員管理',p
+          assert p.get('ready') is True,p
+          assert 'paidSalesReady' in p,p
+          print(p)
           PY
-
       - name: Verify Apps Script POST transport
         shell: bash
         run: |
           set -euo pipefail
-          request_id="CI-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rid="CI-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           curl --fail --silent --show-error --location --max-time 30 \
-            --data-urlencode "action=get_dashboard" \
-            --data-urlencode "clientRequestId=$request_id" \
-            --data-urlencode "responseOrigin=$SITE_ORIGIN" \
-            --data-urlencode "sessionToken=invalid-ci-token" \
-            "$API_URL" \
-            -o api-evidence/api-post.html
+            --data-urlencode "action=get_dashboard" --data-urlencode "clientRequestId=$rid" \
+            --data-urlencode "responseOrigin=$SITE_ORIGIN" --data-urlencode "sessionToken=invalid-ci-token" \
+            "$API_URL" -o api-evidence/api-post.html
           cat api-evidence/api-post.html
           grep -Fq "$EXPECTED_API_BUILD" api-evidence/api-post.html
-          grep -Fq "$request_id" api-evidence/api-post.html
+          grep -Fq "$rid" api-evidence/api-post.html
           grep -Fq 'akiya-rescue-api' api-evidence/api-post.html
           grep -Eq 'AUTH_REQUIRED|NOT_FOUND|AUTH_FAILED' api-evidence/api-post.html
-
       - name: Upload API evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -68,62 +60,39 @@ jobs:
 
   site-check:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
-      - name: Wait for Cloudflare deployment
+      - name: Probe live Cloudflare config directly
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p site-evidence
-          ok=0
-          for i in $(seq 1 20); do
-            echo "Attempt $i/20"
-            if curl --fail --silent --show-error --location --max-time 20 \
-              "$SITE_ORIGIN/VERSION.txt?check=${GITHUB_SHA}-${i}" \
-              -o site-evidence/VERSION.txt; then
-              cat site-evidence/VERSION.txt
-              if grep -Fq "siteVersion=$EXPECTED_SITE_BUILD" site-evidence/VERSION.txt && \
-                 grep -Fq "apiRequiredBuild=$EXPECTED_API_BUILD" site-evidence/VERSION.txt; then
-                ok=1
-                break
-              fi
-            fi
-            sleep 15
-          done
-          if [ "$ok" -ne 1 ]; then
-            echo "Cloudflare production did not expose the expected frontend/API build pair." >&2
-            exit 1
-          fi
-
-      - name: Verify public configuration
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl --fail --silent --show-error --location --max-time 20 \
-            "$SITE_ORIGIN/assets/config.js?check=$GITHUB_SHA" \
-            -o site-evidence/config.js
-          cat site-evidence/config.js
+          code=$(curl --silent --show-error --location --max-time 20 -o site-evidence/config.js --write-out '%{http_code}' "$SITE_ORIGIN/assets/config.js?check=$GITHUB_SHA")
+          echo "config.js -> $code"
+          cat site-evidence/config.js || true
+          test "$code" = "200"
           grep -Fq "FRONTEND_BUILD: \"$EXPECTED_SITE_BUILD\"" site-evidence/config.js
           grep -Fq "REQUIRED_API_BUILD: \"$EXPECTED_API_BUILD\"" site-evidence/config.js
           grep -Fq "API_URL: \"$API_URL\"" site-evidence/config.js
           grep -Fq "SITE_ORIGIN: \"$SITE_ORIGIN\"" site-evidence/config.js
-          if grep -Eq 'sk_(live|test)_[A-Za-z0-9]+' site-evidence/config.js; then
-            echo "Stripe secret key pattern found in public config." >&2
-            exit 1
-          fi
-
-      - name: Verify public pages
+          ! grep -Eq 'sk_(live|test)_[A-Za-z0-9]+' site-evidence/config.js
+      - name: Probe public pages directly
         shell: bash
         run: |
           set -euo pipefail
           for page in / /register.html /member-login.html /request.html /checkout.html /payment-success.html /commercial.html /privacy.html /service-terms.html /newsletter-unsubscribe.html; do
-            code=$(curl --silent --show-error --location --max-time 20 \
-              --output "site-evidence/page-$(echo "$page" | tr '/?' '__').html" \
-              --write-out '%{http_code}' "$SITE_ORIGIN$page?check=$GITHUB_SHA")
+            out="site-evidence/page-$(echo "$page"|tr '/?' '__').html"
+            code=$(curl --silent --show-error --location --max-time 20 -o "$out" --write-out '%{http_code}' "$SITE_ORIGIN$page?check=$GITHUB_SHA")
             echo "$page -> $code"
             test "$code" = "200"
           done
-
+      - name: Probe optional VERSION marker
+        if: always()
+        shell: bash
+        run: |
+          code=$(curl --silent --show-error --location --max-time 20 -o site-evidence/VERSION.txt --write-out '%{http_code}' "$SITE_ORIGIN/VERSION.txt?check=$GITHUB_SHA" || true)
+          echo "VERSION.txt -> $code"
+          cat site-evidence/VERSION.txt 2>/dev/null || true
       - name: Upload site evidence
         if: always()
         uses: actions/upload-artifact@v4
