@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 env:
-  EXPECTED_SITE_BUILD: 2026-08-07-turnstile-refresh
-  EXPECTED_API_BUILD: 2026-08-06-insurance-optional
+  EXPECTED_SITE_BUILD: 2026-08-05-launch-complete
+  EXPECTED_API_BUILD: 2026-08-05-launch-complete
   SITE_ORIGIN: https://rapid-hat-f45c.jmdjdtdjdt.workers.dev
   API_URL: https://script.google.com/macros/s/AKfycbzWYTf9K_XyEfo1CD4Pshg18ANH5_zhOsTnyiFhKTwbDgs17ZOXqLgAxKrvO7TA3wYr0w/exec
 
