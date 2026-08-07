@@ -11,11 +11,12 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Probe Apps Script redirect metadata
+      - name: Probe Apps Script identifiers and legacy project-key routes
         shell: bash
         run: |
           set -euo pipefail
-          URL='https://script.google.com/macros/s/AKfycbzWYTf9K_XyEfo1CD4Pshg18ANH5_zhOsTnyiFhKTwbDgs17ZOXqLgAxKrvO7TA3wYr0w/exec?probe_redirect=1'
+          DEPLOYMENT='AKfycbzWYTf9K_XyEfo1CD4Pshg18ANH5_zhOsTnyiFhKTwbDgs17ZOXqLgAxKrvO7TA3wYr0w'
+          URL="https://script.google.com/macros/s/$DEPLOYMENT/exec?probe_redirect=1"
           curl -sS -D headers.txt -o /dev/null "$URL"
           cat headers.txt
           location=$(awk 'BEGIN{IGNORECASE=1} /^location:/{sub(/^location:[[:space:]]*/,""); sub(/\r$/,""); print; exit}' headers.txt)
@@ -28,3 +29,13 @@ jobs:
           )
           echo "LIB=$lib"
           test -n "$lib"
+
+          for candidate in \
+            "https://script.google.com/d/$lib/edit?usp=drive_web" \
+            "https://script.google.com/macros/d/$lib/usercallback" \
+            "https://script.google.com/macros/d/$lib/edit"; do
+            echo "=== CANDIDATE: $candidate ==="
+            curl -sS -D - -o /tmp/body --max-redirs 0 "$candidate" || true
+            head -c 500 /tmp/body || true
+            echo
+          done
