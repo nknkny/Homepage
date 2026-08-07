@@ -1,0 +1,30 @@
+name: Akiya Apps Script Redirect Probe
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe Apps Script redirect metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://script.google.com/macros/s/AKfycbzWYTf9K_XyEfo1CD4Pshg18ANH5_zhOsTnyiFhKTwbDgs17ZOXqLgAxKrvO7TA3wYr0w/exec?probe_redirect=1'
+          curl -sS -D headers.txt -o /dev/null "$URL"
+          cat headers.txt
+          location=$(awk 'BEGIN{IGNORECASE=1} /^location:/{sub(/^location:[[:space:]]*/,""); sub(/\r$/,""); print; exit}' headers.txt)
+          echo "LOCATION=$location"
+          lib=$(python - "$location" <<'PY'
+          import sys, urllib.parse
+          u=urllib.parse.urlparse(sys.argv[1])
+          print(urllib.parse.parse_qs(u.query).get('lib',[''])[0])
+          PY
+          )
+          echo "LIB=$lib"
+          test -n "$lib"
