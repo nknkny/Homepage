@@ -1,0 +1,65 @@
+name: Akiya API Live Check
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  api-live-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      EXPECTED_API_BUILD: 2026-08-06-insurance-optional
+      SITE_ORIGIN: https://rapid-hat-f45c.jmdjdtdjdt.workers.dev
+      API_URL: https://script.google.com/macros/s/AKfycbzWYTf9K_XyEfo1CD4Pshg18ANH5_zhOsTnyiFhKTwbDgs17ZOXqLgAxKrvO7TA3wYr0w/exec
+    steps:
+      - name: Verify Apps Script GET health
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p api-live-check
+          curl --fail --silent --show-error --location --max-time 30 \
+            "$API_URL?check=$GITHUB_SHA" \
+            -o api-live-check/api-get.json
+          cat api-live-check/api-get.json
+          python - <<'PY'
+          import json, os
+          payload=json.load(open('api-live-check/api-get.json', encoding='utf-8'))
+          assert payload.get('buildVersion') == os.environ['EXPECTED_API_BUILD'], payload
+          assert payload.get('app') == '空き家レスキュー会員管理', payload
+          assert 'ready' in payload, payload
+          assert 'paidSalesReady' in payload, payload
+          print('GET API build and health payload verified:', payload)
+          PY
+
+      - name: Verify Apps Script POST transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          request_id="CI-API-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          curl --fail --silent --show-error --location --max-time 30 \
+            --data-urlencode "action=get_dashboard" \
+            --data-urlencode "clientRequestId=$request_id" \
+            --data-urlencode "responseOrigin=$SITE_ORIGIN" \
+            --data-urlencode "sessionToken=invalid-ci-token" \
+            "$API_URL" \
+            -o api-live-check/api-post.html
+          cat api-live-check/api-post.html
+          grep -Fq "$EXPECTED_API_BUILD" api-live-check/api-post.html
+          grep -Fq "$request_id" api-live-check/api-post.html
+          grep -Fq 'akiya-rescue-api' api-live-check/api-post.html
+          grep -Eq 'AUTH_REQUIRED|NOT_FOUND|AUTH_FAILED' api-live-check/api-post.html
+
+      - name: Upload API evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: akiya-api-live-check-${{ github.run_id }}
+          path: api-live-check/
+          if-no-files-found: warn
+          retention-days: 30
