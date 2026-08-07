@@ -9,30 +9,81 @@ on:
 permissions:
   contents: read
 
+env:
+  EXPECTED_SITE_BUILD: 2026-08-07-turnstile-refresh
+  EXPECTED_API_BUILD: 2026-08-06-insurance-optional
+  SITE_ORIGIN: https://rapid-hat-f45c.jmdjdtdjdt.workers.dev
+  API_URL: https://script.google.com/macros/s/AKfycbzWYTf9K_XyEfo1CD4Pshg18ANH5_zhOsTnyiFhKTwbDgs17ZOXqLgAxKrvO7TA3wYr0w/exec
+
 jobs:
-  live-check:
+  api-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify Apps Script GET health
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p api-evidence
+          curl --fail --silent --show-error --location --max-time 30 \
+            "$API_URL?check=$GITHUB_SHA" \
+            -o api-evidence/api-get.json
+          cat api-evidence/api-get.json
+          python - <<'PY'
+          import json, os
+          payload=json.load(open('api-evidence/api-get.json', encoding='utf-8'))
+          assert payload.get('buildVersion') == os.environ['EXPECTED_API_BUILD'], payload
+          assert payload.get('app') == '空き家レスキュー会員管理', payload
+          assert 'ready' in payload, payload
+          assert 'paidSalesReady' in payload, payload
+          print('GET API build and health payload verified:', payload)
+          PY
+
+      - name: Verify Apps Script POST transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          request_id="CI-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          curl --fail --silent --show-error --location --max-time 30 \
+            --data-urlencode "action=get_dashboard" \
+            --data-urlencode "clientRequestId=$request_id" \
+            --data-urlencode "responseOrigin=$SITE_ORIGIN" \
+            --data-urlencode "sessionToken=invalid-ci-token" \
+            "$API_URL" \
+            -o api-evidence/api-post.html
+          cat api-evidence/api-post.html
+          grep -Fq "$EXPECTED_API_BUILD" api-evidence/api-post.html
+          grep -Fq "$request_id" api-evidence/api-post.html
+          grep -Fq 'akiya-rescue-api' api-evidence/api-post.html
+          grep -Eq 'AUTH_REQUIRED|NOT_FOUND|AUTH_FAILED' api-evidence/api-post.html
+
+      - name: Upload API evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: akiya-api-evidence-${{ github.run_id }}
+          path: api-evidence/
+          if-no-files-found: warn
+          retention-days: 30
+
+  site-check:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    env:
-      EXPECTED_SITE_BUILD: 2026-08-07-turnstile-refresh
-      EXPECTED_API_BUILD: 2026-08-06-insurance-optional
-      SITE_ORIGIN: https://rapid-hat-f45c.jmdjdtdjdt.workers.dev
-      API_URL: https://script.google.com/macros/s/AKfycbzWYTf9K_XyEfo1CD4Pshg18ANH5_zhOsTnyiFhKTwbDgs17ZOXqLgAxKrvO7TA3wYr0w/exec
     steps:
       - name: Wait for Cloudflare deployment
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p live-check
+          mkdir -p site-evidence
           ok=0
           for i in $(seq 1 20); do
             echo "Attempt $i/20"
             if curl --fail --silent --show-error --location --max-time 20 \
               "$SITE_ORIGIN/VERSION.txt?check=${GITHUB_SHA}-${i}" \
-              -o live-check/VERSION.txt; then
-              cat live-check/VERSION.txt
-              if grep -Fq "siteVersion=$EXPECTED_SITE_BUILD" live-check/VERSION.txt && \
-                 grep -Fq "apiRequiredBuild=$EXPECTED_API_BUILD" live-check/VERSION.txt; then
+              -o site-evidence/VERSION.txt; then
+              cat site-evidence/VERSION.txt
+              if grep -Fq "siteVersion=$EXPECTED_SITE_BUILD" site-evidence/VERSION.txt && \
+                 grep -Fq "apiRequiredBuild=$EXPECTED_API_BUILD" site-evidence/VERSION.txt; then
                 ok=1
                 break
               fi
@@ -50,13 +101,13 @@ jobs:
           set -euo pipefail
           curl --fail --silent --show-error --location --max-time 20 \
             "$SITE_ORIGIN/assets/config.js?check=$GITHUB_SHA" \
-            -o live-check/config.js
-          cat live-check/config.js
-          grep -Fq "FRONTEND_BUILD: \"$EXPECTED_SITE_BUILD\"" live-check/config.js
-          grep -Fq "REQUIRED_API_BUILD: \"$EXPECTED_API_BUILD\"" live-check/config.js
-          grep -Fq "API_URL: \"$API_URL\"" live-check/config.js
-          grep -Fq "SITE_ORIGIN: \"$SITE_ORIGIN\"" live-check/config.js
-          if grep -Eq 'sk_(live|test)_[A-Za-z0-9]+' live-check/config.js; then
+            -o site-evidence/config.js
+          cat site-evidence/config.js
+          grep -Fq "FRONTEND_BUILD: \"$EXPECTED_SITE_BUILD\"" site-evidence/config.js
+          grep -Fq "REQUIRED_API_BUILD: \"$EXPECTED_API_BUILD\"" site-evidence/config.js
+          grep -Fq "API_URL: \"$API_URL\"" site-evidence/config.js
+          grep -Fq "SITE_ORIGIN: \"$SITE_ORIGIN\"" site-evidence/config.js
+          if grep -Eq 'sk_(live|test)_[A-Za-z0-9]+' site-evidence/config.js; then
             echo "Stripe secret key pattern found in public config." >&2
             exit 1
           fi
@@ -67,66 +118,17 @@ jobs:
           set -euo pipefail
           for page in / /register.html /member-login.html /request.html /checkout.html /payment-success.html /commercial.html /privacy.html /service-terms.html /newsletter-unsubscribe.html; do
             code=$(curl --silent --show-error --location --max-time 20 \
-              --output "live-check/page-$(echo "$page" | tr '/?' '__').html" \
+              --output "site-evidence/page-$(echo "$page" | tr '/?' '__').html" \
               --write-out '%{http_code}' "$SITE_ORIGIN$page?check=$GITHUB_SHA")
             echo "$page -> $code"
             test "$code" = "200"
           done
 
-      - name: Verify Apps Script GET health
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl --fail --silent --show-error --location --max-time 30 \
-            "$API_URL?check=$GITHUB_SHA" \
-            -o live-check/api-get.json
-          cat live-check/api-get.json
-          python - <<'PY'
-          import json, os
-          payload=json.load(open('live-check/api-get.json', encoding='utf-8'))
-          assert payload.get('buildVersion') == os.environ['EXPECTED_API_BUILD'], payload
-          assert payload.get('app') == '空き家レスキュー会員管理', payload
-          assert 'ready' in payload, payload
-          assert 'paidSalesReady' in payload, payload
-          print('GET API build and health payload verified')
-          PY
-
-      - name: Verify Apps Script POST transport
-        shell: bash
-        run: |
-          set -euo pipefail
-          request_id="CI-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          curl --fail --silent --show-error --location --max-time 30 \
-            --data-urlencode "action=get_dashboard" \
-            --data-urlencode "clientRequestId=$request_id" \
-            --data-urlencode "responseOrigin=$SITE_ORIGIN" \
-            --data-urlencode "sessionToken=invalid-ci-token" \
-            "$API_URL" \
-            -o live-check/api-post.html
-          cat live-check/api-post.html
-          grep -Fq "$EXPECTED_API_BUILD" live-check/api-post.html
-          grep -Fq "$request_id" live-check/api-post.html
-          grep -Fq 'akiya-rescue-api' live-check/api-post.html
-          grep -Eq 'AUTH_REQUIRED|NOT_FOUND|AUTH_FAILED' live-check/api-post.html
-
-      - name: Write summary
-        if: always()
-        shell: bash
-        run: |
-          {
-            echo "## Akiya live production check"
-            echo "- Frontend build: \`$EXPECTED_SITE_BUILD\`"
-            echo "- API build: \`$EXPECTED_API_BUILD\`"
-            echo "- Site: \`$SITE_ORIGIN\`"
-            echo "- Commit: \`$GITHUB_SHA\`"
-            echo "- Completed: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload evidence
+      - name: Upload site evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: akiya-live-check-${{ github.run_id }}
-          path: live-check/
+          name: akiya-site-evidence-${{ github.run_id }}
+          path: site-evidence/
           if-no-files-found: warn
           retention-days: 30
