@@ -25,7 +25,6 @@ jobs:
             -subj "/CN=akiya-recovery-${GITHUB_RUN_ID}" -days 1 >/dev/null 2>&1
 
       - name: Start Cloudflare owner authorization
-        id: cf_auth
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -40,15 +39,17 @@ jobs:
           import pathlib, sys
           p=pathlib.Path(sys.argv[1])
           s=p.read_text()
-          marker='Timed out waiting for authorization code, please try again.'
-          pos=s.find(marker)
-          if pos < 0:
-              raise SystemExit('OAuth timeout marker not found')
-          t=s.rfind('12e4',0,pos)
-          if t < 0:
-              raise SystemExit('OAuth timeout value not found')
-          s=s[:t]+'3600e3'+s[t+4:]
+          old='''          "Timed out waiting for authorization code, please try again.",\n          { telemetryMessage: "user oauth authorization timeout" }\n        )\n      );\n    }, 12e4);'''
+          new=old.replace('12e4','3600e3')
+          count=s.count(old)
+          if count != 1:
+              raise SystemExit(f'expected exactly one OAuth timeout block, found {count}')
+          s=s.replace(old,new,1)
           p.write_text(s)
+          check=p.read_text()
+          if new not in check or old in check:
+              raise SystemExit('OAuth timeout patch verification failed')
+          print('OAuth timeout patched to 3600 seconds')
           PY
 
           "$WRANGLER" login --no-use-keyring >"$RUNNER_TEMP/cf-login.log" 2>&1 &
