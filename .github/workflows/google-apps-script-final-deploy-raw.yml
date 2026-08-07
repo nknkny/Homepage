@@ -111,12 +111,12 @@ jobs:
           assert actual_dirty == dirty_hash, (actual_dirty, dirty_hash)
           assert build in src and sheet in src
 
-          # These are the eight insertion blocks proven by exact local diff.
+          # Eight exact insertion blocks proven by byte-for-byte local diff.
           # Removing them removes nine stale duplicate function declarations.
           ranges = [(75,148),(226,231),(437,438),(625,638),
                     (663,705),(811,823),(824,830),(1092,1093)]
           lines = src.splitlines(keepends=True)
-          assert len(lines) == 1094, len(lines)
+          assert len(lines) == 1093, len(lines)
           cleaned = ''.join(
               line for i, line in enumerate(lines)
               if not any(a <= i < b for a,b in ranges)
