@@ -1,0 +1,1 @@
+Verify restored production pair: frontend 2026-08-05-launch-complete / API 2026-08-05-launch-complete.
