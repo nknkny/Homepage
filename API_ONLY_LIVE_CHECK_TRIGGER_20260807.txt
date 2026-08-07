@@ -1,0 +1,2 @@
+Trigger Akiya Apps Script API-only live verification from the latest main branch.
+Expected API build: 2026-08-06-insurance-optional
