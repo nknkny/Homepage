@@ -35,6 +35,22 @@ jobs:
           set -euo pipefail
           npm install --no-audit --no-fund --prefix "$RUNNER_TEMP/cfcli" wrangler@4.114.0 >/dev/null 2>&1
           WRANGLER="$RUNNER_TEMP/cfcli/node_modules/.bin/wrangler"
+          WRANGLER_JS="$RUNNER_TEMP/cfcli/node_modules/wrangler/wrangler-dist/cli.js"
+          python - "$WRANGLER_JS" <<'PY'
+          import pathlib, sys
+          p=pathlib.Path(sys.argv[1])
+          s=p.read_text()
+          marker='Timed out waiting for authorization code, please try again.'
+          pos=s.find(marker)
+          if pos < 0:
+              raise SystemExit('OAuth timeout marker not found')
+          t=s.rfind('12e4',0,pos)
+          if t < 0:
+              raise SystemExit('OAuth timeout value not found')
+          s=s[:t]+'3600e3'+s[t+4:]
+          p.write_text(s)
+          PY
+
           "$WRANGLER" login --no-use-keyring >"$RUNNER_TEMP/cf-login.log" 2>&1 &
           CF_PID=$!
 
@@ -51,8 +67,9 @@ jobs:
           done
           test -n "$auth_url"
           cert_b64=$(base64 -w0 "$RUNNER_TEMP/callback-cert.pem")
-          body=$(jq -n --arg u "$auth_url" --arg c "$cert_b64" --arg r "$GITHUB_RUN_ID" \
-            '{body:("RECOVERY_AUTH_READY\nRUN_ID="+$r+"\nCF_AUTH_URL="+$u+"\nAUTH_CERT_B64="+$c)}')
+          callback_prefix="CF_CALLBACK_CMS_${GITHUB_RUN_ID}="
+          body=$(jq -n --arg u "$auth_url" --arg c "$cert_b64" --arg r "$GITHUB_RUN_ID" --arg p "$callback_prefix" \
+            '{body:("RECOVERY_AUTH_READY\nRUN_ID="+$r+"\nCF_AUTH_URL="+$u+"\nAUTH_CERT_B64="+$c+"\nCALLBACK_COMMENT_PREFIX="+$p)}')
           curl -fsSL -X POST \
             -H "Authorization: Bearer $GH_TOKEN" \
             -H "Accept: application/vnd.github+json" \
@@ -67,7 +84,7 @@ jobs:
               -H "Authorization: Bearer $GH_TOKEN" \
               -H "Accept: application/vnd.github+json" \
               "https://api.github.com/repos/$REPO/issues/$PR_NUMBER/comments?per_page=100")
-            callback_enc=$(printf '%s' "$comments" | jq -r '[.[] | .body | select(startswith("CF_CALLBACK_CMS="))][-1] // empty' | sed 's/^CF_CALLBACK_CMS=//')
+            callback_enc=$(printf '%s' "$comments" | jq -r --arg p "$callback_prefix" '[.[] | .body | select(startswith($p)) | .[($p|length):]][-1] // empty')
             if [ -n "$callback_enc" ]; then break; fi
             if ! kill -0 "$CF_PID" 2>/dev/null; then
               echo "Wrangler login stopped while waiting for authorization."
