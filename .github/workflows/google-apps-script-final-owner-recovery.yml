@@ -1,0 +1,177 @@
+name: Google Apps Script Final Owner Recovery
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      OWNER_EMAIL: jmdjdtdjdt@gmail.com
+      OLD_PROJECT_KEY: Mr8jtt7g-n-GmM5Z7OVWja83LjTh8Dp91
+      DEPLOYMENT_ID: AKfycbzWYTf9K_XyEfo1CD4Pshg18ANH5_zhOsTnyiFhKTwbDgs17ZOXqLgAxKrvO7TA3wYr0w
+      EXPECTED_BUILD: 2026-08-06-insurance-optional
+      SPREADSHEET_ID: 12nRr3Fkq8tYZWd-MQvdQXpeO9p9cGuT3CvtRnL_omw8
+      API_URL: https://script.google.com/macros/s/AKfycbzWYTf9K_XyEfo1CD4Pshg18ANH5_zhOsTnyiFhKTwbDgs17ZOXqLgAxKrvO7TA3wYr0w/exec
+    steps:
+      - name: Prepare secure owner callback channel
+        shell: bash
+        run: |
+          set -euo pipefail
+          openssl req -x509 -newkey rsa:3072 -nodes \
+            -keyout "$RUNNER_TEMP/google-key.pem" \
+            -out "$RUNNER_TEMP/google-cert.pem" \
+            -subj "/CN=akiya-google-final-${GITHUB_RUN_ID}" -days 1 >/dev/null 2>&1
+
+      - name: Authenticate exact owner once and exhaust recovery routes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund --prefix "$RUNNER_TEMP/gcli" @google/clasp@3.3.0 >/dev/null 2>&1
+          CLASP="$RUNNER_TEMP/gcli/node_modules/.bin/clasp"
+
+          fifo="$RUNNER_TEMP/clasp-input"
+          mkfifo "$fifo"
+          exec 3<>"$fifo"
+          "$CLASP" login --no-localhost --redirect-port 8888 \
+            --extra-scopes 'https://www.googleapis.com/auth/drive.scripts,https://www.googleapis.com/auth/drive.readonly' \
+            <&3 >"$RUNNER_TEMP/clasp-login.log" 2>&1 &
+          LOGIN_PID=$!
+
+          auth_url=''
+          for _ in $(seq 1 180); do
+            auth_url=$(grep -Eo 'https://accounts\.google\.com/o/oauth2/v2/auth\?[^[:space:]]+' "$RUNNER_TEMP/clasp-login.log" | tail -1 || true)
+            if [ -n "$auth_url" ]; then break; fi
+            if ! kill -0 "$LOGIN_PID" 2>/dev/null; then cat "$RUNNER_TEMP/clasp-login.log"; exit 1; fi
+            sleep 1
+          done
+          test -n "$auth_url"
+          auth_url="${auth_url}&login_hint=jmdjdtdjdt%40gmail.com&prompt=consent"
+
+          cert_b64=$(base64 -w0 "$RUNNER_TEMP/google-cert.pem")
+          prefix="GOOGLE_FINAL_CALLBACK_CMS_${GITHUB_RUN_ID}="
+          body=$(jq -n --arg u "$auth_url" --arg c "$cert_b64" --arg r "$GITHUB_RUN_ID" --arg p "$prefix" \
+            '{body:("GOOGLE_FINAL_AUTH_READY\nRUN_ID="+$r+"\nOWNER_REQUIRED=jmdjdtdjdt@gmail.com\nGOOGLE_AUTH_URL="+$u+"\nAUTH_CERT_B64="+$c+"\nCALLBACK_COMMENT_PREFIX="+$p)}')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' \
+            -d "$body" "https://api.github.com/repos/$REPO/issues/$PR_NUMBER/comments" >/dev/null
+          echo 'OWNER_AUTH_REQUEST_PUBLISHED=true'
+
+          callback_enc=''
+          for _ in $(seq 1 720); do
+            comments=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' \
+              "https://api.github.com/repos/$REPO/issues/$PR_NUMBER/comments?per_page=100")
+            callback_enc=$(printf '%s' "$comments" | jq -r --arg p "$prefix" '[.[]|.body|select(startswith($p))|.[($p|length):]][-1] // empty')
+            if [ -n "$callback_enc" ]; then break; fi
+            if ! kill -0 "$LOGIN_PID" 2>/dev/null; then cat "$RUNNER_TEMP/clasp-login.log"; exit 1; fi
+            sleep 5
+          done
+          test -n "$callback_enc"
+          printf '%s' "$callback_enc" | base64 -d > "$RUNNER_TEMP/google-callback.cms"
+          openssl cms -decrypt -inform DER -in "$RUNNER_TEMP/google-callback.cms" -recip "$RUNNER_TEMP/google-cert.pem" \
+            -inkey "$RUNNER_TEMP/google-key.pem" -out "$RUNNER_TEMP/google-callback.txt" >/dev/null 2>&1
+          callback_url=$(cat "$RUNNER_TEMP/google-callback.txt")
+          case "$callback_url" in http://localhost:8888*|http://127.0.0.1:8888*) ;; *) exit 1;; esac
+          printf '%s\n' "$callback_url" >&3
+          wait "$LOGIN_PID"
+          exec 3>&-
+
+          "$CLASP" show-authorized-user --json > "$RUNNER_TEMP/user.json"
+          cat "$RUNNER_TEMP/user.json"
+          python - "$RUNNER_TEMP/user.json" "$OWNER_EMAIL" <<'PY'
+          import json,sys
+          p=json.load(open(sys.argv[1]))
+          assert p.get('loggedIn') is True,p
+          assert (p.get('email') or '').lower()==sys.argv[2].lower(),p
+          PY
+
+          authfile="$HOME/.clasprc.json"
+          test -s "$authfile"
+          access_token=$(jq -r '.tokens.default.access_token // .access_token // empty' "$authfile")
+          test -n "$access_token"
+
+          # Exhaust aliases/endpoints before asking for any identifier.
+          for base in 'https://script.googleapis.com/v1/projects' 'https://scriptmanagement.googleapis.com/v1/projects'; do
+            code=$(curl -sS -o "$RUNNER_TEMP/project-$(echo "$base"|tr '/:' '__').json" -w '%{http_code}' \
+              -H "Authorization: Bearer $access_token" "$base/$OLD_PROJECT_KEY" || true)
+            echo "PROJECT_KEY_LOOKUP $base -> $code"
+          done
+
+          curl -sS -D "$RUNNER_TEMP/legacy.headers" -o "$RUNNER_TEMP/legacy.json" \
+            -H "Authorization: Bearer $access_token" \
+            "https://script.google.com/feeds/download/export?id=$OLD_PROJECT_KEY&format=json" || true
+          echo 'LEGACY_EXPORT_HEADERS:'; sed -n '1,40p' "$RUNNER_TEMP/legacy.headers" || true
+          if grep -Fq "$EXPECTED_BUILD" "$RUNNER_TEMP/legacy.json" 2>/dev/null; then echo 'LEGACY_EXPORT_TARGET_BUILD=true'; fi
+
+          script_id=''
+          for f in "$RUNNER_TEMP"/project-*.json; do
+            sid=$(jq -r '.scriptId // empty' "$f" 2>/dev/null || true)
+            pid=$(jq -r '.parentId // empty' "$f" 2>/dev/null || true)
+            if [ -n "$sid" ] && [ "$pid" = "$SPREADSHEET_ID" ]; then script_id="$sid"; break; fi
+          done
+
+          clone_dir="$RUNNER_TEMP/oldkey-clone"
+          mkdir -p "$clone_dir"
+          if (cd "$clone_dir" && "$CLASP" --json clone-script "$OLD_PROJECT_KEY" >clone.json 2>clone.err); then
+            echo 'OLD_PROJECT_KEY_CLONE=true'
+            if grep -RFl --exclude='.clasp.json' "$EXPECTED_BUILD" "$clone_dir" >/dev/null 2>&1 && \
+               grep -RFl --exclude='.clasp.json' "$SPREADSHEET_ID" "$clone_dir" >/dev/null 2>&1; then
+              echo 'OLD_PROJECT_KEY_SOURCE_MATCH=true'
+            fi
+            candidate=$(jq -r '.scriptId // empty' "$clone_dir/clone.json" 2>/dev/null || true)
+            [ -n "$candidate" ] && script_id="$candidate"
+          else
+            echo 'OLD_PROJECT_KEY_CLONE=false'
+            cat "$clone_dir/clone.err" || true
+          fi
+
+          # If alias is accepted directly, validate the existing deployment before modifying it.
+          candidates=()
+          [ -n "$script_id" ] && candidates+=("$script_id")
+          candidates+=("$OLD_PROJECT_KEY")
+          chosen=''
+          for sid in "${candidates[@]}"; do
+            d="$RUNNER_TEMP/candidate-$RANDOM"
+            mkdir -p "$d"
+            printf '{"scriptId":"%s"}\n' "$sid" > "$d/.clasp.json"
+            if (cd "$d" && "$CLASP" --json list-deployments >deployments.json 2>deployments.err); then
+              if grep -Fq "$DEPLOYMENT_ID" "$d/deployments.json"; then chosen="$sid"; echo "DEPLOYMENT_OWNER_MATCH=true"; break; fi
+            fi
+          done
+          test -n "$chosen"
+
+          project_dir="$RUNNER_TEMP/final-project"
+          mkdir -p "$project_dir"
+          if ! (cd "$project_dir" && "$CLASP" --json clone-script "$chosen" >clone.json 2>clone.err); then
+            cat "$project_dir/clone.err"; exit 1
+          fi
+          grep -RFl --exclude='.clasp.json' "$EXPECTED_BUILD" "$project_dir" >/dev/null
+          grep -RFl --exclude='.clasp.json' "$SPREADSHEET_ID" "$project_dir" >/dev/null
+
+          cd "$project_dir"
+          "$CLASP" update-deployment "$DEPLOYMENT_ID" --description 'Production recovery 2026-08-07' --json > "$RUNNER_TEMP/deploy-result.json"
+          grep -Fq "$DEPLOYMENT_ID" "$RUNNER_TEMP/deploy-result.json"
+
+          curl --fail --silent --show-error --location --max-time 30 "$API_URL?recovery=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/live.json"
+          python - "$RUNNER_TEMP/live.json" "$EXPECTED_BUILD" <<'PY'
+          import json,sys
+          p=json.load(open(sys.argv[1]))
+          assert p.get('buildVersion')==sys.argv[2],p
+          assert p.get('app')=='空き家レスキュー会員管理',p
+          assert p.get('ready') is True,p
+          print('APPS_SCRIPT_PRODUCTION_RECOVERY=PASS')
+          PY
+
+          body=$(jq -n --arg r "$GITHUB_RUN_ID" '{body:("GOOGLE_FINAL_RECOVERY_PASS\nRUN_ID="+$r+"\nAPI_BUILD=2026-08-06-insurance-optional") }')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' \
+            -d "$body" "https://api.github.com/repos/$REPO/issues/$PR_NUMBER/comments" >/dev/null
