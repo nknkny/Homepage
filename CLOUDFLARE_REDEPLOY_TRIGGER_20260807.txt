@@ -1,5 +1,0 @@
-Akiya Rescue production redeploy trigger.
-Created 2026-08-07 JST to force the existing Cloudflare Git integration to redeploy the already-reviewed public/ tree.
-No production application code changed by this file.
-Expected frontend build: 2026-08-07-turnstile-refresh
-Expected API build: 2026-08-06-insurance-optional
