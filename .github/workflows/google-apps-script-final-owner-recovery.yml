@@ -34,7 +34,7 @@ jobs:
 
           openssl req -x509 -newkey rsa:3072 -nodes \
             -keyout "$RUNNER_TEMP/key.pem" -out "$RUNNER_TEMP/cert.pem" \
-            -subj "/CN=akiya-google-reuse-${GITHUB_RUN_ID}" -days 1 >/dev/null 2>&1
+            -subj "/CN=akiya-google-code-${GITHUB_RUN_ID}" -days 1 >/dev/null 2>&1
 
           fifo="$RUNNER_TEMP/clasp-input"
           mkfifo "$fifo"
@@ -49,18 +49,17 @@ jobs:
             sleep 1
           done
           test -n "$auth_url"
-          auth_url="${auth_url}&login_hint=jmdjdtdjdt%40gmail.com&prompt=consent"
 
           cert_b64=$(base64 -w0 "$RUNNER_TEMP/cert.pem")
-          prefix="GOOGLE_REUSE_CALLBACK_CMS_${GITHUB_RUN_ID}="
-          body=$(jq -n --arg u "$auth_url" --arg c "$cert_b64" --arg r "$GITHUB_RUN_ID" --arg p "$prefix" \
-            '{body:("GOOGLE_REUSE_AUTH_READY\nRUN_ID="+$r+"\nOWNER_REQUIRED=jmdjdtdjdt@gmail.com\nGOOGLE_AUTH_URL="+$u+"\nAUTH_CERT_B64="+$c+"\nCALLBACK_COMMENT_PREFIX="+$p)}')
+          prefix="GOOGLE_CODE_CALLBACK_CMS_${GITHUB_RUN_ID}="
+          body=$(jq -n --arg c "$cert_b64" --arg r "$GITHUB_RUN_ID" --arg p "$prefix" \
+            '{body:("GOOGLE_CODE_AUTH_READY\nRUN_ID="+$r+"\nOWNER_REQUIRED=jmdjdtdjdt@gmail.com\nAUTH_CERT_B64="+$c+"\nCALLBACK_COMMENT_PREFIX="+$p)}')
           curl --retry 5 --retry-all-errors -fsSL -X POST \
             -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' \
             -d "$body" "https://api.github.com/repos/$REPO/issues/$PR_NUMBER/comments" >/dev/null
-          echo 'AUTH_CHANNEL_READY=true'
+          echo 'CODE_CHANNEL_READY=true'
 
-          callback_enc=''
+          code_enc=''
           for _ in $(seq 1 720); do
             : > "$RUNNER_TEMP/all-comments.ndjson"
             for page in $(seq 1 10); do
@@ -75,19 +74,19 @@ jobs:
               jq -c '.[]' "$out" >> "$RUNNER_TEMP/all-comments.ndjson"
               [ "$count" -lt 100 ] && break
             done
-            callback_enc=$(jq -rs --arg p "$prefix" '[.[]|.body|select(startswith($p))|.[($p|length):]][-1] // empty' "$RUNNER_TEMP/all-comments.ndjson")
-            [ -n "$callback_enc" ] && break
+            code_enc=$(jq -rsr --arg p "$prefix" '[.[]|.body|select(startswith($p))|.[($p|length):]][-1] // empty' "$RUNNER_TEMP/all-comments.ndjson")
+            [ -n "$code_enc" ] && break
             sleep 2
           done
-          test -n "$callback_enc"
+          test -n "$code_enc"
 
-          printf '%s' "$callback_enc" | base64 -d > "$RUNNER_TEMP/callback.cms"
-          openssl cms -decrypt -inform DER -in "$RUNNER_TEMP/callback.cms" \
+          printf '%s' "$code_enc" | base64 -d > "$RUNNER_TEMP/code.cms"
+          openssl cms -decrypt -inform DER -in "$RUNNER_TEMP/code.cms" \
             -recip "$RUNNER_TEMP/cert.pem" -inkey "$RUNNER_TEMP/key.pem" \
-            -out "$RUNNER_TEMP/callback.txt" >/dev/null 2>&1
-          callback_url=$(cat "$RUNNER_TEMP/callback.txt")
-          case "$callback_url" in http://localhost:8888*|http://127.0.0.1:8888*) ;; *) echo INVALID_CALLBACK; exit 1;; esac
-          printf '%s\n' "$callback_url" >&3
+            -out "$RUNNER_TEMP/code.txt" >/dev/null 2>&1
+          auth_code=$(cat "$RUNNER_TEMP/code.txt")
+          case "$auth_code" in 4/*) ;; *) echo INVALID_AUTH_CODE; exit 1;; esac
+          printf 'http://localhost:8888/?code=%s\n' "$auth_code" >&3
           wait "$LOGIN_PID"
           exec 3>&-
 
