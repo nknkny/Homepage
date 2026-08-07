@@ -11,56 +11,12 @@
 })();
 AkiyaUI.initTurnstile=function(form){
   const key=(window.AKIYA_CONFIG&&window.AKIYA_CONFIG.TURNSTILE_SITE_KEY)||'';
-  if(!form||!key||form.dataset.turnstileInitialized==='1')return;
-  form.dataset.turnstileInitialized='1';
+  if(!form||!key)return;
   let slot=form.querySelector('.turnstile-slot');
-  if(!slot){
-    slot=document.createElement('div');
-    slot.className='turnstile-slot';
-    const status=form.querySelector('.status-box');
-    (status||form.lastElementChild).before(slot);
-  }
-  let hidden=form.querySelector('input[name="turnstileToken"]');
-  if(!hidden){
-    hidden=document.createElement('input');
-    hidden.type='hidden';
-    hidden.name='turnstileToken';
-    form.append(hidden);
-  }
-  const render=()=>{
-    if(!window.turnstile||form.dataset.turnstileRendered==='1')return;
-    form.dataset.turnstileRendered='1';
-    form._akiyaTurnstileWidgetId=window.turnstile.render(slot,{
-      sitekey:key,
-      callback:t=>hidden.value=t,
-      'expired-callback':()=>hidden.value='',
-      'error-callback':()=>hidden.value=''
-    });
-  };
+  if(!slot){slot=document.createElement('div');slot.className='turnstile-slot';const status=form.querySelector('.status-box');(status||form.lastElementChild).before(slot)}
+  const hidden=document.createElement('input');hidden.type='hidden';hidden.name='turnstileToken';form.append(hidden);
+  const render=()=>{if(window.turnstile)window.turnstile.render(slot,{sitekey:key,callback:t=>hidden.value=t,'expired-callback':()=>hidden.value='','error-callback':()=>hidden.value=''})};
   if(window.turnstile){render();return}
-  if(!document.querySelector('script[data-akiya-turnstile]')){
-    const script=document.createElement('script');
-    script.src='https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-    script.async=true;
-    script.defer=true;
-    script.dataset.akiyaTurnstile='1';
-    script.onload=()=>AkiyaUI.turnstileForms().forEach(f=>AkiyaUI.initTurnstile(f));
-    document.head.append(script);
-  }
-  const timer=setInterval(()=>{
-    if(window.turnstile){clearInterval(timer);render()}
-  },100);
-  setTimeout(()=>clearInterval(timer),15000);
+  if(!document.querySelector('script[data-akiya-turnstile]')){const s=document.createElement('script');s.src='https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';s.async=true;s.defer=true;s.dataset.akiyaTurnstile='1';s.onload=render;document.head.append(s)}else{const timer=setInterval(()=>{if(window.turnstile){clearInterval(timer);render()}},100)}
 };
-AkiyaUI.resetTurnstile=function(form){
-  if(!form)return;
-  const hidden=form.querySelector('input[name="turnstileToken"]');
-  if(hidden)hidden.value='';
-  const id=form._akiyaTurnstileWidgetId;
-  if(window.turnstile&&id!==undefined&&id!==null){
-    try{window.turnstile.reset(id)}catch(e){}
-  }
-};
-AkiyaUI.turnstileForms=function(){return ['registerForm','loginForm','resetForm','identifierForm','newPasswordForm'].map(id=>document.getElementById(id)).filter(Boolean)};
-if(window.AkiyaAPI&&typeof AkiyaAPI.submit==='function'){const rawSubmit=AkiyaAPI.submit.bind(AkiyaAPI);AkiyaAPI.submit=async function(){try{return await rawSubmit(...arguments)}finally{AkiyaUI.turnstileForms().forEach(AkiyaUI.resetTurnstile)}}}
-document.addEventListener('DOMContentLoaded',()=>AkiyaUI.turnstileForms().forEach(AkiyaUI.initTurnstile));
+document.addEventListener('DOMContentLoaded',()=>document.querySelectorAll('form').forEach(AkiyaUI.initTurnstile));
