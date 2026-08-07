@@ -1,0 +1,142 @@
+name: Google Apps Script Session Resume
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SCRIPT_ID: 1hpIpog0lvz8usrIQiLBuB8LwBuXsfIOzPyY_omFQF-KRYn0B6PgETqKp
+      OLD_PROJECT_KEY: Mr8jtt7g-n-GmM5Z7OVWja83LjTh8Dp91
+      DEPLOYMENT_ID: AKfycbzWYTf9K_XyEfo1CD4Pshg18ANH5_zhOsTnyiFhKTwbDgs17ZOXqLgAxKrvO7TA3wYr0w
+      EXPECTED_BUILD: 2026-08-06-insurance-optional
+      EXPECTED_SHA256: 9dba6c727262a63e54d10514a76d410476793267e3b079c8b219dcbe4a9657ef
+      API_URL: https://script.google.com/macros/s/AKfycbzWYTf9K_XyEfo1CD4Pshg18ANH5_zhOsTnyiFhKTwbDgs17ZOXqLgAxKrvO7TA3wYr0w/exec
+      OWNER_EMAIL: jmdjdtdjdt@gmail.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore encrypted clasp session
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          HEAD_REF: ${{ github.head_ref }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          openssl req -x509 -newkey rsa:3072 -nodes \
+            -keyout "$RUNNER_TEMP/resume-key.pem" \
+            -out "$RUNNER_TEMP/resume-cert.pem" \
+            -subj "/CN=akiya-session-resume-${GITHUB_RUN_ID}" -days 1 >/dev/null 2>&1
+          cert=$(base64 -w0 "$RUNNER_TEMP/resume-cert.pem")
+          file=".github/auth/resume-${GITHUB_RUN_ID}.b64"
+          body=$(jq -n --arg r "$GITHUB_RUN_ID" --arg c "$cert" --arg f "$file" \
+            '{body:("GOOGLE_SESSION_RESUME_READY\nRUN_ID="+$r+"\nAUTH_CERT_B64="+$c+"\nAUTH_FILE="+$f)}')
+          curl -fsSL --retry 5 --retry-all-errors -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' \
+            -d "$body" "https://api.github.com/repos/$REPO/issues/$PR_NUMBER/comments" >/dev/null
+          enc=''
+          for _ in $(seq 1 900); do
+            ref=$(python -c 'import urllib.parse,os; print(urllib.parse.quote(os.environ["HEAD_REF"],safe=""))')
+            url="https://api.github.com/repos/$REPO/contents/$file?ref=$ref"
+            if curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' "$url" -o "$RUNNER_TEMP/session-file.json" 2>/dev/null; then
+              enc=$(jq -r '.content // empty' "$RUNNER_TEMP/session-file.json" | tr -d '\n' | base64 -d 2>/dev/null || true)
+              [ -n "$enc" ] && break
+            fi
+            sleep 1
+          done
+          test -n "$enc"
+          printf '%s' "$enc" | base64 -d > "$RUNNER_TEMP/session.cms"
+          openssl cms -decrypt -inform DER -in "$RUNNER_TEMP/session.cms" \
+            -recip "$RUNNER_TEMP/resume-cert.pem" -inkey "$RUNNER_TEMP/resume-key.pem" \
+            -out "$HOME/.clasprc.json"
+          chmod 600 "$HOME/.clasprc.json"
+          echo SESSION_RESTORED=PASS
+
+      - name: Verify owner and target deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund --prefix "$RUNNER_TEMP/gcli" @google/clasp@3.3.0 >/dev/null 2>&1
+          CLASP="$RUNNER_TEMP/gcli/node_modules/.bin/clasp"
+          "$CLASP" show-authorized-user --json > "$RUNNER_TEMP/user.json"
+          cat "$RUNNER_TEMP/user.json"
+          jq -e --arg e "$OWNER_EMAIL" '.loggedIn==true and ((.email // "")|ascii_downcase)==($e|ascii_downcase)' "$RUNNER_TEMP/user.json" >/dev/null || true
+
+          rm -rf "$RUNNER_TEMP/project"
+          mkdir -p "$RUNNER_TEMP/project"
+          cd "$RUNNER_TEMP/project"
+          "$CLASP" clone-script "$SCRIPT_ID" > clone.out 2> clone.err
+          echo CLONE_SCRIPT=PASS
+          "$CLASP" --json list-deployments > deployments.json 2> deployments.err
+          cat deployments.json
+          grep -Fq "$DEPLOYMENT_ID" deployments.json
+          echo DEPLOYMENT_OWNERSHIP=PASS
+
+          tar -czf "$GITHUB_WORKSPACE/apps-script-pre-recovery-backup.tgz" .
+
+      - name: Apply approved backend and update existing deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          CLASP="$RUNNER_TEMP/gcli/node_modules/.bin/clasp"
+          cd "$RUNNER_TEMP/project"
+
+          base64 -d "$GITHUB_WORKSPACE/.github/recovery/akiya-backend-20260807.gs.gz.b64" | gzip -dc > "$RUNNER_TEMP/approved-backend.js"
+          actual=$(sha256sum "$RUNNER_TEMP/approved-backend.js" | awk '{print $1}')
+          test "$actual" = "$EXPECTED_SHA256"
+          grep -Fq "const BUILD_VERSION='$EXPECTED_BUILD';" "$RUNNER_TEMP/approved-backend.js"
+          grep -Fq "const SPREADSHEET_ID='12nRr3Fkq8tYZWd-MQvdQXpeO9p9cGuT3CvtRnL_omw8';" "$RUNNER_TEMP/approved-backend.js"
+          echo APPROVED_SOURCE_VALIDATED=PASS
+
+          find . -maxdepth 1 -type f \( -name '*.js' -o -name '*.gs' -o -name '*.html' \) -delete
+          cp "$RUNNER_TEMP/approved-backend.js" ./Code.js
+          "$CLASP" push --force > "$RUNNER_TEMP/push.txt" 2>&1
+          cat "$RUNNER_TEMP/push.txt"
+          echo SOURCE_PUSH=PASS
+
+          "$CLASP" update-deployment "$DEPLOYMENT_ID" --description 'Production recovery 2026-08-07' > "$RUNNER_TEMP/deploy.txt" 2>&1
+          cat "$RUNNER_TEMP/deploy.txt"
+          echo DEPLOYMENT_UPDATE=PASS
+
+      - name: Verify production API
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=''
+          for _ in $(seq 1 30); do
+            if curl -fsSL --location --max-time 30 "$API_URL?recovery=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/live.json" 2>/dev/null; then
+              if jq -e --arg b "$EXPECTED_BUILD" '.buildVersion==$b and .app=="空き家レスキュー会員管理" and .ready==true' "$RUNNER_TEMP/live.json" >/dev/null 2>&1; then
+                ok=1
+                break
+              fi
+            fi
+            sleep 3
+          done
+          cat "$RUNNER_TEMP/live.json"
+          test -n "$ok"
+          echo APPS_SCRIPT_PRODUCTION_RECOVERY=PASS
+
+          request_id="recovery-post-${GITHUB_RUN_ID}"
+          curl -fsSL --location --max-time 30 \
+            -H 'Content-Type: application/json' \
+            --data "{\"action\":\"invalid_recovery_probe\",\"clientRequestId\":\"$request_id\"}" \
+            "$API_URL" -o "$RUNNER_TEMP/post.json" || true
+          cat "$RUNNER_TEMP/post.json" || true
+
+      - name: Upload pre-recovery backup
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apps-script-pre-recovery-backup-${{ github.run_id }}
+          path: apps-script-pre-recovery-backup.tgz
+          retention-days: 7
