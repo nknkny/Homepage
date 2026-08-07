@@ -1,0 +1,120 @@
+name: Owner Authorized Production Recovery
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  cloudflare-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Prepare secure callback channel
+        shell: bash
+        run: |
+          set -euo pipefail
+          openssl req -x509 -newkey rsa:3072 -nodes \
+            -keyout "$RUNNER_TEMP/callback-key.pem" \
+            -out "$RUNNER_TEMP/callback-cert.pem" \
+            -subj "/CN=akiya-recovery-${GITHUB_RUN_ID}" -days 1 >/dev/null 2>&1
+          echo "AUTH_CERT_B64=$(base64 -w0 "$RUNNER_TEMP/callback-cert.pem")"
+
+      - name: Start Cloudflare owner authorization
+        id: cf_auth
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund --prefix "$RUNNER_TEMP/cfcli" wrangler@4.114.0 >/dev/null 2>&1
+          WRANGLER="$RUNNER_TEMP/cfcli/node_modules/.bin/wrangler"
+          "$WRANGLER" login --no-use-keyring >"$RUNNER_TEMP/cf-login.log" 2>&1 &
+          CF_PID=$!
+          echo "$CF_PID" > "$RUNNER_TEMP/cf-login.pid"
+
+          auth_url=""
+          for _ in $(seq 1 120); do
+            auth_url=$(grep -Eo 'https://dash\.cloudflare\.com/oauth2/auth\?[^[:space:]]+' "$RUNNER_TEMP/cf-login.log" | tail -1 || true)
+            if [ -n "$auth_url" ]; then break; fi
+            if ! kill -0 "$CF_PID" 2>/dev/null; then
+              echo "Wrangler login exited before producing an authorization URL."
+              cat "$RUNNER_TEMP/cf-login.log"
+              exit 1
+            fi
+            sleep 1
+          done
+          test -n "$auth_url"
+          printf 'CF_AUTH_URL=%s\n' "$auth_url"
+          echo "Waiting for encrypted owner callback."
+
+          callback_enc=""
+          for _ in $(seq 1 720); do
+            comments=$(curl -fsSL \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPO/issues/$PR_NUMBER/comments?per_page=100")
+            callback_enc=$(printf '%s' "$comments" | jq -r '[.[] | .body | select(startswith("CF_CALLBACK_CMS="))][-1] // empty' | sed 's/^CF_CALLBACK_CMS=//')
+            if [ -n "$callback_enc" ]; then break; fi
+            if ! kill -0 "$CF_PID" 2>/dev/null; then
+              echo "Wrangler login stopped while waiting for authorization."
+              cat "$RUNNER_TEMP/cf-login.log"
+              exit 1
+            fi
+            sleep 5
+          done
+          test -n "$callback_enc"
+
+          printf '%s' "$callback_enc" | base64 -d > "$RUNNER_TEMP/cf-callback.cms"
+          openssl cms -decrypt -inform DER \
+            -in "$RUNNER_TEMP/cf-callback.cms" \
+            -recip "$RUNNER_TEMP/callback-cert.pem" \
+            -inkey "$RUNNER_TEMP/callback-key.pem" \
+            -out "$RUNNER_TEMP/cf-callback.txt" >/dev/null 2>&1
+          callback_url=$(cat "$RUNNER_TEMP/cf-callback.txt")
+          case "$callback_url" in
+            http://localhost:8976/oauth/callback*|http://127.0.0.1:8976/oauth/callback*) ;;
+            *) echo "Invalid Cloudflare callback URL."; exit 1 ;;
+          esac
+          curl -fsS "$callback_url" >/dev/null
+          wait "$CF_PID"
+          "$WRANGLER" whoami
+
+      - name: Deploy approved final frontend to existing Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          WRANGLER="$RUNNER_TEMP/cfcli/node_modules/.bin/wrangler"
+          git clone --quiet --depth 1 --branch akiya-rescue-cloudflare "https://github.com/${GITHUB_REPOSITORY}.git" "$RUNNER_TEMP/cfsite"
+          cat > "$RUNNER_TEMP/cfsite/wrangler.jsonc" <<'JSON'
+          {
+            "name": "rapid-hat-f45c",
+            "compatibility_date": "2026-08-07",
+            "assets": {
+              "directory": "./public"
+            }
+          }
+          JSON
+          cd "$RUNNER_TEMP/cfsite"
+          "$WRANGLER" deploy --config wrangler.jsonc
+
+      - name: Verify Cloudflare production build
+        shell: bash
+        run: |
+          set -euo pipefail
+          SITE='https://rapid-hat-f45c.jmdjdtdjdt.workers.dev'
+          stamp="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          curl -fsSL "$SITE/assets/config.js?recovery=$stamp" -o "$RUNNER_TEMP/live-config.js"
+          grep -Fq 'FRONTEND_BUILD: "2026-08-07-turnstile-refresh"' "$RUNNER_TEMP/live-config.js"
+          grep -Fq 'REQUIRED_API_BUILD: "2026-08-06-insurance-optional"' "$RUNNER_TEMP/live-config.js"
+          curl -fsSL "$SITE/VERSION.txt?recovery=$stamp" -o "$RUNNER_TEMP/live-version.txt"
+          grep -Fq 'siteVersion=2026-08-07-turnstile-refresh' "$RUNNER_TEMP/live-version.txt"
+          grep -Fq 'apiRequiredBuild=2026-08-06-insurance-optional' "$RUNNER_TEMP/live-version.txt"
+          echo 'CLOUDFLARE_PRODUCTION_RECOVERY=PASS'
