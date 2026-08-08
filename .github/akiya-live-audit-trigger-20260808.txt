@@ -1,1 +1,2 @@
 Trigger zero-cost external audit for Akiya sales-ready frontend 2026-08-08-sales-ready and API 2026-08-06-insurance-optional.
+Retry after Cloudflare public-tree synchronization.
