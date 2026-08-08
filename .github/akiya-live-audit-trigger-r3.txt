@@ -1,0 +1,5 @@
+Akiya r3 live production audit trigger
+site_expected=2026-08-08-sales-ready-r3
+api_expected=2026-08-08-audit-hardening-r3
+triggered_at=2026-08-08T13:30:00+09:00
+purpose=non-production harmless PR trigger for external live audit
