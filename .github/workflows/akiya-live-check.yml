@@ -111,6 +111,8 @@ jobs:
           grep -Eiq '^content-security-policy:' site-evidence/headers-normalized.txt
           grep -Eiq "^content-security-policy:.*script-src 'self' https://challenges.cloudflare.com" site-evidence/headers-normalized.txt
           ! grep -Ei "^content-security-policy:.*script-src[^;]*'unsafe-inline'" site-evidence/headers-normalized.txt
+          grep -Eiq "^content-security-policy:.*style-src 'self'" site-evidence/headers-normalized.txt
+          ! grep -Ei "^content-security-policy:.*style-src[^;]*'unsafe-inline'" site-evidence/headers-normalized.txt
       - name: Probe VERSION marker
         shell: bash
         run: |
