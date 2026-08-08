@@ -17,6 +17,7 @@ jobs:
         run: |
           set -u
           urls=(
+            'https://script.google.com/macros/s/AKfycbzVtraRUu0hgrOlnTT9c9-p2N2zl9EUOPJ5D0n7vK8b/exec'
             'https://script.google.com/macros/s/AKfycbynkdZOqIm5IWkqU828NuedAKF39ukM-L76zEMzFxsIufA2W8ECMPMHVS0WsgoaIwQ75A/exec'
             'https://script.google.com/macros/s/AKfycbxdLJ6_IEl2qd_49lP5MwfF-zkEkbT8mnUiFJIo_oPx_ZKFXXywV0539qvMclVbXMTPoQ/exec'
             'https://script.google.com/macros/s/AKfycbzufU8XF9HnfPaAR-l49IPb2bmEgaox8pvDNxmAS2eHvuztFWVkrgc0-a5_bj8MQunyRQ/exec'
