@@ -10,17 +10,31 @@ permissions:
 jobs:
   inspect:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
-      - name: Inspect official NTA public download endpoint implementation
+      - name: Verify invoice registration in official NTA bulk-download data
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --location --max-time 30 https://www.invoice-kohyo.nta.go.jp/download/zenken -o /tmp/zenken.html
-          curl --fail --silent --show-error --location --max-time 30 https://www.invoice-kohyo.nta.go.jp/js/common.js -o /tmp/common.js
-          echo '--- doDownload definition ---'
-          sed -n '95,115p' /tmp/zenken.html
-          echo '--- doActionLink definition/context ---'
-          grep -n -A20 -B5 'function doActionLink' /tmp/common.js || true
-          echo '--- personal CSV download identifiers ---'
-          grep -n "doDownload('[0-9]*','1','01')" /tmp/zenken.html || true
+          target='T5810907887896'
+          base='https://www.invoice-kohyo.nta.go.jp/download/zenken/dlfile?'
+          mkdir -p /tmp/nta
+          for spec in '4981 1' '4982 2' '4983 3' '4984 4' '4980 5'; do
+            set -- $spec
+            id="$1"; n="$2"
+            url="${base}dlFilKanriNo=${id}&jinkakukbn=1&type=01"
+            echo "downloading personal CSV split $n"
+            curl --fail --silent --show-error --location --max-time 90 "$url" -o "/tmp/nta/personal-${n}.zip"
+            unzip -q "/tmp/nta/personal-${n}.zip" -d "/tmp/nta/personal-${n}"
+          done
+          echo '--- exact registration-number matches in 2026-07-31 full personal data ---'
+          matches=0
+          while IFS= read -r f; do
+            if grep -F "$target" "$f" >/tmp/matches.txt; then
+              echo "FILE=$(basename "$f")"
+              cat /tmp/matches.txt
+              matches=$((matches+$(wc -l </tmp/matches.txt)))
+            fi
+          done < <(find /tmp/nta -type f -name '*.csv' | sort)
+          echo "MATCH_COUNT=$matches"
+          test "$matches" -ge 1
