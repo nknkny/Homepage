@@ -12,29 +12,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-      - name: Verify invoice registration in official NTA bulk-download data
+      - name: Inspect official NTA differential download page
         shell: bash
         run: |
           set -euo pipefail
-          target='T5810907887896'
-          base='https://www.invoice-kohyo.nta.go.jp/download/zenken/dlfile?'
-          mkdir -p /tmp/nta
-          for spec in '4981 1' '4982 2' '4983 3' '4984 4' '4980 5'; do
-            set -- $spec
-            id="$1"; n="$2"
-            url="${base}dlFilKanriNo=${id}&jinkakukbn=1&type=01"
-            echo "downloading personal CSV split $n"
-            curl --fail --silent --show-error --location --max-time 90 "$url" -o "/tmp/nta/personal-${n}.zip"
-            unzip -q "/tmp/nta/personal-${n}.zip" -d "/tmp/nta/personal-${n}"
-          done
-          echo '--- exact registration-number matches in 2026-07-31 full personal data ---'
-          matches=0
-          while IFS= read -r f; do
-            if grep -F "$target" "$f" >/tmp/matches.txt; then
-              echo "FILE=$(basename "$f")"
-              cat /tmp/matches.txt
-              matches=$((matches+$(wc -l </tmp/matches.txt)))
-            fi
-          done < <(find /tmp/nta -type f -name '*.csv' | sort)
-          echo "MATCH_COUNT=$matches"
-          test "$matches" -ge 1
+          curl --fail --silent --show-error --location --max-time 30 https://www.invoice-kohyo.nta.go.jp/download/sabun -o /tmp/sabun.html
+          echo '--- doDownload definition ---'
+          grep -n -A12 -B3 'function doDownload' /tmp/sabun.html || true
+          echo '--- CSV download calls and date context ---'
+          grep -n -B8 -A8 "doDownload('[0-9].*'01')" /tmp/sabun.html | tail -500 || true
+          echo '--- dates and labels ---'
+          grep -nE '2026|令和8|CSV|zip|差分' /tmp/sabun.html | tail -500 || true
