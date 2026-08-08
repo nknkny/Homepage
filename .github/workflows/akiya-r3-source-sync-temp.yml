@@ -1,0 +1,92 @@
+name: Akiya r3 Source Sync TEMP
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: github.head_ref == 'agent/akiya-r3-source-sync'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout payload
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: payload
+      - name: Decode and validate r3 public tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/akiya-r3
+          base64 -d payload/akiya-r3-site-text.tar.gz.b64 > /tmp/akiya-r3.tar.gz
+          echo 'c987104e10080173f54b45024294f360e4cabfb777573fb0a9056588fd55a854  /tmp/akiya-r3.tar.gz' | sha256sum -c -
+          tar -xzf /tmp/akiya-r3.tar.gz -C /tmp/akiya-r3
+          mkdir -p /tmp/akiya-r3/assets
+          curl --fail --silent --show-error --location --max-time 30 'https://rapid-hat-f45c.jmdjdtdjdt.workers.dev/assets/hero-house.jpg' -o /tmp/akiya-r3/assets/hero-house.jpg
+          echo '9a42fd495ba76103bb9b0a072b815b8e11c608f50241deb38a9db60ed3053b2e  /tmp/akiya-r3/assets/hero-house.jpg' | sha256sum -c -
+          grep -Fq 'FRONTEND_BUILD: "2026-08-08-sales-ready-r3"' /tmp/akiya-r3/assets/config.js
+          grep -Fq 'REQUIRED_API_BUILD: "2026-08-08-audit-hardening-r3"' /tmp/akiya-r3/assets/config.js
+          grep -Fq 'siteVersion=2026-08-08-sales-ready-r3' /tmp/akiya-r3/VERSION.txt
+          grep -Fq 'apiRequiredBuild=2026-08-08-audit-hardening-r3' /tmp/akiya-r3/VERSION.txt
+      - name: Sync canonical site source branch
+        uses: actions/checkout@v4
+        with:
+          ref: akiya-rescue-site
+          path: site-target
+          fetch-depth: 0
+      - name: Commit r3 to canonical site source branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd site-target
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -a /tmp/akiya-r3/. .
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'akiya-rescue-site already matches r3'
+          else
+            git config user.name 'ChatGPT Akiya Audit'
+            git config user.email 'actions@github.com'
+            git commit -m 'Sync Akiya site source to audited r3'
+            git push origin HEAD:akiya-rescue-site
+          fi
+      - name: Sync canonical Cloudflare source branch
+        uses: actions/checkout@v4
+        with:
+          ref: akiya-rescue-cloudflare
+          path: cloudflare-target
+          fetch-depth: 0
+      - name: Commit r3 to canonical Cloudflare source branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd cloudflare-target
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -a /tmp/akiya-r3/. .
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'akiya-rescue-cloudflare already matches r3'
+          else
+            git config user.name 'ChatGPT Akiya Audit'
+            git config user.email 'actions@github.com'
+            git commit -m 'Sync Akiya Cloudflare source to audited r3'
+            git push origin HEAD:akiya-rescue-cloudflare
+          fi
+      - name: Verify both branch markers from origin
+        shell: bash
+        run: |
+          set -euo pipefail
+          for branch in akiya-rescue-site akiya-rescue-cloudflare; do
+            git -C site-target fetch origin "$branch"
+            cfg=$(git -C site-target show "origin/$branch:assets/config.js")
+            ver=$(git -C site-target show "origin/$branch:VERSION.txt")
+            grep -Fq 'FRONTEND_BUILD: "2026-08-08-sales-ready-r3"' <<<"$cfg"
+            grep -Fq 'REQUIRED_API_BUILD: "2026-08-08-audit-hardening-r3"' <<<"$cfg"
+            grep -Fq 'siteVersion=2026-08-08-sales-ready-r3' <<<"$ver"
+            grep -Fq 'apiRequiredBuild=2026-08-08-audit-hardening-r3' <<<"$ver"
+          done
