@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 env:
-  EXPECTED_SITE_BUILD: 2026-08-08-sales-ready
-  EXPECTED_API_BUILD: 2026-08-06-insurance-optional
+  EXPECTED_SITE_BUILD: 2026-08-08-sales-ready-r3
+  EXPECTED_API_BUILD: 2026-08-08-audit-hardening-r3
   SITE_ORIGIN: https://rapid-hat-f45c.jmdjdtdjdt.workers.dev
   API_URL: https://script.google.com/macros/s/AKfycbzWYTf9K_XyEfo1CD4Pshg18ANH5_zhOsTnyiFhKTwbDgs17ZOXqLgAxKrvO7TA3wYr0w/exec
 
@@ -32,10 +32,10 @@ jobs:
           assert p.get('buildVersion')==os.environ['EXPECTED_API_BUILD'],p
           assert p.get('app')=='空き家レスキュー会員管理',p
           assert p.get('ready') is True,p
-          assert 'paidSalesReady' in p,p
+          assert p.get('paidSalesReady') is True,p
           print(p)
           PY
-      - name: Verify Apps Script POST transport
+      - name: Verify Apps Script POST transport and auth rejection
         shell: bash
         run: |
           set -euo pipefail
@@ -49,6 +49,16 @@ jobs:
           grep -Fq "$rid" api-evidence/api-post.html
           grep -Fq 'akiya-rescue-api' api-evidence/api-post.html
           grep -Eq 'AUTH_REQUIRED|NOT_FOUND|AUTH_FAILED' api-evidence/api-post.html
+      - name: Verify unknown action rejection
+        shell: bash
+        run: |
+          set -euo pipefail
+          rid="CI-UNKNOWN-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          curl --fail --silent --show-error --location --max-time 30 \
+            --data-urlencode "action=__ci_unknown_action__" --data-urlencode "clientRequestId=$rid" \
+            --data-urlencode "responseOrigin=$SITE_ORIGIN" "$API_URL" -o api-evidence/api-unknown.html
+          grep -Fq "$EXPECTED_API_BUILD" api-evidence/api-unknown.html
+          grep -Fq 'UNKNOWN_ACTION' api-evidence/api-unknown.html
       - name: Upload API evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -86,13 +96,32 @@ jobs:
             echo "$page -> $code"
             test "$code" = "200"
           done
-      - name: Probe optional VERSION marker
-        if: always()
+          grep -Fq '申込・支払期限' site-evidence/page-_checkout.html
+          grep -Fq '特定商取引法に基づく表記' site-evidence/page-_commercial.html
+          grep -Fq '最終改定日：2026年8月8日' site-evidence/page-_privacy.html
+      - name: Verify production security headers
         shell: bash
         run: |
-          code=$(curl --silent --show-error --location --max-time 20 -o site-evidence/VERSION.txt --write-out '%{http_code}' "$SITE_ORIGIN/VERSION.txt?check=$GITHUB_SHA" || true)
+          set -euo pipefail
+          curl --silent --show-error --location --max-time 20 -D site-evidence/headers.txt -o /dev/null "$SITE_ORIGIN/?headers=$GITHUB_SHA"
+          tr -d '\r' < site-evidence/headers.txt > site-evidence/headers-normalized.txt
+          grep -Eiq '^strict-transport-security:.*max-age=' site-evidence/headers-normalized.txt
+          grep -Eiq '^x-content-type-options:[[:space:]]*nosniff' site-evidence/headers-normalized.txt
+          grep -Eiq '^x-frame-options:[[:space:]]*DENY' site-evidence/headers-normalized.txt
+          grep -Eiq '^content-security-policy:' site-evidence/headers-normalized.txt
+          grep -Eiq "^content-security-policy:.*script-src 'self' https://challenges.cloudflare.com" site-evidence/headers-normalized.txt
+          ! grep -Ei "^content-security-policy:.*script-src[^;]*'unsafe-inline'" site-evidence/headers-normalized.txt
+      - name: Probe VERSION marker
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl --silent --show-error --location --max-time 20 -o site-evidence/VERSION.txt --write-out '%{http_code}' "$SITE_ORIGIN/VERSION.txt?check=$GITHUB_SHA")
           echo "VERSION.txt -> $code"
-          cat site-evidence/VERSION.txt 2>/dev/null || true
+          test "$code" = "200"
+          grep -Fq "siteVersion=$EXPECTED_SITE_BUILD" site-evidence/VERSION.txt
+          grep -Fq "apiRequiredBuild=$EXPECTED_API_BUILD" site-evidence/VERSION.txt
+          grep -Fq 'authority_gate=required_before_quote_and_payment' site-evidence/VERSION.txt
+          grep -Fq 'qualified_invoice_transaction_date=actual_service_completion_date' site-evidence/VERSION.txt
       - name: Upload site evidence
         if: always()
         uses: actions/upload-artifact@v4
