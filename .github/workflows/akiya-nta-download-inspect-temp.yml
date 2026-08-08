@@ -12,45 +12,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-      - name: Verify post-baseline changes in official NTA differential data
+      - name: Inspect official NTA signatures and public-key location
         shell: bash
         run: |
           set -euo pipefail
-          target='T5810907887896'
-          base='https://www.invoice-kohyo.nta.go.jp/download/sabun/dlfile?'
-          curl --fail --silent --show-error --location --max-time 30 https://www.invoice-kohyo.nta.go.jp/download/sabun -o /tmp/sabun.html
-          python - <<'PY' >/tmp/recent.tsv
-          import re
-          s=open('/tmp/sabun.html',encoding='utf-8').read()
-          # CSV section only: before XML section begins.
-          s=s.split('id="xml-filtyp"',1)[0]
-          pattern=re.compile(r'<th scope="row">令和8年(8月[3456]日)</th>.*?doDownload\(\'([0-9]+)\',\'01\'\)',re.S)
-          rows=pattern.findall(s)
-          for date,id_ in rows:
-              print(f'{date}\t{id_}')
-          if len(rows)!=4:
-              raise SystemExit(f'expected 4 CSV diff rows for Aug 3-6, got {rows!r}')
-          PY
-          cat /tmp/recent.tsv
-          mkdir -p /tmp/nta-diff
-          total_matches=0
-          while IFS=$'\t' read -r date id; do
-            url="${base}dlFilKanriNo=${id}&type=01"
-            safe=$(echo "$date" | tr -cd '0-9')
-            echo "downloading $date id=$id"
-            curl --fail --silent --show-error --location --max-time 60 "$url" -o "/tmp/nta-diff/${safe}.zip"
-            unzip -q "/tmp/nta-diff/${safe}.zip" -d "/tmp/nta-diff/${safe}"
-            day_matches=0
-            while IFS= read -r f; do
-              if grep -F "$target" "$f" >/tmp/daymatches.txt; then
-                echo "MATCH_DATE=$date FILE=$(basename "$f")"
-                cat /tmp/daymatches.txt
-                n=$(wc -l </tmp/daymatches.txt)
-                day_matches=$((day_matches+n))
-                total_matches=$((total_matches+n))
-              fi
-            done < <(find "/tmp/nta-diff/${safe}" -type f -name '*.csv' | sort)
-            echo "$date MATCH_COUNT=$day_matches"
-          done </tmp/recent.tsv
-          echo "POST_BASELINE_TOTAL_MATCH_COUNT=$total_matches"
-          test "$total_matches" -eq 0
+          mkdir -p /tmp/nta
+          curl --fail --silent --show-error --location --max-time 60 'https://www.invoice-kohyo.nta.go.jp/download/zenken/dlfile?dlFilKanriNo=4983&jinkakukbn=1&type=01' -o /tmp/nta/full.zip
+          curl --fail --silent --show-error --location --max-time 60 'https://www.invoice-kohyo.nta.go.jp/download/sabun/dlfile?dlFilKanriNo=5020&type=01' -o /tmp/nta/diff.zip
+          echo '--- full zip ---'; unzip -l /tmp/nta/full.zip
+          echo '--- diff zip ---'; unzip -l /tmp/nta/diff.zip
+          curl --fail --silent --show-error --location --max-time 30 https://www.invoice-kohyo.nta.go.jp/download/pgp_key.html -o /tmp/nta/key.html
+          echo '--- key links ---'
+          grep -Eo 'href="[^"]+"' /tmp/nta/key.html | grep -Ei 'pgp|asc|key|gpg' || true
+          grep -niE '公開鍵|fingerprint|フィンガープリント|asc|鍵' /tmp/nta/key.html | head -100 || true
