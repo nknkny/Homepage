@@ -30,6 +30,20 @@ jobs:
           grep -Fq 'REQUIRED_API_BUILD: "2026-08-08-audit-hardening-r3"' /tmp/akiya-r3/assets/config.js
           grep -Fq 'siteVersion=2026-08-08-sales-ready-r3' /tmp/akiya-r3/VERSION.txt
           grep -Fq 'apiRequiredBuild=2026-08-08-audit-hardening-r3' /tmp/akiya-r3/VERSION.txt
+      - name: Checkout verified v6 archive
+        uses: actions/checkout@v4
+        with:
+          ref: akiya-rescue-production-v6
+          path: legacy-v6
+      - name: Recover unchanged audited hero asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd legacy-v6/akiya-site
+          bash build.sh
+          test -f dist/assets/hero-house.jpg
+          echo '9a42fd495ba76103bb9b0a072b815b8e11c608f50241deb38a9db60ed3053b2e  dist/assets/hero-house.jpg' | sha256sum -c -
+          cp dist/assets/hero-house.jpg /tmp/akiya-r3/assets/hero-house.jpg
       - name: Sync canonical site source branch
         uses: actions/checkout@v4
         with:
@@ -45,7 +59,7 @@ jobs:
           cp -a /tmp/akiya-r3/. .
           git add -A
           if git diff --cached --quiet; then
-            echo 'akiya-rescue-site already matches r3 text tree'
+            echo 'akiya-rescue-site already matches full r3 tree'
           else
             git config user.name 'ChatGPT Akiya Audit'
             git config user.email 'actions@github.com'
@@ -67,14 +81,14 @@ jobs:
           cp -a /tmp/akiya-r3/. .
           git add -A
           if git diff --cached --quiet; then
-            echo 'akiya-rescue-cloudflare already matches r3 text tree'
+            echo 'akiya-rescue-cloudflare already matches full r3 tree'
           else
             git config user.name 'ChatGPT Akiya Audit'
             git config user.email 'actions@github.com'
             git commit -m 'Sync Akiya Cloudflare source to audited r3'
             git push origin HEAD:akiya-rescue-cloudflare
           fi
-      - name: Verify both branch markers from origin
+      - name: Verify both branch markers and hero asset from origin
         shell: bash
         run: |
           set -euo pipefail
@@ -86,4 +100,6 @@ jobs:
             grep -Fq 'REQUIRED_API_BUILD: "2026-08-08-audit-hardening-r3"' <<<"$cfg"
             grep -Fq 'siteVersion=2026-08-08-sales-ready-r3' <<<"$ver"
             grep -Fq 'apiRequiredBuild=2026-08-08-audit-hardening-r3' <<<"$ver"
+            git -C site-target show "origin/$branch:assets/hero-house.jpg" > /tmp/hero.jpg
+            echo '9a42fd495ba76103bb9b0a072b815b8e11c608f50241deb38a9db60ed3053b2e  /tmp/hero.jpg' | sha256sum -c -
           done
