@@ -1,0 +1,23 @@
+window.SITE_CONFIG = {
+  siteName: "空き家レスキュー",
+  serviceName: "空き家レスキュー",
+  operatorTradeName: "空き家レスキュー",
+  operatorName: "名久井 海里",
+  operatorAddress: "〒030-0862 青森県青森市古川1丁目12-2 ポレスター古川プレミアムレジデンス1503",
+  phone: "090-1064-3213",
+  email: "aomori.akiya.rescue@gmail.com",
+  businessHours: "平日9:00〜18:00（土日祝休業）",
+  launchDate: "2026年8月3日",
+  serviceStatus: "inquiry",
+  normalArea: "事業拠点から片道20km以内",
+  surchargeArea: "片道20km超〜35km以内は1,100円加算",
+  outOfArea: "片道35km超は個別確認。地域体制が整っていない地域は受付対象外です。",
+  membershipPrice: "無料",
+  visitPrice: "4,980円（税込）",
+  surchargePrice: "1,100円（税込）",
+  referralFee: "提携事業者の作業金額（税込）の10％。最低2,200円、上限33,000円",
+  inquiryEmail: "aomori.akiya.rescue@gmail.com",
+  currentUrl: "公開後に設定",
+  memberFormAction: "mailto:aomori.akiya.rescue@gmail.com",
+  visitFormAction: "mailto:aomori.akiya.rescue@gmail.com"
+};
