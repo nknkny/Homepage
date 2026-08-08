@@ -4,7 +4,7 @@
   show(box,msg,ok=false){if(!box)return;box.textContent=msg;box.className='status-box show '+(ok?'ok':'bad')},
   busy(btn,on,label){if(!btn)return;if(on){btn.dataset.old=btn.textContent;btn.disabled=true;btn.textContent=label||'送信中…'}else{btn.disabled=false;btn.textContent=btn.dataset.old||btn.textContent}},
   formData(form){const fd=new FormData(form),o={};for(const [k,v] of fd){if(k.endsWith('[]')){const n=k.slice(0,-2);(o[n]??=[]).push(v)}else if(o[k]!==undefined)o[k]=[].concat(o[k],v);else o[k]=v}return o},
-  requirePassword(v){return String(v||'').length>=8},
+  requirePassword(v){return String(v||'').length>=12},
   logout(){AkiyaAPI.setToken('');location.href='member-login.html'}
  };
  $$('.js-logout').forEach(x=>x.addEventListener('click',e=>{e.preventDefault();AkiyaUI.logout()}));
@@ -27,11 +27,14 @@ AkiyaUI.initTurnstile=function(form){
     hidden.name='turnstileToken';
     form.append(hidden);
   }
+  const actionByForm={registerForm:'register_member',loginForm:'member_login',resetForm:'request_password_reset',identifierForm:'recover_identifier',newPasswordForm:'reset_password'};
+  const expectedAction=actionByForm[form.id]||'';
   const render=()=>{
-    if(!window.turnstile||form.dataset.turnstileRendered==='1')return;
+    if(!window.turnstile||form.dataset.turnstileRendered==='1'||!expectedAction)return;
     form.dataset.turnstileRendered='1';
     form._akiyaTurnstileWidgetId=window.turnstile.render(slot,{
       sitekey:key,
+      action:expectedAction,
       callback:t=>hidden.value=t,
       'expired-callback':()=>hidden.value='',
       'error-callback':()=>hidden.value=''
