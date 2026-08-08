@@ -21,6 +21,7 @@ jobs:
           chmod 700 /tmp/gnupg
           cat >/tmp/nta/nta-key.asc <<'KEY'
           -----BEGIN PGP PUBLIC KEY BLOCK-----
+
           mQENBF/9WuMDCACXM0CuU2X/JguCh3C37R9yp88Q5SZAyTRwu8RPWNm3PtX4KYJa
           sAQlU+btPXDRQaz/HSI/qCScn6XLZnq910RpPP8scDwcaqeHr8uP1CVbjapzR2Zy
           7vnJ70qkCZkqoLihgGAQZXwOySAQ8T9QZDdjimJUITufEUpoXLQ3BuQdoRSI2432
