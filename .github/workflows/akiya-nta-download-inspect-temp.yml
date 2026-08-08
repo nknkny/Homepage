@@ -12,12 +12,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Inspect official NTA public download page markup
+      - name: Inspect official NTA public download endpoint implementation
         shell: bash
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --location --max-time 30 https://www.invoice-kohyo.nta.go.jp/download/zenken -o /tmp/zenken.html
-          echo '--- script sources ---'
-          grep -Eo '<script[^>]+src="[^"]+"' /tmp/zenken.html || true
-          echo '--- download-related markup ---'
-          grep -niE 'zip|download|zenken|data-|href=' /tmp/zenken.html | head -300 || true
+          curl --fail --silent --show-error --location --max-time 30 https://www.invoice-kohyo.nta.go.jp/js/common.js -o /tmp/common.js
+          echo '--- doDownload definition ---'
+          sed -n '95,115p' /tmp/zenken.html
+          echo '--- doActionLink definition/context ---'
+          grep -n -A20 -B5 'function doActionLink' /tmp/common.js || true
+          echo '--- personal CSV download identifiers ---'
+          grep -n "doDownload('[0-9]*','1','01')" /tmp/zenken.html || true
