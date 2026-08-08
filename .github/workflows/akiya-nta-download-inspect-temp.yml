@@ -10,11 +10,68 @@ permissions:
 jobs:
   inspect:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
     steps:
-      - name: Inspect exact official NTA PGP key block
+      - name: Cryptographically verify official NTA registration evidence
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --location --max-time 30 https://www.invoice-kohyo.nta.go.jp/download/pgp_key.html -o /tmp/key.html
-          sed -n '168,198p' /tmp/key.html
+          target='T5810907887896'
+          mkdir -p /tmp/nta /tmp/gnupg
+          chmod 700 /tmp/gnupg
+          cat >/tmp/nta/nta-key.asc <<'KEY'
+          -----BEGIN PGP PUBLIC KEY BLOCK-----
+          mQENBF/9WuMDCACXM0CuU2X/JguCh3C37R9yp88Q5SZAyTRwu8RPWNm3PtX4KYJa
+          sAQlU+btPXDRQaz/HSI/qCScn6XLZnq910RpPP8scDwcaqeHr8uP1CVbjapzR2Zy
+          7vnJ70qkCZkqoLihgGAQZXwOySAQ8T9QZDdjimJUITufEUpoXLQ3BuQdoRSI2432
+          2Ih9nNmQwjE4NQYhWjTWVPyjf04zq1U9w4oZ4tkuEl96mI6FKlIhauIsa3o73su3
+          dD9u/4UU195XVqMvDii11yaW7UVoY2FV70R4bGrFisE7c0HQJPAEttBzooVDYliE
+          yAsmiVCHfKuQFgs9VzSuZM7MjgE18kmG2WFXABEBAAG0G05hdGlvbmFsIFRheCBB
+          Z2VuY3kgSW52b2ljZYkBGwQQAwgABgUCX/1a4wAKCRAqiuM0CYCqDAqwB/ivHCVR
+          Ic1VxE3A8ViG0Tw9OtO6MVdeaxCM354lmVTPNdJBoh+r2qmR2iiN+QmARFcCq/aw
+          p74EAvwCSZlx+TrFhDYdYiPfOhBabZnEQ9okQKsHR1WU/NwHfLO4ZCtQJmbUhxET
+          CYH33sxK58TPT+P4yEbQklaFH2LQsn6l+ZZbCpuP27SDe18XmQKq9RYrfI80Tbug
+          lvAy6DKPaPhrAIvmzU1xnY8oVoaDRixmFn6HnaNtw8Y54j/3lqegL30y87ZT9AI7
+          ll5bK/qYVbJ4+W74vCpn2jUXICElR3n0v9GUB60U88nAzd0Cz5iMHj3Q3aO9eZVM
+          3edCqilcHBlvEUw=
+          =0Wtx
+          -----END PGP PUBLIC KEY BLOCK-----
+          KEY
+          GNUPGHOME=/tmp/gnupg gpg --batch --import /tmp/nta/nta-key.asc
+          fp=$(GNUPGHOME=/tmp/gnupg gpg --batch --with-colons --fingerprint 2A8AE3340980AA0C | awk -F: '$1=="fpr"{print $10;exit}')
+          echo "NTA_KEY_FINGERPRINT=$fp"
+          test "$fp" = '9736ADBFDAC16800B22A773C2A8AE3340980AA0C'
+
+          curl --fail --silent --show-error --location --max-time 90 'https://www.invoice-kohyo.nta.go.jp/download/zenken/dlfile?dlFilKanriNo=4983&jinkakukbn=1&type=01' -o /tmp/nta/full.zip
+          unzip -q /tmp/nta/full.zip -d /tmp/nta/full
+          GNUPGHOME=/tmp/gnupg gpg --batch --verify /tmp/nta/full/k_all_20260731_003.csv.asc /tmp/nta/full/k_all_20260731_003.csv
+          grep -F "$target" /tmp/nta/full/k_all_20260731_003.csv >/tmp/nta/full-match.txt
+          echo '--- VERIFIED FULL-DATA MATCH ---'
+          cat /tmp/nta/full-match.txt
+          test "$(wc -l </tmp/nta/full-match.txt)" -eq 1
+          python - <<'PY'
+          import csv
+          row=next(csv.reader(open('/tmp/nta/full-match.txt',encoding='utf-8')))
+          assert row[1]=='T5810907887896',row
+          assert row[6]=='1',row
+          assert row[7]=='2025-01-01',row
+          assert row[9]=='',row
+          assert row[10]=='',row
+          print('FULL_RECORD_LATEST=1 REGISTRATION_DATE=2025-01-01 DISPOSAL_DATE=BLANK EXPIRE_DATE=BLANK')
+          PY
+
+          total=0
+          for spec in '5011 20260803' '5014 20260804' '5017 20260805' '5020 20260806'; do
+            set -- $spec; id="$1"; date="$2"
+            curl --fail --silent --show-error --location --max-time 60 "https://www.invoice-kohyo.nta.go.jp/download/sabun/dlfile?dlFilKanriNo=${id}&type=01" -o "/tmp/nta/diff-${date}.zip"
+            mkdir -p "/tmp/nta/diff-${date}"
+            unzip -q "/tmp/nta/diff-${date}.zip" -d "/tmp/nta/diff-${date}"
+            csvfile=$(find "/tmp/nta/diff-${date}" -maxdepth 1 -name '*.csv' -print -quit)
+            ascfile="${csvfile}.asc"
+            GNUPGHOME=/tmp/gnupg gpg --batch --verify "$ascfile" "$csvfile"
+            n=$(grep -F -c "$target" "$csvfile" || true)
+            echo "DIFF_${date}_MATCH_COUNT=$n"
+            total=$((total+n))
+          done
+          echo "VERIFIED_POST_BASELINE_MATCH_COUNT=$total"
+          test "$total" -eq 0
