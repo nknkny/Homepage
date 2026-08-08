@@ -23,7 +23,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/akiya-r3
-          base64 -d payload/akiya-r3-site-text.tar.gz.b64 > /tmp/akiya-r3.tar.gz
+          cat payload/payload/chunk{00..07}.txt | tr -d '\r\n' | base64 -d > /tmp/akiya-r3.tar.gz
           echo 'c987104e10080173f54b45024294f360e4cabfb777573fb0a9056588fd55a854  /tmp/akiya-r3.tar.gz' | sha256sum -c -
           tar -xzf /tmp/akiya-r3.tar.gz -C /tmp/akiya-r3
           mkdir -p /tmp/akiya-r3/assets
