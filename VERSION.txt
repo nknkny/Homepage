@@ -1,12 +1,12 @@
-siteVersion=2026-08-08-sales-ready-r3
-apiRequiredBuild=2026-08-08-audit-hardening-r3
+siteVersion=2026-08-08-sales-ready-r5
+apiRequiredBuild=2026-08-08-audit-hardening-r5
 paymentMode=final_confirmation_then_stripe_or_bank
 newsletterMode=google_sheets_admin_sidebar_opt_in_queue
 invoiceRegistrationNumber=T5810907887896
 invoiceRegistrationDate=2025-01-01
 taxMode=manual_inclusive_jp_10_percent
 
-audit_revision=2026-08-08-r3
+audit_revision=2026-08-08-r5
 privacy_version=2026-08-08-v5
 service_terms_version=service-terms-2026-08-05
 turnstile_hostname_binding=enabled
@@ -16,3 +16,5 @@ obsolete_manual_stripe_payment_link=disabled
 authority_gate=required_before_quote_and_payment
 field_execution_ledger=required_before_invoice
 qualified_invoice_transaction_date=actual_service_completion_date
+
+design_revision=homepage-and-standalone-admin-r5
