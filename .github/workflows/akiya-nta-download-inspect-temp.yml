@@ -12,16 +12,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-      - name: Inspect official NTA signatures and public-key location
+      - name: Inspect exact official NTA PGP key block
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p /tmp/nta
-          curl --fail --silent --show-error --location --max-time 60 'https://www.invoice-kohyo.nta.go.jp/download/zenken/dlfile?dlFilKanriNo=4983&jinkakukbn=1&type=01' -o /tmp/nta/full.zip
-          curl --fail --silent --show-error --location --max-time 60 'https://www.invoice-kohyo.nta.go.jp/download/sabun/dlfile?dlFilKanriNo=5020&type=01' -o /tmp/nta/diff.zip
-          echo '--- full zip ---'; unzip -l /tmp/nta/full.zip
-          echo '--- diff zip ---'; unzip -l /tmp/nta/diff.zip
-          curl --fail --silent --show-error --location --max-time 30 https://www.invoice-kohyo.nta.go.jp/download/pgp_key.html -o /tmp/nta/key.html
-          echo '--- key links ---'
-          grep -Eo 'href="[^"]+"' /tmp/nta/key.html | grep -Ei 'pgp|asc|key|gpg' || true
-          grep -niE '公開鍵|fingerprint|フィンガープリント|asc|鍵' /tmp/nta/key.html | head -100 || true
+          curl --fail --silent --show-error --location --max-time 30 https://www.invoice-kohyo.nta.go.jp/download/pgp_key.html -o /tmp/key.html
+          sed -n '168,198p' /tmp/key.html
