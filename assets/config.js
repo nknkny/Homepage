@@ -1,5 +1,5 @@
 window.AKIYA_CONFIG = {
-  FRONTEND_BUILD: "2026-08-08-sales-ready-r5",
+  FRONTEND_BUILD: "2026-08-08-sales-ready-r6",
   API_URL: "https://script.google.com/macros/s/AKfycbzWYTf9K_XyEfo1CD4Pshg18ANH5_zhOsTnyiFhKTwbDgs17ZOXqLgAxKrvO7TA3wYr0w/exec",
   REQUIRED_API_BUILD: "2026-08-08-audit-hardening-r5",
   SITE_ORIGIN: "https://rapid-hat-f45c.jmdjdtdjdt.workers.dev",
