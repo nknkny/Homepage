@@ -1,0 +1,23 @@
+name: Akiya NTA Public Download Inspector TEMP
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Inspect official NTA public download page markup
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --max-time 30 https://www.invoice-kohyo.nta.go.jp/download/zenken -o /tmp/zenken.html
+          echo '--- script sources ---'
+          grep -Eo '<script[^>]+src="[^"]+"' /tmp/zenken.html || true
+          echo '--- download-related markup ---'
+          grep -niE 'zip|download|zenken|data-|href=' /tmp/zenken.html | head -300 || true
