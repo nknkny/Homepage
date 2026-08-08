@@ -1,0 +1,2 @@
+'use strict';
+loginForm.addEventListener('submit',async e=>{e.preventDefault();const btn=e.submitter;AkiyaUI.busy(btn,true);try{const r=await AkiyaAPI.submit('member_login',AkiyaUI.formData(loginForm));if(!r.ok)return AkiyaUI.show(loginStatus,r.message||'ログインできませんでした。');AkiyaAPI.setToken(r.sessionToken);location.href='member.html'}catch(err){AkiyaUI.show(loginStatus,err.message)}finally{AkiyaUI.busy(btn,false)}});

@@ -1,0 +1,40 @@
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  X-Frame-Options: DENY
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self' https://script.google.com; img-src 'self' data:; style-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://script.google.com https://script.googleusercontent.com https://*.googleusercontent.com https://challenges.cloudflare.com; connect-src 'self' https://challenges.cloudflare.com
+
+/VERSION.txt
+  Cache-Control: no-store, max-age=0
+/member.html
+  Cache-Control: no-store, max-age=0
+/member-login.html
+  Cache-Control: no-store, max-age=0
+/profile.html
+  Cache-Control: no-store, max-age=0
+/request.html
+  Cache-Control: no-store, max-age=0
+/delete-account.html
+  Cache-Control: no-store, max-age=0
+/reset-password.html
+  Cache-Control: no-store, max-age=0
+/account-recovery.html
+  Cache-Control: no-store, max-age=0
+/unsubscribe.html
+  Cache-Control: no-store, max-age=0
+
+/assets/api.js
+  Cache-Control: no-store, max-age=0
+/assets/config.js
+  Cache-Control: no-store, max-age=0
+
+/checkout.html
+  Cache-Control: no-store, max-age=0
+
+/payment-success.html
+  Cache-Control: no-store, max-age=0
+
+/newsletter-unsubscribe.html
+  Cache-Control: no-store, max-age=0
