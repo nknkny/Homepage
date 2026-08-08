@@ -23,12 +23,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/akiya-r3
-          cat payload/payload/chunk{00..07}.txt | tr -d '\r\n' | base64 -d > /tmp/akiya-r3.tar.gz
+          cat payload/payload/chunk{00..06}.txt payload/payload/chunk07a.txt payload/payload/chunk07b.txt | tr -d '\r\n' | base64 -d > /tmp/akiya-r3.tar.gz
           echo 'c987104e10080173f54b45024294f360e4cabfb777573fb0a9056588fd55a854  /tmp/akiya-r3.tar.gz' | sha256sum -c -
           tar -xzf /tmp/akiya-r3.tar.gz -C /tmp/akiya-r3
-          mkdir -p /tmp/akiya-r3/assets
-          curl --fail --silent --show-error --location --max-time 30 'https://rapid-hat-f45c.jmdjdtdjdt.workers.dev/assets/hero-house.jpg' -o /tmp/akiya-r3/assets/hero-house.jpg
-          echo '9a42fd495ba76103bb9b0a072b815b8e11c608f50241deb38a9db60ed3053b2e  /tmp/akiya-r3/assets/hero-house.jpg' | sha256sum -c -
           grep -Fq 'FRONTEND_BUILD: "2026-08-08-sales-ready-r3"' /tmp/akiya-r3/assets/config.js
           grep -Fq 'REQUIRED_API_BUILD: "2026-08-08-audit-hardening-r3"' /tmp/akiya-r3/assets/config.js
           grep -Fq 'siteVersion=2026-08-08-sales-ready-r3' /tmp/akiya-r3/VERSION.txt
@@ -48,7 +45,7 @@ jobs:
           cp -a /tmp/akiya-r3/. .
           git add -A
           if git diff --cached --quiet; then
-            echo 'akiya-rescue-site already matches r3'
+            echo 'akiya-rescue-site already matches r3 text tree'
           else
             git config user.name 'ChatGPT Akiya Audit'
             git config user.email 'actions@github.com'
@@ -70,7 +67,7 @@ jobs:
           cp -a /tmp/akiya-r3/. .
           git add -A
           if git diff --cached --quiet; then
-            echo 'akiya-rescue-cloudflare already matches r3'
+            echo 'akiya-rescue-cloudflare already matches r3 text tree'
           else
             git config user.name 'ChatGPT Akiya Audit'
             git config user.email 'actions@github.com'
