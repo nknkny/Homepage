@@ -1,0 +1,122 @@
+name: Akiya v6 Build Check
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Restore and verify package
+        run: |
+          cd akiya-site
+          bash build.sh
+
+      - name: Audit public site
+        run: |
+          python3 - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+          from urllib.parse import urlsplit, unquote
+          import sys
+
+          root = Path('akiya-site/dist').resolve()
+          errors = []
+          html_files = sorted(root.rglob('*.html'))
+          if len(html_files) < 20:
+              errors.append(f'HTML files too few: {len(html_files)}')
+
+          forbidden = [
+              'OWNER_SELF_TEST_KEY', 'PASSWORD_PEPPER', 'TWILIO_AUTH_TOKEN',
+              'TWILIO_ACCOUNT_SID', 'TWILIO_FROM', 'BEGIN PRIVATE KEY',
+              'Apps Script 自己診断キー'
+          ]
+
+          class Parser(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.refs = []
+                  self.forms = []
+              def handle_starttag(self, tag, attrs):
+                  a = dict(attrs)
+                  for key in ('href', 'src'):
+                      if key in a:
+                          self.refs.append((tag, key, a[key]))
+                  if tag == 'form':
+                      self.forms.append(a.get('action', ''))
+
+          for path in sorted(root.rglob('*')):
+              if not path.is_file():
+                  continue
+              data = path.read_bytes()
+              if len(data) == 0:
+                  errors.append(f'Empty file: {path.relative_to(root)}')
+                  continue
+              if path.suffix.lower() in {'.html', '.js', '.css', '.txt', '.xml', '.json', ''}:
+                  text = data.decode('utf-8', 'strict')
+                  for term in forbidden:
+                      if term in text:
+                          errors.append(f'Forbidden public term {term}: {path.relative_to(root)}')
+
+          all_html = ''.join(p.read_text(encoding='utf-8') for p in html_files)
+          for page in html_files:
+              text = page.read_text(encoding='utf-8')
+              parser = Parser()
+              parser.feed(text)
+              for action in parser.forms:
+                  if action.lower().startswith('mailto:'):
+                      errors.append(f'mailto form action: {page.relative_to(root)}')
+              for tag, key, raw in parser.refs:
+                  raw = (raw or '').strip()
+                  if not raw or raw.startswith(('#', 'http://', 'https://', 'mailto:', 'tel:', 'data:', 'javascript:')):
+                      continue
+                  part = urlsplit(raw)
+                  local = unquote(part.path)
+                  if not local:
+                      continue
+                  target = (root / local.lstrip('/')) if local.startswith('/') else (page.parent / local)
+                  target = target.resolve()
+                  try:
+                      target.relative_to(root)
+                  except ValueError:
+                      errors.append(f'Path escapes root: {page.relative_to(root)} -> {raw}')
+                      continue
+                  if target.is_dir():
+                      target = target / 'index.html'
+                  if not target.exists():
+                      errors.append(f'Broken local reference: {page.relative_to(root)} -> {raw}')
+
+          config = (root / 'assets/config.js').read_text(encoding='utf-8')
+          required = [
+              '2026-07-30-v6-final',
+              'https://script.google.com/macros/s/AKfycbzWYTf9K_XyEfo1CD4Pshg18ANH5_zhOsTnyiFhKTwbDgs17ZOXqLgAxKrvO7TA3wYr0w/exec'
+          ]
+          for item in required:
+              if item not in config:
+                  errors.append(f'Missing production config value: {item}')
+
+          api = (root / 'assets/api.js').read_text(encoding='utf-8')
+          for action in ['register_member', 'member_login', 'get_dashboard', 'create_inspection_request', 'update_profile', 'request_password_reset', 'reset_password', 'recover_identifier', 'unsubscribe', 'delete_account']:
+              if action not in all_html and action not in api:
+                  errors.append(f'Missing frontend action: {action}')
+
+          if errors:
+              print('\n'.join(f'ERROR: {e}' for e in errors))
+              sys.exit(1)
+          print(f'PASS: {len(html_files)} HTML files; links, forms, public secrets, and production config verified.')
+          PY
+
+      - name: Verify archive is reproducible
+        run: |
+          cd akiya-site
+          cat site.tar.gz.b64.part-* | tr -d '[:space:]' > /tmp/site.tar.gz.b64
+          test "$(wc -c < /tmp/site.tar.gz.b64)" -eq 177084
+          echo '8060787d61de8f6a7261eec49befa81e8c668b610a84a979c1d871cafab3a308  /tmp/site.tar.gz.b64' | sha256sum -c -
