@@ -1,4 +1,4 @@
-siteVersion=2026-08-07-turnstile-refresh
+siteVersion=2026-08-08-sales-ready
 apiRequiredBuild=2026-08-06-insurance-optional
 paymentMode=final_confirmation_then_stripe_or_bank
 newsletterMode=google_sheets_admin_sidebar_opt_in_queue
