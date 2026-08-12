@@ -97,5 +97,15 @@ document.addEventListener('DOMContentLoaded',()=>AkiyaUI.turnstileForms().forEac
     details=details||{};
     try{return await AkiyaAPI.submit('track_event',{sessionToken:token,eventType:cut(eventType,80),page:cut(details.page||location.pathname,240),contentCategory:cut(details.contentCategory,80),contentId:cut(details.contentId,120),actionLabel:cut(details.actionLabel,120),value:details.value===undefined?'':cut(details.value,40),anonymousId:anonymousId(),sessionId:sessionId()},20000)}catch(e){return{ok:false,skipped:true}}
   }
-  window.AkiyaAnalytics={acquisitionPayload,track,anonymousId,sessionId};
+  async function publicTrack(eventType,details){
+    details=details||{};
+    try{return await AkiyaAPI.submit('track_public_event',{eventType:cut(eventType,80),page:cut(details.page||location.pathname,240),contentCategory:cut(details.contentCategory,80),contentId:cut(details.contentId,120),actionLabel:cut(details.actionLabel,120),value:details.value===undefined?'':cut(details.value,40),anonymousId:anonymousId(),sessionId:sessionId()},20000)}catch(e){return{ok:false,skipped:true}}
+  }
+  window.AkiyaAnalytics={acquisitionPayload,track,publicTrack,anonymousId,sessionId};
+  document.addEventListener('DOMContentLoaded',()=>{
+    publicTrack('site_visit',{contentCategory:'funnel',contentId:'site',actionLabel:'page_view'});
+    if(location.pathname.endsWith('register.html')){
+      publicTrack('register_view',{contentCategory:'registration',contentId:'member_registration',actionLabel:'view'});
+    }
+  });
 })();
