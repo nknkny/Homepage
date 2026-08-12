@@ -1,0 +1,71 @@
+name: One-time rename to Akiya Pocket
+
+on:
+  push:
+    branches:
+      - akiya-rescue-cloudflare
+
+permissions:
+  contents: write
+
+jobs:
+  rename-brand:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: akiya-rescue-cloudflare
+          fetch-depth: 0
+
+      - name: Rename brand and bump builds
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          root = Path('.')
+          allowed = {'.html', '.js', '.txt', '.css', '.xml'}
+          for p in root.rglob('*'):
+              if not p.is_file() or '.git' in p.parts or p.suffix.lower() not in allowed:
+                  continue
+              text = p.read_text(encoding='utf-8', errors='strict')
+              new = text.replace('空き家レスキュー', '空家ポケット')
+              if new != text:
+                  p.write_text(new, encoding='utf-8')
+
+          cfg = Path('assets/config.js')
+          text = cfg.read_text(encoding='utf-8')
+          text = text.replace('2026-08-08-sales-ready-r7', '2026-08-12-brand-akiya-pocket-r8')
+          text = text.replace('2026-08-08-audit-hardening-r6', '2026-08-12-brand-akiya-pocket-r7')
+          cfg.write_text(text, encoding='utf-8')
+
+          ver = Path('VERSION.txt')
+          text = ver.read_text(encoding='utf-8')
+          text = text.replace('siteVersion=2026-08-08-sales-ready-r7', 'siteVersion=2026-08-12-brand-akiya-pocket-r8')
+          text = text.replace('apiRequiredBuild=2026-08-08-audit-hardening-r6', 'apiRequiredBuild=2026-08-12-brand-akiya-pocket-r7')
+          text = text.replace('audit_revision=2026-08-08-r7', 'audit_revision=2026-08-12-brand-r8')
+          ver.write_text(text, encoding='utf-8')
+          PY
+
+          if grep -RIn --exclude='one-time-rename-akiya-pocket.yml' --exclude-dir=.git '空き家レスキュー' .; then
+            echo 'Old brand remains in repository.' >&2
+            exit 1
+          fi
+
+          rm -f .github/workflows/one-time-rename-akiya-pocket.yml
+
+      - name: Commit renamed source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'No changes to commit.'
+            exit 0
+          fi
+          git commit -m 'Rename brand to 空家ポケット and bump r8'
+          git push origin HEAD:akiya-rescue-cloudflare
