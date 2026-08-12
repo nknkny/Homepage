@@ -40,3 +40,9 @@
 
 /newsletter-unsubscribe.html
   Cache-Control: no-store, max-age=0
+
+/checklist.html
+  Cache-Control: no-store, max-age=0
+
+/member-survey.html
+  Cache-Control: no-store, max-age=0

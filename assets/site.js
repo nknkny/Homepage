@@ -67,3 +67,35 @@ AkiyaUI.resetTurnstile=function(form){
 AkiyaUI.turnstileForms=function(){return ['registerForm','loginForm','resetForm','identifierForm','newPasswordForm'].map(id=>document.getElementById(id)).filter(Boolean)};
 if(window.AkiyaAPI&&typeof AkiyaAPI.submit==='function'){const rawSubmit=AkiyaAPI.submit.bind(AkiyaAPI);AkiyaAPI.submit=async function(){try{return await rawSubmit(...arguments)}finally{AkiyaUI.turnstileForms().forEach(AkiyaUI.resetTurnstile)}}}
 document.addEventListener('DOMContentLoaded',()=>AkiyaUI.turnstileForms().forEach(AkiyaUI.initTurnstile));
+
+
+(function(){
+  'use strict';
+  const FIRST_TOUCH_KEY='akiya_first_touch_v1';
+  const ANON_KEY='akiya_anon_v1';
+  const SESSION_KEY='akiya_analytics_session_v1';
+  const MAX_AGE_MS=180*24*60*60*1000;
+  const cut=(v,n)=>String(v||'').trim().slice(0,n);
+  const uid=p=>(window.AkiyaAPI&&AkiyaAPI.uid?AkiyaAPI.uid(p):p+'-'+Date.now().toString(36));
+  function anonymousId(){let v=localStorage.getItem(ANON_KEY)||'';if(!v){v=uid('ANON');localStorage.setItem(ANON_KEY,v)}return v.slice(0,80)}
+  function sessionId(){let v=sessionStorage.getItem(SESSION_KEY)||'';if(!v){v=uid('SES');sessionStorage.setItem(SESSION_KEY,v)}return v.slice(0,80)}
+  function referrerHost(){try{return document.referrer?new URL(document.referrer).hostname.slice(0,180):''}catch(e){return''}}
+  function captureFirstTouch(){
+    let old=null;try{old=JSON.parse(localStorage.getItem(FIRST_TOUCH_KEY)||'null')}catch(e){}
+    if(old&&old.capturedAt&&Date.now()-Number(old.capturedAt)<MAX_AGE_MS)return old;
+    const q=new URLSearchParams(location.search),rh=referrerHost();
+    const source=cut(q.get('utm_source')||(rh&&rh!==location.hostname?rh:'direct'),100);
+    const medium=cut(q.get('utm_medium')||(source==='direct'?'(none)':'referral'),100);
+    const obj={capturedAt:Date.now(),source,medium,campaign:cut(q.get('utm_campaign'),160),content:cut(q.get('utm_content'),160),term:cut(q.get('utm_term'),160),partnerCode:cut(q.get('partner_code')||q.get('partner')||q.get('ref'),100),referrerHost:rh,landingPage:cut(location.pathname,240)};
+    try{localStorage.setItem(FIRST_TOUCH_KEY,JSON.stringify(obj))}catch(e){}
+    return obj;
+  }
+  const first=captureFirstTouch();
+  function acquisitionPayload(){const a=first||{};return{analyticsAnonymousId:anonymousId(),analyticsSessionId:sessionId(),analyticsSource:a.source||'direct',analyticsMedium:a.medium||'(none)',analyticsCampaign:a.campaign||'',analyticsContent:a.content||'',analyticsTerm:a.term||'',analyticsPartnerCode:a.partnerCode||'',analyticsReferrerHost:a.referrerHost||'',analyticsLandingPage:a.landingPage||location.pathname}}
+  async function track(eventType,details){
+    const token=window.AkiyaAPI&&AkiyaAPI.token?AkiyaAPI.token():'';if(!token)return{ok:false,skipped:true};
+    details=details||{};
+    try{return await AkiyaAPI.submit('track_event',{sessionToken:token,eventType:cut(eventType,80),page:cut(details.page||location.pathname,240),contentCategory:cut(details.contentCategory,80),contentId:cut(details.contentId,120),actionLabel:cut(details.actionLabel,120),value:details.value===undefined?'':cut(details.value,40),anonymousId:anonymousId(),sessionId:sessionId()},20000)}catch(e){return{ok:false,skipped:true}}
+  }
+  window.AkiyaAnalytics={acquisitionPayload,track,anonymousId,sessionId};
+})();

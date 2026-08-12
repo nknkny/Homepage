@@ -1,13 +1,13 @@
-siteVersion=2026-08-12-brand-akiya-pocket-r8
-apiRequiredBuild=2026-08-12-brand-akiya-pocket-r7
+siteVersion=2026-08-12-demand-data-r9
+apiRequiredBuild=2026-08-12-demand-data-r8
 paymentMode=final_confirmation_then_stripe_or_bank
 newsletterMode=google_sheets_admin_sidebar_opt_in_queue
 invoiceRegistrationNumber=T5810907887896
 invoiceRegistrationDate=2025-01-01
 taxMode=manual_inclusive_jp_10_percent
 
-audit_revision=2026-08-12-brand-r8
-privacy_version=2026-08-08-v5
+audit_revision=2026-08-12-demand-data-r9
+privacy_version=2026-08-12-v6
 service_terms_version=service-terms-2026-08-05
 turnstile_hostname_binding=enabled
 turnstile_action_binding=enabled
@@ -20,3 +20,9 @@ qualified_invoice_transaction_date=actual_service_completion_date
 design_revision=homepage-and-standalone-admin-r5
 customer_cta_policy=neutral_no_urgency
 password_min_length=6
+
+analytics_database=separate_google_sheet_pseudonymous_member_id
+analytics_collection=utm_partner_high_signal_member_events_optional_need_survey_purchase_gp
+member_checklist=enabled_local_state_only
+registration_secret_question=removed_for_new_members
+registration_ai_consent=moved_to_member_settings
