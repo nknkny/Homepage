@@ -1,4 +1,4 @@
-siteVersion=2026-08-12-funnel-r10
+siteVersion=2026-08-13-autofill-fix-r11
 apiRequiredBuild=2026-08-12-funnel-r9
 paymentMode=final_confirmation_then_stripe_or_bank
 newsletterMode=google_sheets_admin_sidebar_opt_in_queue
@@ -6,7 +6,7 @@ invoiceRegistrationNumber=T5810907887896
 invoiceRegistrationDate=2025-01-01
 taxMode=manual_inclusive_jp_10_percent
 
-audit_revision=2026-08-12-funnel-r10
+audit_revision=2026-08-13-autofill-fix-r11
 privacy_version=2026-08-12-v7
 service_terms_version=service-terms-2026-08-05
 turnstile_hostname_binding=enabled
@@ -30,3 +30,5 @@ registration_ai_consent=moved_to_member_settings
 funnel_tracking=search_console_impressions_clicks_site_visit_register_view_register_start_register_submit_register_complete_paid
 anonymous_funnel_tracking=enabled_no_form_values
 search_console_import=prepared_requires_property_access_and_oauth
+
+autofill_honeypot=false_turnstile_only
