@@ -84,6 +84,7 @@ jobs:
           set -euo pipefail
           for page in / /register.html /member-login.html /request.html /checkout.html /payment-success.html /commercial.html /privacy.html /service-terms.html /newsletter-unsubscribe.html; do
             name=$(echo "$page" | sed 's#^/##; s#[/?]#_#g')
+            name=${name%.html}
             [ -n "$name" ] || name=root
             code=$(curl --silent --show-error --location --max-time 30 -o "evidence/page-$name.html" --write-out '%{http_code}' "$SITE_ORIGIN$page?check=$GITHUB_SHA")
             echo "$page -> $code"
