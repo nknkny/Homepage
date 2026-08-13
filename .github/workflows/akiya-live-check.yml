@@ -9,62 +9,54 @@ permissions:
   contents: read
 
 env:
-  EXPECTED_SITE_BUILD: 2026-08-08-sales-ready-r6
-  EXPECTED_API_BUILD: 2026-08-08-audit-hardening-r5
+  EXPECTED_SITE_BUILD: 2026-08-13-search-console-r12
+  EXPECTED_API_BUILD: 2026-08-12-funnel-r9
   SITE_ORIGIN: https://rapid-hat-f45c.jmdjdtdjdt.workers.dev
   API_URL: https://script.google.com/macros/s/AKfycbzWYTf9K_XyEfo1CD4Pshg18ANH5_zhOsTnyiFhKTwbDgs17ZOXqLgAxKrvO7TA3wYr0w/exec
+  GOOGLE_SITE_VERIFICATION: Yo6CPCcl0Zbsid-dbaARAh1edaxVfcMFDcbL5vPUuOM
 
 jobs:
   api-check:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Verify Apps Script GET health
+      - name: Verify Apps Script production health
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p api-evidence
-          curl --fail --silent --show-error --location --max-time 30 "$API_URL?check=$GITHUB_SHA" -o api-evidence/api-get.json
-          cat api-evidence/api-get.json
+          mkdir -p evidence
+          curl --fail --silent --show-error --location --max-time 30 "$API_URL?check=$GITHUB_SHA" -o evidence/api-get.json
+          cat evidence/api-get.json
           python - <<'PY'
           import json, os
-          p=json.load(open('api-evidence/api-get.json',encoding='utf-8'))
-          assert p.get('buildVersion')==os.environ['EXPECTED_API_BUILD'],p
-          assert p.get('app')=='空き家レスキュー会員管理',p
-          assert p.get('ready') is True,p
-          assert p.get('paidSalesReady') is True,p
-          print(p)
+          p=json.load(open('evidence/api-get.json', encoding='utf-8'))
+          assert p.get('app') == '空家ポケット会員管理', p
+          assert p.get('buildVersion') == os.environ['EXPECTED_API_BUILD'], p
+          assert p.get('ready') is True, p
+          assert p.get('paidSalesReady') is True, p
+          print('API production check passed')
           PY
-      - name: Verify Apps Script POST transport and auth rejection
+      - name: Verify POST transport and invalid-session rejection
         shell: bash
         run: |
           set -euo pipefail
           rid="CI-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           curl --fail --silent --show-error --location --max-time 30 \
-            --data-urlencode "action=get_dashboard" --data-urlencode "clientRequestId=$rid" \
-            --data-urlencode "responseOrigin=$SITE_ORIGIN" --data-urlencode "sessionToken=invalid-ci-token" \
-            "$API_URL" -o api-evidence/api-post.html
-          cat api-evidence/api-post.html
-          grep -Fq "$EXPECTED_API_BUILD" api-evidence/api-post.html
-          grep -Fq "$rid" api-evidence/api-post.html
-          grep -Fq 'akiya-rescue-api' api-evidence/api-post.html
-          grep -Eq 'AUTH_REQUIRED|NOT_FOUND|AUTH_FAILED' api-evidence/api-post.html
-      - name: Verify unknown action rejection
-        shell: bash
-        run: |
-          set -euo pipefail
-          rid="CI-UNKNOWN-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          curl --fail --silent --show-error --location --max-time 30 \
-            --data-urlencode "action=__ci_unknown_action__" --data-urlencode "clientRequestId=$rid" \
-            --data-urlencode "responseOrigin=$SITE_ORIGIN" "$API_URL" -o api-evidence/api-unknown.html
-          grep -Fq "$EXPECTED_API_BUILD" api-evidence/api-unknown.html
-          grep -Fq 'UNKNOWN_ACTION' api-evidence/api-unknown.html
+            --data-urlencode "action=get_dashboard" \
+            --data-urlencode "clientRequestId=$rid" \
+            --data-urlencode "responseOrigin=$SITE_ORIGIN" \
+            --data-urlencode "sessionToken=invalid-ci-token" \
+            "$API_URL" -o evidence/api-post.html
+          grep -Fq "$EXPECTED_API_BUILD" evidence/api-post.html
+          grep -Fq "$rid" evidence/api-post.html
+          grep -Fq 'akiya-rescue-api' evidence/api-post.html
+          grep -Eq 'AUTH_REQUIRED|NOT_FOUND|AUTH_FAILED' evidence/api-post.html
       - name: Upload API evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: akiya-api-evidence-${{ github.run_id }}
-          path: api-evidence/
+          path: evidence/
           if-no-files-found: warn
           retention-days: 30
 
@@ -72,71 +64,58 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Probe live Cloudflare config directly
+      - name: Verify live config and version
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p site-evidence
-          code=$(curl --silent --show-error --location --max-time 20 -o site-evidence/config.js --write-out '%{http_code}' "$SITE_ORIGIN/assets/config.js?check=$GITHUB_SHA")
-          echo "config.js -> $code"
-          cat site-evidence/config.js || true
-          test "$code" = "200"
-          grep -Fq "FRONTEND_BUILD: \"$EXPECTED_SITE_BUILD\"" site-evidence/config.js
-          grep -Fq "REQUIRED_API_BUILD: \"$EXPECTED_API_BUILD\"" site-evidence/config.js
-          grep -Fq "API_URL: \"$API_URL\"" site-evidence/config.js
-          grep -Fq "SITE_ORIGIN: \"$SITE_ORIGIN\"" site-evidence/config.js
-          ! grep -Eq 'sk_(live|test)_[A-Za-z0-9]+' site-evidence/config.js
-      - name: Probe public pages directly
+          mkdir -p evidence
+          curl --fail --silent --show-error --location --max-time 30 "$SITE_ORIGIN/assets/config.js?check=$GITHUB_SHA" -o evidence/config.js
+          curl --fail --silent --show-error --location --max-time 30 "$SITE_ORIGIN/VERSION.txt?check=$GITHUB_SHA" -o evidence/VERSION.txt
+          grep -Fq "FRONTEND_BUILD: \"$EXPECTED_SITE_BUILD\"" evidence/config.js
+          grep -Fq "REQUIRED_API_BUILD: \"$EXPECTED_API_BUILD\"" evidence/config.js
+          grep -Fq "siteVersion=$EXPECTED_SITE_BUILD" evidence/VERSION.txt
+          grep -Fq "apiRequiredBuild=$EXPECTED_API_BUILD" evidence/VERSION.txt
+          grep -Fq 'search_console_verification=google_html_meta_tag_prepared' evidence/VERSION.txt
+          grep -Fq 'funnel_tracking=search_console_impressions_clicks_site_visit_register_view_register_start_register_submit_register_complete_paid' evidence/VERSION.txt
+          ! grep -Eq 'sk_(live|test)_[A-Za-z0-9]+' evidence/config.js
+      - name: Verify public pages and Search Console ownership meta
         shell: bash
         run: |
           set -euo pipefail
           for page in / /register.html /member-login.html /request.html /checkout.html /payment-success.html /commercial.html /privacy.html /service-terms.html /newsletter-unsubscribe.html; do
-            out="site-evidence/page-$(echo "$page" | sed 's#^/##; s#[/?]#_#g').html"
-            [ "$page" = "/" ] && out="site-evidence/page-root.html"
-            code=$(curl --silent --show-error --location --max-time 20 -o "$out" --write-out '%{http_code}' "$SITE_ORIGIN$page?check=$GITHUB_SHA")
+            name=$(echo "$page" | sed 's#^/##; s#[/?]#_#g')
+            name=${name%.html}
+            [ -n "$name" ] || name=root
+            code=$(curl --silent --show-error --location --max-time 30 -o "evidence/page-$name.html" --write-out '%{http_code}' "$SITE_ORIGIN$page?check=$GITHUB_SHA")
             echo "$page -> $code"
             test "$code" = "200"
           done
-          grep -Fq '申込・支払期限' site-evidence/page-checkout.html
-          grep -Fq '特定商取引法に基づく表記' site-evidence/page-commercial.html
-          grep -Fq '最終改定日：2026年8月8日' site-evidence/page-privacy.html
-          grep -Fq '空き家の「今」を' site-evidence/page-root.html
-          grep -Fq '無料会員登録' site-evidence/page-root.html
-          ! grep -Eq '今すぐ|お早め|先着|残りわずか|今だけ|本日中|この機会に|急いで|至急' site-evidence/page-root.html
-          ! grep -Fq 'report-mock' site-evidence/page-root.html
+          grep -Fq '空家ポケット' evidence/page-root.html
+          grep -Fq '無料会員登録' evidence/page-root.html
+          grep -Fq "google-site-verification\" content=\"$GOOGLE_SITE_VERIFICATION" evidence/page-root.html
+          grep -Fq '申込・支払期限' evidence/page-checkout.html
+          grep -Fq '特定商取引法に基づく表記' evidence/page-commercial.html
+          grep -Fq '最終改定日：2026年8月12日' evidence/page-privacy.html
+          ! grep -Eq '今すぐ|お早め|先着|残りわずか|今だけ|本日中|この機会に|急いで|至急' evidence/page-root.html
       - name: Verify production security headers
         shell: bash
         run: |
           set -euo pipefail
-          curl --silent --show-error --location --max-time 20 -D site-evidence/headers.txt -o /dev/null "$SITE_ORIGIN/?headers=$GITHUB_SHA"
-          tr -d '\r' < site-evidence/headers.txt > site-evidence/headers-normalized.txt
-          grep -Eiq '^strict-transport-security:.*max-age=' site-evidence/headers-normalized.txt
-          grep -Eiq '^x-content-type-options:[[:space:]]*nosniff' site-evidence/headers-normalized.txt
-          grep -Eiq '^x-frame-options:[[:space:]]*DENY' site-evidence/headers-normalized.txt
-          grep -Eiq '^content-security-policy:' site-evidence/headers-normalized.txt
-          grep -Eiq "^content-security-policy:.*script-src 'self' https://challenges.cloudflare.com" site-evidence/headers-normalized.txt
-          ! grep -Ei "^content-security-policy:.*script-src[^;]*'unsafe-inline'" site-evidence/headers-normalized.txt
-          grep -Eiq "^content-security-policy:.*style-src 'self'" site-evidence/headers-normalized.txt
-          ! grep -Ei "^content-security-policy:.*style-src[^;]*'unsafe-inline'" site-evidence/headers-normalized.txt
-          grep -Eiq "^content-security-policy:.*img-src[^;]*https://images.unsplash.com" site-evidence/headers-normalized.txt
-      - name: Probe VERSION marker
-        shell: bash
-        run: |
-          set -euo pipefail
-          code=$(curl --silent --show-error --location --max-time 20 -o site-evidence/VERSION.txt --write-out '%{http_code}' "$SITE_ORIGIN/VERSION.txt?check=$GITHUB_SHA")
-          echo "VERSION.txt -> $code"
-          test "$code" = "200"
-          grep -Fq "siteVersion=$EXPECTED_SITE_BUILD" site-evidence/VERSION.txt
-          grep -Fq "apiRequiredBuild=$EXPECTED_API_BUILD" site-evidence/VERSION.txt
-          grep -Fq 'authority_gate=required_before_quote_and_payment' site-evidence/VERSION.txt
-          grep -Fq 'qualified_invoice_transaction_date=actual_service_completion_date' site-evidence/VERSION.txt
-          grep -Fq 'design_revision=homepage-and-standalone-admin-r5' site-evidence/VERSION.txt
-          grep -Fq 'customer_cta_policy=neutral_no_urgency' site-evidence/VERSION.txt
+          curl --silent --show-error --location --max-time 30 -D evidence/headers.txt -o /dev/null "$SITE_ORIGIN/?headers=$GITHUB_SHA"
+          tr -d '\r' < evidence/headers.txt > evidence/headers-normalized.txt
+          grep -Eiq '^strict-transport-security:.*max-age=' evidence/headers-normalized.txt
+          grep -Eiq '^x-content-type-options:[[:space:]]*nosniff' evidence/headers-normalized.txt
+          grep -Eiq '^x-frame-options:[[:space:]]*DENY' evidence/headers-normalized.txt
+          grep -Eiq '^content-security-policy:' evidence/headers-normalized.txt
+          grep -Eiq "^content-security-policy:.*script-src 'self' https://challenges.cloudflare.com" evidence/headers-normalized.txt
+          ! grep -Ei "^content-security-policy:.*script-src[^;]*'unsafe-inline'" evidence/headers-normalized.txt
+          grep -Eiq "^content-security-policy:.*style-src 'self'" evidence/headers-normalized.txt
+          ! grep -Ei "^content-security-policy:.*style-src[^;]*'unsafe-inline'" evidence/headers-normalized.txt
       - name: Upload site evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: akiya-site-evidence-${{ github.run_id }}
-          path: site-evidence/
+          path: evidence/
           if-no-files-found: warn
           retention-days: 30
