@@ -1,0 +1,63 @@
+name: Akiya Public Event Strict Check
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EXPECTED_API_BUILD: 2026-08-12-funnel-r9
+  SITE_ORIGIN: https://rapid-hat-f45c.jmdjdtdjdt.workers.dev
+  API_URL: https://script.google.com/macros/s/AKfycbzWYTf9K_XyEfo1CD4Pshg18ANH5_zhOsTnyiFhKTwbDgs17ZOXqLgAxKrvO7TA3wYr0w/exec
+
+jobs:
+  strict-public-event:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify track_public_event with required fields and exact success
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          tag="CI-PUBLIC-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          h1=evidence/initial-headers.txt
+          b1=evidence/initial-body.txt
+          final=evidence/final-body.html
+          status=$(curl --silent --show-error --retry 3 --max-time 45 -D "$h1" -o "$b1" -w '%{http_code}' -X POST "$API_URL" \
+            --data-urlencode 'action=track_public_event' \
+            --data-urlencode "responseOrigin=$SITE_ORIGIN" \
+            --data-urlencode "clientRequestId=$tag" \
+            --data-urlencode 'eventType=site_visit' \
+            --data-urlencode 'page=/github-strict-public-event-check' \
+            --data-urlencode 'contentCategory=audit' \
+            --data-urlencode 'actionLabel=github_ci' \
+            --data-urlencode 'value=1' \
+            --data-urlencode "anonymousId=ANON-$tag" \
+            --data-urlencode "sessionId=SES-$tag")
+          if [ "$status" -ge 300 ] && [ "$status" -lt 400 ]; then
+            loc=$(tr -d '\r' < "$h1" | awk 'BEGIN{IGNORECASE=1}/^location:/{sub(/^location:[[:space:]]*/,""); print; exit}')
+            test -n "$loc"
+            final_status=$(curl --silent --show-error --retry 3 --max-time 45 -o "$final" -w '%{http_code}' "$loc")
+            test "$final_status" -ge 200 && test "$final_status" -lt 300
+          else
+            cp "$b1" "$final"
+            test "$status" -ge 200 && test "$status" -lt 300
+          fi
+          grep -Fq '"ok":true' "$final"
+          grep -Fq "\"buildVersion\":\"$EXPECTED_API_BUILD\"" "$final"
+          grep -Fq '"source":"akiya-rescue-api"' "$final"
+          grep -Fq "$tag" "$final"
+          ! grep -Fq '"code":"VALIDATION"' "$final"
+          echo "STRICT_PUBLIC_EVENT_OK tag=$tag"
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: akiya-public-event-strict-${{ github.run_id }}
+          path: evidence/
+          if-no-files-found: warn
+          retention-days: 30
