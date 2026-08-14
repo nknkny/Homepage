@@ -47,12 +47,19 @@ jobs:
             cp "$b1" "$final"
             test "$status" -ge 200 && test "$status" -lt 300
           fi
-          grep -Fq '"ok":true' "$final"
-          grep -Fq "\"buildVersion\":\"$EXPECTED_API_BUILD\"" "$final"
-          grep -Fq '"source":"akiya-rescue-api"' "$final"
-          grep -Fq "$tag" "$final"
-          ! grep -Fq '"code":"VALIDATION"' "$final"
-          echo "STRICT_PUBLIC_EVENT_OK tag=$tag"
+          python - <<'PY'
+          import os, re
+          s=open('evidence/final-body.html', encoding='utf-8', errors='replace').read()
+          expected=os.environ['EXPECTED_API_BUILD']
+          tag=f"CI-PUBLIC-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}"
+          normalized=s.replace('\\x22','"').replace('\\u0022','"')
+          assert '"ok":true' in normalized, 'missing ok=true'
+          assert f'"buildVersion":"{expected}"' in normalized, 'wrong/missing buildVersion'
+          assert '"source":"akiya-rescue-api"' in normalized, 'missing source'
+          assert tag in normalized, 'missing clientRequestId'
+          assert '"code":"VALIDATION"' not in normalized, 'validation error returned'
+          print(f'STRICT_PUBLIC_EVENT_OK tag={tag}')
+          PY
       - name: Upload evidence
         if: always()
         uses: actions/upload-artifact@v4
