@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 env:
-  EXPECTED_SITE_BUILD: 2026-08-13-search-console-r12
-  EXPECTED_API_BUILD: 2026-08-12-funnel-r9
+  EXPECTED_SITE_BUILD: 2026-08-14-legal-final-r13
+  EXPECTED_API_BUILD: 2026-08-14-legal-final-r10
   SITE_ORIGIN: https://rapid-hat-f45c.jmdjdtdjdt.workers.dev
   API_URL: https://script.google.com/macros/s/AKfycbzWYTf9K_XyEfo1CD4Pshg18ANH5_zhOsTnyiFhKTwbDgs17ZOXqLgAxKrvO7TA3wYr0w/exec
   GOOGLE_SITE_VERIFICATION: Yo6CPCcl0Zbsid-dbaARAh1edaxVfcMFDcbL5vPUuOM
@@ -34,7 +34,7 @@ jobs:
           assert p.get('buildVersion') == os.environ['EXPECTED_API_BUILD'], p
           assert p.get('ready') is True, p
           assert p.get('paidSalesReady') is True, p
-          print('API production check passed')
+          print('API production health passed')
           PY
       - name: Verify POST transport and invalid-session rejection
         shell: bash
@@ -75,10 +75,11 @@ jobs:
           grep -Fq "REQUIRED_API_BUILD: \"$EXPECTED_API_BUILD\"" evidence/config.js
           grep -Fq "siteVersion=$EXPECTED_SITE_BUILD" evidence/VERSION.txt
           grep -Fq "apiRequiredBuild=$EXPECTED_API_BUILD" evidence/VERSION.txt
+          grep -Fq 'legal_final_confirmation=inline_cancellation_caps_2026-08-14' evidence/VERSION.txt
           grep -Fq 'search_console_verification=google_html_meta_tag_prepared' evidence/VERSION.txt
           grep -Fq 'funnel_tracking=search_console_impressions_clicks_site_visit_register_view_register_start_register_submit_register_complete_paid' evidence/VERSION.txt
           ! grep -Eq 'sk_(live|test)_[A-Za-z0-9]+' evidence/config.js
-      - name: Verify public pages and Search Console ownership meta
+      - name: Verify public pages and legal final confirmation
         shell: bash
         run: |
           set -euo pipefail
@@ -94,6 +95,10 @@ jobs:
           grep -Fq '無料会員登録' evidence/page-root.html
           grep -Fq "google-site-verification\" content=\"$GOOGLE_SITE_VERIFICATION" evidence/page-root.html
           grep -Fq '申込・支払期限' evidence/page-checkout.html
+          grep -Fq '期限後のキャンセル料上限' evidence/page-checkout.html
+          grep -Fq '料金の50％' evidence/page-checkout.html
+          grep -Fq '料金の100％' evidence/page-checkout.html
+          grep -Fq '銀行振込' evidence/page-commercial.html
           grep -Fq '特定商取引法に基づく表記' evidence/page-commercial.html
           grep -Fq '最終改定日：2026年8月12日' evidence/page-privacy.html
           ! grep -Eq '今すぐ|お早め|先着|残りわずか|今だけ|本日中|この機会に|急いで|至急' evidence/page-root.html
