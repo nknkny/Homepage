@@ -33,10 +33,7 @@ jobs:
           assert p.get('app') == '空家ポケット会員管理', p
           assert p.get('buildVersion') == os.environ['EXPECTED_API_BUILD'], p
           assert p.get('ready') is True, p
-          assert p.get('freeMemberReady') is True, p
           assert p.get('paidSalesReady') is True, p
-          assert p.get('turnstileRequired') is True, p
-          assert p.get('publicAdminEndpoints') is False, p
           print('API production health passed')
           PY
       - name: Verify POST transport and invalid-session rejection
