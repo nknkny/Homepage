@@ -48,11 +48,13 @@ jobs:
             test "$status" -ge 200 && test "$status" -lt 300
           fi
           python - <<'PY'
-          import os, re
+          import codecs, os
           s=open('evidence/final-body.html', encoding='utf-8', errors='replace').read()
           expected=os.environ['EXPECTED_API_BUILD']
           tag=f"CI-PUBLIC-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}"
-          normalized=s.replace('\\x22','"').replace('\\u0022','"')
+          normalized=s
+          for _ in range(2):
+              normalized=codecs.decode(normalized, 'unicode_escape')
           assert '"ok":true' in normalized, 'missing ok=true'
           assert f'"buildVersion":"{expected}"' in normalized, 'wrong/missing buildVersion'
           assert '"source":"akiya-rescue-api"' in normalized, 'missing source'
