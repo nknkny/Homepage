@@ -1,4 +1,4 @@
-name: Event Platform Autopilot
+name: Event Platform Production Check
 
 on:
   push:
@@ -7,52 +7,56 @@ on:
       - 'event-platform/**'
       - '.github/workflows/event-platform-autopilot.yml'
   schedule:
-    - cron: '17 * * * *'
+    - cron: '37 * * * *'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: event-platform-autopilot
-  cancel-in-progress: false
+  group: event-platform-production-check
+  cancel-in-progress: true
 
 env:
   SITE_URL: https://nknkny.github.io/Homepage/event-platform/
-  FIREBASE_ROOT: https://piano-lesson-system-default-rtdb.asia-southeast1.firebasedatabase.app/event_notice_platform_v2
+  API_URL: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/event-platform-api
 
 jobs:
-  verify-and-maintain:
+  verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
 
-      - name: Static syntax checks
+      - name: Static security and syntax checks
         shell: bash
         run: |
           set -euo pipefail
           node --check event-platform/app.js
-          python -m py_compile event-platform/maintenance.py
-          grep -Fq '2026-08-15-autopilot-v2' event-platform/app.js
+          grep -Fq '2026-08-15-supabase-v2' event-platform/app.js
           grep -Fq 'Content-Security-Policy' event-platform/index.html
-          ! grep -Eq 'onclick=|onchange=|onsubmit=' event-platform/index.html
+          grep -Fq 'fpgtwgtoqtokpitzlbie.supabase.co' event-platform/index.html
+          ! grep -Fq 'firebase' event-platform/index.html
+          ! grep -Fq 'firebase' event-platform/app.js
+          ! grep -Eq 'sk_(live|test)_[A-Za-z0-9]+' event-platform/app.js
+          ! grep -Eq 'sb_secret_[A-Za-z0-9_-]+' event-platform/app.js
 
-      - name: Verify Firebase read/write and run maintenance
+      - name: Verify Supabase API health and public read
         shell: bash
         run: |
           set -euo pipefail
-          probe="ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          code=$(curl --silent --show-error --max-time 30 -o /tmp/probe-put.json -w '%{http_code}' -X PUT -H 'Content-Type: application/json' --data "{\"ok\":true,\"run\":\"$GITHUB_RUN_ID\"}" "$FIREBASE_ROOT/health/$probe.json")
-          test "$code" -ge 200 && test "$code" -lt 300
-          code=$(curl --silent --show-error --max-time 30 -o /tmp/probe-get.json -w '%{http_code}' "$FIREBASE_ROOT/health/$probe.json")
-          test "$code" -ge 200 && test "$code" -lt 300
-          grep -Fq '"ok":true' /tmp/probe-get.json
-          python event-platform/maintenance.py | tee /tmp/maintenance.json
-          curl --silent --show-error --max-time 30 -X DELETE "$FIREBASE_ROOT/health/$probe.json" >/dev/null
+          curl --fail --silent --show-error --max-time 30 "$API_URL?action=health" -o /tmp/api-health.json
+          grep -Fq '"ok":true' /tmp/api-health.json
+          grep -Fq '2026-08-15-supabase-v1' /tmp/api-health.json
+          curl --fail --silent --show-error --max-time 30 "$API_URL?action=public_listings" -o /tmp/public-listings.json
+          grep -Fq '"ok":true' /tmp/public-listings.json
+          curl --fail --silent --show-error --max-time 30 -X OPTIONS \
+            -H 'Origin: https://nknkny.github.io' \
+            -H 'Access-Control-Request-Method: POST' \
+            "$API_URL?action=bootstrap" -D /tmp/cors-headers.txt -o /tmp/cors-body.txt
+          grep -Fiq 'access-control-allow-origin: https://nknkny.github.io' /tmp/cors-headers.txt
 
       - name: Verify published site
-        if: github.event_name != 'schedule'
         shell: bash
         run: |
           set -euo pipefail
@@ -65,18 +69,18 @@ jobs:
           test "$ok" = "1"
           curl --fail --silent --show-error --location --max-time 30 "${SITE_URL}app.js?run=$GITHUB_RUN_ID" -o /tmp/app.js
           curl --fail --silent --show-error --location --max-time 30 "${SITE_URL}styles.css?run=$GITHUB_RUN_ID" -o /tmp/styles.css
-          grep -Fq '2026-08-15-autopilot-v2' /tmp/app.js
-          ! grep -Eq 'sk_(live|test)_[A-Za-z0-9]+' /tmp/app.js
+          grep -Fq '2026-08-15-supabase-v2' /tmp/app.js
+          ! grep -Fq 'firebase' /tmp/app.js
 
       - name: Upload evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: event-platform-evidence-${{ github.run_id }}
+          name: event-platform-production-evidence-${{ github.run_id }}
           path: |
-            /tmp/probe-put.json
-            /tmp/probe-get.json
-            /tmp/maintenance.json
+            /tmp/api-health.json
+            /tmp/public-listings.json
+            /tmp/cors-headers.txt
             /tmp/site.html
             /tmp/app.js
             /tmp/styles.css
