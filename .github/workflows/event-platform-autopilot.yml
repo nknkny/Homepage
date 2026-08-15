@@ -49,7 +49,7 @@ jobs:
           ! grep -R -E 'sk_(live|test)_[A-Za-z0-9]+' event-platform .github/workflows/event-platform-autopilot.yml
           ! grep -R -E 'sb_secret_[A-Za-z0-9_-]+' event-platform .github/workflows/event-platform-autopilot.yml
           ! grep -R -E 'whsec_[A-Za-z0-9]+' event-platform .github/workflows/event-platform-autopilot.yml
-          ! grep -R -F 'HUSR0MdzDglXbAQ9lD9R8sJrECAIr9kGo_TNJ3iTjX8' event-platform .github/workflows/event-platform-autopilot.yml
+          ! grep -R -E 'token=[A-Za-z0-9_-]{32,}' event-platform .github/workflows/event-platform-autopilot.yml
           ! grep -Fq 'firebase' event-platform/index.html
           ! grep -Fq 'firebase' event-platform/app.js
 
@@ -76,21 +76,23 @@ jobs:
         run: |
           set -euo pipefail
           ok=0
-          for i in $(seq 1 12); do
-            code=$(curl --silent --show-error --location --max-time 30 -o /tmp/site.html -w '%{http_code}' "$SITE_URL?run=$GITHUB_RUN_ID" || true)
-            if [ "$code" = "200" ] && grep -Fq 'Pro 30日パス' /tmp/site.html && grep -Fq '1,980円' /tmp/site.html; then ok=1; break; fi
+          for i in $(seq 1 18); do
+            code=$(curl --silent --show-error --location --max-time 30 -o /tmp/site.html -w '%{http_code}' "$SITE_URL?run=$GITHUB_RUN_ID-$i" || true)
+            if [ "$code" = "200" ] && grep -Fq 'Pro 30日パス' /tmp/site.html && grep -Fq '1,980円' /tmp/site.html; then
+              curl --fail --silent --show-error --location --max-time 30 "${SITE_URL}billing.js?run=$GITHUB_RUN_ID-$i" -o /tmp/billing.js || true
+              if grep -Fq '2026-08-15-paid-ui-v2' /tmp/billing.js 2>/dev/null; then ok=1; break; fi
+            fi
             sleep 10
           done
           test "$ok" = "1"
-          for file in app.js billing.js styles.css billing.css terms.html privacy.html tokusho.html; do
+          for file in app.js styles.css billing.css terms.html privacy.html tokusho.html; do
             curl --fail --silent --show-error --location --max-time 30 "${SITE_URL}${file}?run=$GITHUB_RUN_ID" -o "/tmp/${file//\//_}"
           done
           grep -Fq '2026-08-15-supabase-v2' /tmp/app.js
-          grep -Fq '2026-08-15-paid-ui-v2' /tmp/billing.js
           grep -Fq '利用規約' /tmp/terms.html
           grep -Fq '利用目的' /tmp/privacy.html
           grep -Fq '1,980円（税込）' /tmp/tokusho.html
-          ! grep -E 'whsec_|sk_live_|sb_secret_' /tmp/billing.js /tmp/site.html
+          ! grep -E 'whsec_|sk_live_|sb_secret_|token=[A-Za-z0-9_-]{32,}' /tmp/billing.js /tmp/site.html
 
       - name: Upload evidence
         if: always()
