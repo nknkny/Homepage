@@ -3,129 +3,27 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="description" content="イベント告知と、会場・場所、広報・集客、出店、出演、運営協力をつなぐマッチングプラットフォーム">
+<meta name="description" content="イベント告知と、会場・場所、広報・集客、出店、出演、運営協力をつなぐ自動マッチングプラットフォーム">
 <meta name="robots" content="index,follow">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com; style-src 'self'; img-src 'self' data: https:; connect-src 'self' https://*.firebaseio.com https://*.firebasedatabase.app wss://*.firebaseio.com wss://*.firebasedatabase.app; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https:; connect-src 'self' https://fpgtwgtoqtokpitzlbie.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
 <title>イベント告知・マッチング</title>
 <link rel="stylesheet" href="styles.css">
-<script defer src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-<script defer src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 <script defer src="app.js"></script>
 </head>
 <body>
-<header class="site-header">
-  <div class="wrap nav">
-    <a class="brand" href="#browse" data-nav="browse">イベント告知・マッチング</a>
-    <nav class="navlinks" aria-label="メインナビゲーション">
-      <button type="button" data-nav="browse" class="active">探す</button>
-      <button type="button" data-nav="post">掲載する</button>
-      <button type="button" data-nav="dashboard">管理</button>
-      <button type="button" data-nav="favorites">お気に入り</button>
-    </nav>
-  </div>
-</header>
-<div class="statusbar">
-  <div class="wrap status-row">
-    <div><span id="storageStatus" class="status">接続確認中</span><span id="storageNote" class="muted"></span></div>
-    <div class="status-actions"><button id="healthBtn" type="button" class="text-btn">自己診断</button><button id="notifyBtn" type="button" class="text-btn">通知を有効化</button></div>
-  </div>
-</div>
-<section class="hero">
-  <div class="wrap hero-grid">
-    <div>
-      <span class="eyebrow">EVENT RESOURCE MATCHING</span>
-      <h1>イベントと、必要な資源を<br>自動でつなぐ。</h1>
-      <p>イベントを告知するだけで、条件に合う会場・場所、広報・集客、出店、出演、運営協力の候補を自動抽出します。</p>
-      <div class="actions"><button type="button" class="btn white" data-nav="post">掲載する</button><button type="button" class="btn glass" data-nav="browse">募集を探す</button></div>
-    </div>
-    <div class="hero-card">
-      <strong>自動運転</strong>
-      <ul>
-        <li>掲載内容を自動チェック</li><li>期限切れを自動非表示</li><li>条件一致を自動スコアリング</li><li>通報閾値で自動停止</li><li>新しい高一致候補を通知</li>
-      </ul>
-    </div>
-  </div>
-</section>
+<header class="site-header"><div class="wrap nav"><a class="brand" href="#browse" data-nav="browse">イベント告知・マッチング</a><nav class="navlinks" aria-label="メインナビゲーション"><button type="button" data-nav="browse" class="active">探す</button><button type="button" data-nav="post">掲載する</button><button type="button" data-nav="dashboard">管理</button><button type="button" data-nav="favorites">お気に入り</button></nav></div></header>
+<div class="statusbar"><div class="wrap status-row"><div><span id="storageStatus" class="status">接続確認中</span><span id="storageNote" class="muted"></span></div><div class="status-actions"><button id="healthBtn" type="button" class="text-btn">自己診断</button><button id="notifyBtn" type="button" class="text-btn">通知を有効化</button></div></div></div>
+<section class="hero"><div class="wrap hero-grid"><div><span class="eyebrow">EVENT RESOURCE MATCHING</span><h1>イベントと、必要な資源を<br>自動でつなぐ。</h1><p>イベントを告知すると、条件に合う会場・場所、広報・集客、出店、出演、運営協力の候補を自動抽出します。</p><div class="actions"><button type="button" class="btn white" data-nav="post">掲載する</button><button type="button" class="btn glass" data-nav="browse">募集を探す</button></div></div><div class="hero-card"><strong>自動運転</strong><ul><li>掲載内容をサーバ側で自動審査</li><li>期限切れ・長期未更新を自動停止</li><li>条件一致を自動スコアリング</li><li>独立通報3件で自動停止</li><li>高一致候補・マッチ希望を自動通知</li></ul></div></div></section>
 <main><div class="wrap">
-  <section id="browse" class="view active">
-    <div class="kpis">
-      <div class="kpi"><b id="kEvent">0</b><span>公開イベント</span></div>
-      <div class="kpi"><b id="kResource">0</b><span>公開資源</span></div>
-      <div class="kpi"><b id="kMatch">0</b><span>高一致候補</span></div>
-      <div class="kpi"><b id="kRequest">0</b><span>マッチ希望</span></div>
-    </div>
-    <div class="toolbar">
-      <input id="q" aria-label="キーワード" placeholder="キーワード">
-      <select id="typeFilter" aria-label="掲載種別">
-        <option value="">すべての種別</option><option value="event">イベント</option><option value="venue">会場・場所</option><option value="promotion">広報・集客</option><option value="exhibitor">出店・販売</option><option value="performer">出演・コンテンツ</option><option value="staff">運営協力</option>
-      </select>
-      <input id="areaFilter" aria-label="地域" placeholder="地域 例：青森市">
-      <select id="needFilter" aria-label="募集内容">
-        <option value="">募集内容すべて</option><option value="venue">会場・場所</option><option value="promotion">広報・集客</option><option value="exhibitor">出店・販売</option><option value="performer">出演・コンテンツ</option><option value="staff">運営協力</option>
-      </select>
-    </div>
-    <div class="section-title">
-      <div><h2>掲載一覧</h2><p class="muted">公開条件を満たした掲載だけを表示します。</p></div>
-      <select id="sort" aria-label="並び順"><option value="new">新着順</option><option value="date">開催日順</option><option value="popular">反応順</option></select>
-    </div>
-    <div id="listingGrid" class="grid"></div>
-  </section>
+<section id="browse" class="view active"><div class="kpis"><div class="kpi"><b id="kEvent">0</b><span>公開イベント</span></div><div class="kpi"><b id="kResource">0</b><span>公開資源</span></div><div class="kpi"><b id="kMatch">0</b><span>高一致候補</span></div><div class="kpi"><b id="kRequest">0</b><span>マッチ希望</span></div></div><div class="toolbar"><input id="q" aria-label="キーワード" placeholder="キーワード"><select id="typeFilter" aria-label="掲載種別"><option value="">すべての種別</option><option value="event">イベント</option><option value="venue">会場・場所</option><option value="promotion">広報・集客</option><option value="exhibitor">出店・販売</option><option value="performer">出演・コンテンツ</option><option value="staff">運営協力</option></select><input id="areaFilter" aria-label="地域" placeholder="地域 例：青森市"><select id="needFilter" aria-label="募集内容"><option value="">募集内容すべて</option><option value="venue">会場・場所</option><option value="promotion">広報・集客</option><option value="exhibitor">出店・販売</option><option value="performer">出演・コンテンツ</option><option value="staff">運営協力</option></select></div><div class="section-title"><div><h2>掲載一覧</h2><p class="muted">公開条件を満たした掲載だけを表示します。</p></div><select id="sort" aria-label="並び順"><option value="new">新着順</option><option value="date">開催日順</option><option value="popular">反応順</option></select></div><div id="listingGrid" class="grid"></div></section>
 
-  <section id="post" class="view">
-    <div class="panel">
-      <div class="section-title"><div><h2 id="postHeading">掲載する</h2><p class="muted">通常の掲載は自動審査後に公開します。危険・不明確な内容は公開しません。</p></div></div>
-      <div class="tabs" id="postTabs">
-        <button type="button" class="active" data-post-type="event">イベント</button><button type="button" data-post-type="venue">会場・場所</button><button type="button" data-post-type="promotion">広報・集客</button><button type="button" data-post-type="exhibitor">出店・販売</button><button type="button" data-post-type="performer">出演・コンテンツ</button><button type="button" data-post-type="staff">運営協力</button>
-      </div>
-      <div id="postNotice" class="notice">連絡は公開用URLで行います。説明欄へ電話番号・メールアドレス等の個人連絡先を直接書かないでください。</div>
-      <form id="postForm" class="form" novalidate>
-        <input type="hidden" id="postType" value="event"><input type="hidden" id="editId">
-        <div class="form-grid">
-          <div class="full"><label for="title">タイトル *</label><input id="title" required maxlength="100"></div>
-          <div><label for="area">地域 *</label><input id="area" required maxlength="60" placeholder="例：青森市"></div>
-          <div><label for="category">カテゴリ *</label><select id="category" required><option value="">選択</option><option>祭り・地域イベント</option><option>音楽・ライブ</option><option>フード・飲食</option><option>スポーツ</option><option>文化・アート</option><option>学習・セミナー</option><option>マルシェ・販売</option><option>ビジネス</option><option>その他</option></select></div>
-          <div class="event-only"><label for="dateStart">開始日 *</label><input id="dateStart" type="date"></div>
-          <div class="event-only"><label for="dateEnd">終了日 *</label><input id="dateEnd" type="date"></div>
-          <div class="full"><label for="description">説明 *</label><textarea id="description" required maxlength="2500" placeholder="内容、条件、対象、利用条件など"></textarea></div>
-          <fieldset class="full event-only checklist"><legend>探しているもの</legend>
-            <label><input type="checkbox" class="need" value="venue"> 会場・場所</label><label><input type="checkbox" class="need" value="promotion"> 広報・集客</label><label><input type="checkbox" class="need" value="exhibitor"> 出店・販売</label><label><input type="checkbox" class="need" value="performer"> 出演・コンテンツ</label><label><input type="checkbox" class="need" value="staff"> 運営協力</label>
-          </fieldset>
-          <div class="resource-only"><label for="availableFrom">対応開始日</label><input id="availableFrom" type="date"></div>
-          <div class="resource-only"><label for="availableTo">対応終了日</label><input id="availableTo" type="date"></div>
-          <div class="venue-only"><label for="capacity">収容人数</label><input id="capacity" type="number" min="0" max="100000"></div>
-          <div class="resource-only"><label for="priceGuide">料金目安</label><input id="priceGuide" maxlength="80" placeholder="例：応相談 / 1日3万円〜"></div>
-          <div class="promotion-only full"><label for="channels">対応媒体</label><input id="channels" maxlength="160" placeholder="例：SNS、チラシ、Web広告、PR"></div>
-          <div class="full"><label for="tags">タグ</label><input id="tags" maxlength="200" placeholder="例：親子, 屋外, 県外集客（カンマ区切り）"></div>
-          <div class="full"><label for="contactUrl">公開用問い合わせURL *</label><input id="contactUrl" required maxlength="500" placeholder="https://..."><div class="help">公式サイト、問い合わせフォーム、SNS等。公開して問題ないURLだけ入力してください。</div></div>
-          <div class="full"><label class="consent"><input id="terms" type="checkbox" required> 公開情報として掲載されること、虚偽・権利侵害・違法な募集を掲載しないこと、契約条件は当事者間で確認することに同意します。</label></div>
-        </div>
-        <div id="validationBox"></div>
-        <div class="actions"><button class="btn primary" type="submit" id="submitBtn">自動審査して掲載</button><button class="btn ghost" type="button" id="resetBtn">入力をクリア</button></div>
-      </form>
-    </div>
-  </section>
+<section id="post" class="view"><div class="panel"><div class="section-title"><div><h2 id="postHeading">掲載する</h2><p class="muted">サーバ側の自動審査を通過した掲載だけ公開します。</p></div></div><div class="tabs"><button type="button" class="active" data-post-type="event">イベント</button><button type="button" data-post-type="venue">会場・場所</button><button type="button" data-post-type="promotion">広報・集客</button><button type="button" data-post-type="exhibitor">出店・販売</button><button type="button" data-post-type="performer">出演・コンテンツ</button><button type="button" data-post-type="staff">運営協力</button></div><div class="notice">連絡は公開用URLで行います。説明欄へ電話番号・メールアドレスを直接書かないでください。</div><form id="postForm" class="form" novalidate><input type="hidden" id="postType" value="event"><input type="hidden" id="editId"><div class="form-grid"><div class="full"><label for="title">タイトル *</label><input id="title" required maxlength="100"></div><div><label for="area">地域 *</label><input id="area" required maxlength="80" placeholder="例：青森市"></div><div><label for="category">カテゴリ *</label><select id="category" required><option value="">選択</option><option>祭り・地域イベント</option><option>音楽・ライブ</option><option>フード・飲食</option><option>スポーツ</option><option>文化・アート</option><option>学習・セミナー</option><option>マルシェ・販売</option><option>ビジネス</option><option>その他</option></select></div><div class="event-only"><label for="dateStart">開始日 *</label><input id="dateStart" type="date"></div><div class="event-only"><label for="dateEnd">終了日 *</label><input id="dateEnd" type="date"></div><div class="full"><label for="description">説明 *</label><textarea id="description" required maxlength="2500" placeholder="内容、条件、対象、利用条件など"></textarea></div><fieldset class="full event-only checklist"><legend>探しているもの</legend><label><input type="checkbox" class="need" value="venue"> 会場・場所</label><label><input type="checkbox" class="need" value="promotion"> 広報・集客</label><label><input type="checkbox" class="need" value="exhibitor"> 出店・販売</label><label><input type="checkbox" class="need" value="performer"> 出演・コンテンツ</label><label><input type="checkbox" class="need" value="staff"> 運営協力</label></fieldset><div class="resource-only"><label for="availableFrom">対応開始日</label><input id="availableFrom" type="date"></div><div class="resource-only"><label for="availableTo">対応終了日</label><input id="availableTo" type="date"></div><div class="venue-only"><label for="capacity">収容人数</label><input id="capacity" type="number" min="0" max="1000000"></div><div class="resource-only"><label for="priceGuide">料金目安</label><input id="priceGuide" maxlength="80" placeholder="例：応相談 / 1日3万円〜"></div><div class="promotion-only full"><label for="channels">対応媒体</label><input id="channels" maxlength="160" placeholder="例：SNS、チラシ、Web広告、PR"></div><div class="full"><label for="tags">タグ</label><input id="tags" maxlength="200" placeholder="例：親子, 屋外, 県外集客"></div><div class="full"><label for="contactUrl">公開用問い合わせURL *</label><input id="contactUrl" required maxlength="500" placeholder="https://..."><div class="help">公式サイト、問い合わせフォーム、SNS等の公開URLだけを入力してください。</div></div><div class="full"><label class="consent"><input id="terms" type="checkbox" required> 公開情報として掲載されること、虚偽・権利侵害・違法な募集を掲載しないこと、契約条件は当事者間で確認することに同意します。</label></div></div><div id="validationBox"></div><div class="actions"><button class="btn primary" type="submit" data-write-action id="submitBtn">自動審査して掲載</button><button class="btn ghost" type="button" id="resetBtn">入力をクリア</button></div></form></div></section>
 
-  <section id="dashboard" class="view">
-    <div class="section-title"><div><h2>自動運営ダッシュボード</h2><p class="muted">この端末の所有IDに紐づく掲載・マッチ希望・通知を管理します。</p></div><button id="exportBtn" type="button" class="btn ghost small">バックアップ</button></div>
-    <div id="identityBox" class="notice"></div>
-    <div class="dash-tabs"><button class="active" data-dash="myListings">掲載</button><button data-dash="incoming">受信</button><button data-dash="outgoing">送信</button><button data-dash="opportunities">おすすめ</button><button data-dash="system">システム</button></div>
-    <div id="myListings" class="dash-panel active"><div id="mineGrid" class="grid"></div></div>
-    <div id="incoming" class="dash-panel"><div id="incomingList" class="stack"></div></div>
-    <div id="outgoing" class="dash-panel"><div id="outgoingList" class="stack"></div></div>
-    <div id="opportunities" class="dash-panel"><div id="opportunityGrid" class="grid"></div></div>
-    <div id="system" class="dash-panel"><div id="systemBox" class="panel-lite"></div></div>
-  </section>
+<section id="dashboard" class="view"><div class="section-title"><div><h2>自動運営ダッシュボード</h2><p class="muted">掲載・マッチ・通知を一括管理します。</p></div><div class="actions"><button id="exportBtn" type="button" class="btn ghost small">管理鍵バックアップ</button><button id="importBtn" type="button" class="btn ghost small">管理鍵を復元</button><input id="importFile" type="file" accept="application/json" hidden></div></div><div id="identityBox" class="notice"></div><div class="dash-tabs"><button class="active" data-dash="myListings">掲載</button><button data-dash="incoming">受信</button><button data-dash="outgoing">送信</button><button data-dash="opportunities">おすすめ</button><button data-dash="notifications">通知</button><button data-dash="system">システム</button></div><div id="myListings" class="dash-panel active"><div id="mineGrid" class="grid"></div></div><div id="incoming" class="dash-panel"><div id="incomingList" class="stack"></div></div><div id="outgoing" class="dash-panel"><div id="outgoingList" class="stack"></div></div><div id="opportunities" class="dash-panel"><div id="opportunityGrid" class="grid"></div></div><div id="notifications" class="dash-panel"><div class="actions"><button id="markReadBtn" type="button" data-write-action class="btn ghost small">すべて既読</button></div><div id="notificationList" class="stack"></div></div><div id="system" class="dash-panel"><div id="systemBox" class="panel-lite"></div></div></section>
 
-  <section id="favorites" class="view">
-    <div class="section-title"><div><h2>お気に入り</h2><p class="muted">この端末に保存されます。</p></div></div>
-    <div id="favGrid" class="grid"></div>
-  </section>
+<section id="favorites" class="view"><div class="section-title"><div><h2>お気に入り</h2><p class="muted">この端末に保存されます。</p></div></div><div id="favGrid" class="grid"></div></section>
 </div></main>
 <footer><div class="wrap footer-row"><span>イベント告知・マッチング</span><span>日常運営は自動処理。契約・権利・支払等の最終判断は当事者が行います。</span></div></footer>
-
-<div id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-  <div class="modal-card"><div class="modal-head"><div><span id="modalType" class="chip"></span><h2 id="modalTitle"></h2></div><button id="modalClose" class="x" type="button" aria-label="閉じる">×</button></div><div id="modalBody"></div></div>
-</div>
-<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<div id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><div class="modal-card"><div class="modal-head"><div><span id="modalType" class="chip"></span><h2 id="modalTitle"></h2></div><button id="modalClose" class="x" type="button" aria-label="閉じる">×</button></div><div id="modalBody"></div></div></div><div id="toast" class="toast" role="status" aria-live="polite"></div>
 </body>
 </html>
