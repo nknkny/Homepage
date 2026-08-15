@@ -26,7 +26,7 @@ jobs:
           B_ID=$(python -c 'import uuid; print(uuid.uuid4())')
           A_KEY=$(openssl rand -hex 32)
           B_KEY=$(openssl rand -hex 32)
-          auth() { curl --fail --silent --show-error --max-time 30 -H 'Content-Type: application/json' -H "x-owner-id: $1" -H "x-owner-key: $2"; }
+          auth() { local id="$1" key="$2"; shift 2; curl --fail --silent --show-error --max-time 30 -H 'Content-Type: application/json' -H "x-owner-id: $id" -H "x-owner-key: $key" "$@"; }
 
           auth "$A_ID" "$A_KEY" -X POST -d '{}' "$API?action=bootstrap" | tee /tmp/a-bootstrap.json
           auth "$B_ID" "$B_KEY" -X POST -d '{}' "$API?action=bootstrap" | tee /tmp/b-bootstrap.json
