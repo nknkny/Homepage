@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="イベント告知と、会場・場所、広報・集客支援をつなぐマッチングサイト">
+<title>イベント告知・マッチング</title>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+<style>
+:root{--ink:#152033;--muted:#667085;--line:#dfe5ec;--bg:#f6f8fb;--card:#fff;--main:#1d4ed8;--main2:#153e9f;--ok:#087f5b;--warn:#a05a00;--bad:#b42318}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Noto Sans JP",sans-serif;background:var(--bg);color:var(--ink);line-height:1.6}
+button,input,select,textarea{font:inherit}a{color:inherit}.wrap{max-width:1180px;margin:auto;padding:0 18px}
+header{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.96);border-bottom:1px solid var(--line);backdrop-filter:blur(10px)}
+.nav{height:64px;display:flex;align-items:center;justify-content:space-between;gap:14px}.brand{font-weight:900}.navlinks{display:flex;gap:8px;flex-wrap:wrap}.navlinks button{border:0;background:transparent;padding:9px 11px;border-radius:9px;font-weight:700;cursor:pointer}.navlinks button.active{background:#e9efff;color:var(--main)}
+.hero{background:linear-gradient(135deg,#0f2d64,#1d4ed8);color:#fff;padding:44px 0}.hero h1{font-size:clamp(30px,5vw,54px);line-height:1.15;margin:0 0 12px}.hero p{max-width:760px;color:#dbe7ff}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+.btn{border:1px solid transparent;border-radius:10px;padding:10px 14px;font-weight:800;cursor:pointer}.btn.primary{background:var(--main);color:#fff}.btn.white{background:#fff;color:#17386f}.btn.ghost{background:#fff;border-color:var(--line)}.btn.danger{background:var(--bad);color:#fff}.btn.small{padding:7px 10px;font-size:12px}
+.statusbar{background:#fff;border-bottom:1px solid var(--line);font-size:12px}.statusbar .wrap{padding-top:8px;padding-bottom:8px;display:flex;gap:10px;align-items:center;justify-content:space-between}.status{font-weight:800}.status.online{color:var(--ok)}.status.local{color:var(--warn)}
+main{padding:26px 0 60px}.view{display:none}.view.active{display:block}.toolbar{display:grid;grid-template-columns:2fr repeat(3,1fr);gap:10px;margin:14px 0 18px}.toolbar input,.toolbar select,.form input,.form select,.form textarea{width:100%;border:1px solid #cfd8e3;background:#fff;border-radius:10px;padding:11px}.form textarea{min-height:110px;resize:vertical}
+.section-title{display:flex;justify-content:space-between;gap:12px;align-items:end;margin:10px 0}.section-title h2{margin:0}.muted{color:var(--muted);font-size:13px}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 4px 16px rgba(20,40,70,.04)}.card h3{margin:5px 0 6px;font-size:18px}.meta{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.chip{display:inline-block;padding:4px 8px;border-radius:999px;background:#edf2f7;color:#38506b;font-size:11px;font-weight:800}.chip.need{background:#fff4df;color:#855000}.chip.event{background:#e9efff;color:#1d4ed8}.chip.venue{background:#e8f7ef;color:#087f5b}.chip.promo{background:#f3eefe;color:#6d43b5}
+.card p{font-size:13px;color:#4c5a6c}.card-footer{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.score{font-weight:900;color:var(--ok)}
+.panel{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}.tabs button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 12px;font-weight:800;cursor:pointer}.tabs button.active{background:var(--main);border-color:var(--main);color:#fff}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.form .full{grid-column:1/-1}.form label{display:block;font-size:12px;font-weight:800;margin:8px 0 5px}.help{font-size:11px;color:var(--muted);margin-top:4px}.notice{padding:11px 13px;border-radius:10px;background:#edf5ff;color:#285681;font-size:12px}.warn{background:#fff7df;color:#775300}.ok{background:#eaf8f0;color:#12613f}.bad{background:#fff0ef;color:#942118}
+.empty{padding:30px;text-align:center;color:var(--muted);background:#fff;border:1px dashed #cdd7e3;border-radius:14px}
+.modal{position:fixed;inset:0;background:rgba(10,18,30,.55);z-index:50;display:none;align-items:center;justify-content:center;padding:18px}.modal.open{display:flex}.modal-card{width:min(760px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:16px;padding:20px}.modal-head{display:flex;justify-content:space-between;gap:12px}.x{border:0;background:#eef2f6;border-radius:9px;width:36px;height:36px;cursor:pointer}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}.kpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px}.kpi b{font-size:24px}.kpi span{display:block;font-size:11px;color:var(--muted)}
+.match-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.subhead{font-weight:900;margin:4px 0 10px}
+footer{border-top:1px solid var(--line);background:#fff;padding:28px 0;color:var(--muted);font-size:12px}
+@media(max-width:900px){.grid{grid-template-columns:1fr 1fr}.toolbar{grid-template-columns:1fr 1fr}.kpis{grid-template-columns:1fr 1fr}}
+@media(max-width:620px){.nav{height:auto;padding:10px 0;align-items:flex-start;flex-direction:column}.hero{padding:34px 0}.grid,.toolbar,.form-grid,.match-grid{grid-template-columns:1fr}.form .full{grid-column:auto}.statusbar .wrap{display:block}.kpis{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<header><div class="wrap nav"><div class="brand">イベント告知・マッチング</div><nav class="navlinks">
+<button data-view="browse" class="active">探す</button><button data-view="post">掲載する</button><button data-view="mine">掲載管理</button><button data-view="favorites">お気に入り</button>
+</nav></div></header>
+<div class="statusbar"><div class="wrap"><div><span id="storageStatus" class="status">接続確認中</span> <span id="storageNote"></span></div><div>個人情報は掲載しないでください。連絡先は公開用URLのみ。</div></div></div>
+<section class="hero"><div class="wrap"><h1>イベントと、場所と、広報をつなぐ。</h1><p>イベントを告知したい主催者、会場・スペースを提供したい方、広報・集客を支援できる方を、同じサイトで探してつなげます。</p><div class="actions"><button class="btn white" onclick="go('post')">無料で掲載する</button><button class="btn white" onclick="go('browse')">募集を探す</button></div></div></section>
+<main><div class="wrap">
+
+<section id="browse" class="view active">
+<div class="kpis"><div class="kpi"><b id="kEvent">0</b><span>イベント</span></div><div class="kpi"><b id="kVenue">0</b><span>会場・場所</span></div><div class="kpi"><b id="kPromo">0</b><span>広報・集客</span></div><div class="kpi"><b id="kMatch">0</b><span>マッチ候補</span></div></div>
+<div class="toolbar">
+<input id="q" placeholder="キーワード検索">
+<select id="typeFilter"><option value="">すべて</option><option value="event">イベント</option><option value="venue">会場・場所</option><option value="promotion">広報・集客</option></select>
+<input id="areaFilter" placeholder="地域 例：青森市">
+<select id="needFilter"><option value="">募集内容すべて</option><option value="venue">会場を探している</option><option value="promotion">広報を探している</option><option value="exhibitor">出店者を探している</option><option value="performer">出演者を探している</option><option value="staff">運営協力を探している</option></select>
+</div>
+<div class="section-title"><div><h2>掲載一覧</h2><div class="muted">地域・カテゴリ・募集内容から絞り込めます。</div></div><select id="sort"><option value="new">新着順</option><option value="date">開催日順</option></select></div>
+<div id="listingGrid" class="grid"></div>
+</section>
+
+<section id="post" class="view">
+<div class="panel">
+<div class="section-title"><div><h2>掲載する</h2><div class="muted">イベント、会場、広報サービスの3種類を登録できます。</div></div></div>
+<div class="tabs"><button class="active" data-post-type="event">イベント</button><button data-post-type="venue">会場・場所</button><button data-post-type="promotion">広報・集客</button></div>
+<div id="postNotice" class="notice">公開情報だけを入力してください。メールアドレス・電話番号などの非公開情報は保存しません。</div>
+<form id="postForm" class="form">
+<input type="hidden" id="postType" value="event"><input type="hidden" id="editId">
+<div class="form-grid">
+<div class="full"><label>タイトル *</label><input id="title" required maxlength="100"></div>
+<div><label>地域 *</label><input id="area" required maxlength="60" placeholder="例：青森市"></div>
+<div><label>カテゴリ *</label><select id="category" required><option value="">選択</option><option>祭り・地域イベント</option><option>音楽・ライブ</option><option>フード・飲食</option><option>スポーツ</option><option>文化・アート</option><option>学習・セミナー</option><option>マルシェ・販売</option><option>ビジネス</option><option>その他</option></select></div>
+<div id="dateStartWrap"><label>開始日</label><input id="dateStart" type="date"></div>
+<div id="dateEndWrap"><label>終了日</label><input id="dateEnd" type="date"></div>
+<div class="full"><label>説明 *</label><textarea id="description" required maxlength="2000" placeholder="内容、条件、対象など"></textarea></div>
+<div class="full event-only"><label>現在探しているもの</label><div class="meta">
+<label><input type="checkbox" class="need" value="venue"> 会場・場所</label>
+<label><input type="checkbox" class="need" value="promotion"> 広報・集客</label>
+<label><input type="checkbox" class="need" value="exhibitor"> 出店者</label>
+<label><input type="checkbox" class="need" value="performer"> 出演者</label>
+<label><input type="checkbox" class="need" value="staff"> 運営協力</label></div></div>
+<div class="venue-only" style="display:none"><label>収容人数</label><input id="capacity" type="number" min="0" max="100000"></div>
+<div class="venue-only" style="display:none"><label>料金目安</label><input id="venuePrice" maxlength="80" placeholder="例：1日3万円〜"></div>
+<div class="promotion-only" style="display:none"><label>対応媒体</label><input id="channels" maxlength="120" placeholder="例：SNS、チラシ、Web広告、PR"></div>
+<div class="promotion-only" style="display:none"><label>料金目安</label><input id="promoPrice" maxlength="80" placeholder="例：5万円〜"></div>
+<div class="full"><label>タグ</label><input id="tags" maxlength="160" placeholder="例：親子, 屋外, 県外集客（カンマ区切り）"></div>
+<div class="full"><label>公開用問い合わせURL *</label><input id="contactUrl" required maxlength="500" placeholder="https://..."><div class="help">公式サイト、問い合わせフォーム、SNS等の公開URL。非公開メール・電話は入力しないでください。</div></div>
+<div class="full"><label><input id="terms" type="checkbox" required> 公開情報として掲載されること、虚偽・権利侵害・違法な募集を掲載しないことに同意します。</label></div>
+</div>
+<div class="actions"><button class="btn primary" type="submit" id="submitBtn">掲載する</button><button class="btn ghost" type="button" onclick="resetForm()">入力をクリア</button></div>
+</form>
+</div>
+</section>
+
+<section id="mine" class="view">
+<div class="section-title"><div><h2>この端末から掲載したもの</h2><div class="muted">この端末に保存された掲載IDを使って管理します。</div></div><button class="btn ghost small" onclick="exportMine()">JSONを書き出す</button></div>
+<div id="mineGrid" class="grid"></div>
+</section>
+
+<section id="favorites" class="view">
+<div class="section-title"><div><h2>お気に入り</h2><div class="muted">この端末に保存されます。</div></div></div>
+<div id="favGrid" class="grid"></div>
+</section>
+
+</div></main>
+<footer><div class="wrap">イベント告知・マッチング MVP / イベント・会場・広報の掲載と検索を一体化</div></footer>
+
+<div id="modal" class="modal" role="dialog" aria-modal="true"><div class="modal-card"><div class="modal-head"><div><div id="modalType" class="chip"></div><h2 id="modalTitle"></h2></div><button class="x" onclick="closeModal()">×</button></div><div id="modalBody"></div></div></div>
+
+<script>
+const firebaseConfig={
+  apiKey:"AIzaSyDuwQzcC9HlejgxpLAa8dK68xYwueoNmK4",
+  authDomain:"piano-lesson-system.firebaseapp.com",
+  projectId:"piano-lesson-system",
+  storageBucket:"piano-lesson-system.firebasestorage.app",
+  messagingSenderId:"94459879451",
+  appId:"1:94459879451:web:342958cd3531b61fb818be",
+  databaseURL:"https://piano-lesson-system-default-rtdb.asia-southeast1.firebasedatabase.app"
+};
+const ROOT="event_notice_platform_v1";
+let db=null, remote=true, records={}, currentPostType="event";
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function safeUrl(v){try{const u=new URL(String(v));return /^https?:$/.test(u.protocol)?u.href:""}catch(e){return""}}
+function nowIso(){return new Date().toISOString()}
+function localKey(k){return `event_notice_${k}`}
+function mineIds(){return JSON.parse(localStorage.getItem(localKey("mine"))||"[]")}
+function setMine(a){localStorage.setItem(localKey("mine"),JSON.stringify([...new Set(a)]))}
+function favIds(){return JSON.parse(localStorage.getItem(localKey("fav"))||"[]")}
+function setFav(a){localStorage.setItem(localKey("fav"),JSON.stringify([...new Set(a)]))}
+function localData(){return JSON.parse(localStorage.getItem(localKey("data"))||"{}")}
+function saveLocalData(d){localStorage.setItem(localKey("data"),JSON.stringify(d))}
+function makeId(prefix){return `${prefix}_${Date.now().toString(36)}_${crypto.getRandomValues(new Uint32Array(1))[0].toString(36)}`}
+function typeLabel(t){return t==="event"?"イベント":t==="venue"?"会場・場所":"広報・集客"}
+function typeClass(t){return t==="event"?"event":t==="venue"?"venue":"promo"}
+function needLabel(n){return {venue:"会場募集",promotion:"広報募集",exhibitor:"出店者募集",performer:"出演者募集",staff:"運営協力募集"}[n]||n}
+async function initStorage(){
+  try{
+    firebase.initializeApp(firebaseConfig); db=firebase.database();
+    await db.ref(`${ROOT}/_meta`).once("value");
+    db.ref(`${ROOT}/listings`).on("value",s=>{records=s.val()||{};renderAll()});
+    $("storageStatus").textContent="共有データ接続";$("storageStatus").className="status online";
+    $("storageNote").textContent="（複数端末で同じ掲載一覧を参照）";
+  }catch(e){
+    remote=false;records=localData();
+    $("storageStatus").textContent="ローカル保存モード";$("storageStatus").className="status local";
+    $("storageNote").textContent="（共有保存に接続できないため、この端末だけに保存）";renderAll();
+  }
+}
+async function persist(rec){
+  if(remote&&db){await db.ref(`${ROOT}/listings/${rec.id}`).set(rec)}
+  else{records[rec.id]=rec;saveLocalData(records);renderAll()}
+}
+async function removeRec(id){
+  if(remote&&db){await db.ref(`${ROOT}/listings/${id}`).remove()}
+  else{delete records[id];saveLocalData(records);renderAll()}
+}
+async function reportRec(id,reason){
+  const r={id:makeId("report"),listingId:id,reason:reason||"内容確認依頼",createdAt:nowIso()};
+  if(remote&&db){try{await db.ref(`${ROOT}/reports/${r.id}`).set(r)}catch(e){throw new Error("通報を保存できませんでした")}}
+  else{const rs=JSON.parse(localStorage.getItem(localKey("reports"))||"[]");rs.push(r);localStorage.setItem(localKey("reports"),JSON.stringify(rs))}
+}
+function go(id){document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id===id));document.querySelectorAll("[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===id));if(id==="mine")renderMine();if(id==="favorites")renderFav();window.scrollTo({top:0,behavior:"smooth"})}
+document.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>go(b.dataset.view));
+document.querySelectorAll("[data-post-type]").forEach(b=>b.onclick=()=>setPostType(b.dataset.postType));
+function setPostType(t){
+  currentPostType=t;$("postType").value=t;
+  document.querySelectorAll("[data-post-type]").forEach(b=>b.classList.toggle("active",b.dataset.postType===t));
+  document.querySelectorAll(".event-only").forEach(x=>x.style.display=t==="event"?"":"none");
+  document.querySelectorAll(".venue-only").forEach(x=>x.style.display=t==="venue"?"":"none");
+  document.querySelectorAll(".promotion-only").forEach(x=>x.style.display=t==="promotion"?"":"none");
+  $("dateStartWrap").style.display=t==="event"?"":"none";$("dateEndWrap").style.display=t==="event"?"":"none";
+}
+function getArray(){return Object.values(records||{}).filter(x=>x&&x.status!=="deleted")}
+function matchesText(r,q){if(!q)return true;const s=[r.title,r.area,r.category,r.description,(r.tags||[]).join(" ")].join(" ").toLowerCase();return s.includes(q.toLowerCase())}
+function filtered(){
+ let a=getArray(),q=$("q").value.trim(),t=$("typeFilter").value,area=$("areaFilter").value.trim().toLowerCase(),need=$("needFilter").value;
+ a=a.filter(r=>matchesText(r,q)&&(!t||r.type===t)&&(!area||String(r.area||"").toLowerCase().includes(area))&&(!need||(r.needs||[]).includes(need)));
+ if($("sort").value==="date")a.sort((x,y)=>String(x.dateStart||"9999").localeCompare(String(y.dateStart||"9999")));
+ else a.sort((x,y)=>String(y.createdAt||"").localeCompare(String(x.createdAt||"")));
+ return a;
+}
+["q","typeFilter","areaFilter","needFilter","sort"].forEach(id=>$(id).addEventListener(id==="q"?"input":"change",renderBrowse));
+function cardHtml(r,score=null){
+ const needs=(r.needs||[]).map(n=>`<span class="chip need">${esc(needLabel(n))}</span>`).join("");
+ const fav=favIds().includes(r.id)?"★":"☆";
+ return `<article class="card"><div class="meta"><span class="chip ${typeClass(r.type)}">${esc(typeLabel(r.type))}</span><span class="chip">${esc(r.area||"")}</span><span class="chip">${esc(r.category||"")}</span>${needs}</div><h3>${esc(r.title)}</h3>${r.dateStart?`<div class="muted">開催: ${esc(r.dateStart)}${r.dateEnd&&r.dateEnd!==r.dateStart?" 〜 "+esc(r.dateEnd):""}</div>`:""}<p>${esc(String(r.description||"").slice(0,150))}${String(r.description||"").length>150?"…":""}</p>${score!==null?`<div class="score">相性スコア ${score}</div>`:""}<div class="card-footer"><button class="btn primary small" onclick="openDetail('${esc(r.id)}')">詳細・マッチ候補</button><button class="btn ghost small" onclick="toggleFav('${esc(r.id)}')">${fav}</button></div></article>`;
+}
+function renderBrowse(){
+ const a=filtered();$("listingGrid").innerHTML=a.length?a.map(r=>cardHtml(r)).join(""):`<div class="empty" style="grid-column:1/-1">条件に合う掲載はまだありません。最初の掲載を登録できます。</div>`;
+ const all=getArray();$("kEvent").textContent=all.filter(x=>x.type==="event").length;$("kVenue").textContent=all.filter(x=>x.type==="venue").length;$("kPromo").textContent=all.filter(x=>x.type==="promotion").length;
+ $("kMatch").textContent=all.filter(x=>x.type==="event").reduce((n,e)=>n+recommend(e,"venue").length+recommend(e,"promotion").length,0);
+}
+function score(event,provider){
+ let s=0;if(event.area&&provider.area&&event.area===provider.area)s+=5;else if(event.area&&provider.area&&(event.area.includes(provider.area)||provider.area.includes(event.area)))s+=3;
+ if(event.category&&provider.category&&event.category===provider.category)s+=2;
+ const a=new Set(event.tags||[]);for(const t of provider.tags||[])if(a.has(t))s+=1;
+ return s;
+}
+function recommend(event,type){
+ if(type==="venue"&&!(event.needs||[]).includes("venue"))return[];
+ if(type==="promotion"&&!(event.needs||[]).includes("promotion"))return[];
+ return getArray().filter(x=>x.type===type).map(x=>({r:x,s:score(event,x)})).sort((a,b)=>b.s-a.s||String(b.r.createdAt).localeCompare(String(a.r.createdAt))).slice(0,6);
+}
+function openDetail(id){
+ const r=records[id];if(!r)return; $("modalType").textContent=typeLabel(r.type);$("modalType").className=`chip ${typeClass(r.type)}`;$("modalTitle").textContent=r.title;
+ const tags=(r.tags||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join("");const needs=(r.needs||[]).map(n=>`<span class="chip need">${esc(needLabel(n))}</span>`).join("");
+ let extra="";if(r.type==="venue")extra=`<p><b>収容人数:</b> ${esc(r.capacity||"未設定")} / <b>料金目安:</b> ${esc(r.venuePrice||"未設定")}</p>`;if(r.type==="promotion")extra=`<p><b>対応媒体:</b> ${esc(r.channels||"未設定")} / <b>料金目安:</b> ${esc(r.promoPrice||"未設定")}</p>`;
+ let match="";
+ if(r.type==="event"){
+  const venues=recommend(r,"venue"),promos=recommend(r,"promotion");
+  match=`<hr><h3>このイベントのマッチ候補</h3><div class="match-grid"><div><div class="subhead">会場・場所</div>${venues.length?venues.map(x=>cardHtml(x.r,x.s)).join(""):'<div class="empty">候補なし</div>'}</div><div><div class="subhead">広報・集客</div>${promos.length?promos.map(x=>cardHtml(x.r,x.s)).join(""):'<div class="empty">候補なし</div>'}</div></div>`;
+ }
+ const u=safeUrl(r.contactUrl);
+ $("modalBody").innerHTML=`<div class="meta"><span class="chip">${esc(r.area||"")}</span><span class="chip">${esc(r.category||"")}</span>${needs}${tags}</div>${r.dateStart?`<p><b>開催日:</b> ${esc(r.dateStart)}${r.dateEnd?" 〜 "+esc(r.dateEnd):""}</p>`:""}<p>${esc(r.description||"").replace(/\n/g,"<br>")}</p>${extra}<div class="actions">${u?`<a class="btn primary" target="_blank" rel="noopener noreferrer" href="${esc(u)}">公開問い合わせ先を開く</a>`:""}<button class="btn ghost" onclick="askReport('${esc(r.id)}')">通報・確認依頼</button></div>${match}`;
+ $("modal").classList.add("open");
+}
+function closeModal(){$("modal").classList.remove("open")}
+$("modal").addEventListener("click",e=>{if(e.target===$("modal"))closeModal()});
+function toggleFav(id){const a=favIds();const i=a.indexOf(id);if(i>=0)a.splice(i,1);else a.push(id);setFav(a);renderAll()}
+async function askReport(id){const reason=prompt("確認してほしい理由を入力してください","内容確認依頼");if(reason===null)return;try{await reportRec(id,reason);alert("確認依頼を受け付けました。");closeModal()}catch(e){alert(e.message)}}
+function renderMine(){const ids=mineIds(),a=ids.map(id=>records[id]).filter(Boolean);$("mineGrid").innerHTML=a.length?a.map(r=>`<article class="card"><div class="meta"><span class="chip ${typeClass(r.type)}">${esc(typeLabel(r.type))}</span></div><h3>${esc(r.title)}</h3><p>${esc(r.area||"")} / ${esc(r.category||"")}</p><div class="card-footer"><button class="btn primary small" onclick="editRec('${esc(r.id)}')">編集</button><button class="btn danger small" onclick="deleteMine('${esc(r.id)}')">削除</button></div></article>`).join(""):`<div class="empty" style="grid-column:1/-1">この端末からの掲載はありません。</div>`}
+function renderFav(){const a=favIds().map(id=>records[id]).filter(Boolean);$("favGrid").innerHTML=a.length?a.map(r=>cardHtml(r)).join(""):`<div class="empty" style="grid-column:1/-1">お気に入りはありません。</div>`}
+function editRec(id){
+ const r=records[id];if(!r||!mineIds().includes(id))return;go("post");setPostType(r.type);$("editId").value=id;$("title").value=r.title||"";$("area").value=r.area||"";$("category").value=r.category||"";$("dateStart").value=r.dateStart||"";$("dateEnd").value=r.dateEnd||"";$("description").value=r.description||"";$("tags").value=(r.tags||[]).join(", ");$("contactUrl").value=r.contactUrl||"";$("capacity").value=r.capacity||"";$("venuePrice").value=r.venuePrice||"";$("channels").value=r.channels||"";$("promoPrice").value=r.promoPrice||"";document.querySelectorAll(".need").forEach(c=>c.checked=(r.needs||[]).includes(c.value));$("terms").checked=true;$("submitBtn").textContent="更新する";
+}
+async function deleteMine(id){if(!mineIds().includes(id)||!confirm("この掲載を削除しますか？"))return;try{await removeRec(id);setMine(mineIds().filter(x=>x!==id));renderMine()}catch(e){alert("削除できませんでした。共有保存の権限を確認してください。")}}
+function resetForm(){$("postForm").reset();$("editId").value="";$("submitBtn").textContent="掲載する";setPostType(currentPostType)}
+$("postForm").addEventListener("submit",async e=>{
+ e.preventDefault();const contact=safeUrl($("contactUrl").value.trim());if(!contact){alert("問い合わせURLは https:// または http:// で入力してください。");return}
+ const oldId=$("editId").value.trim();if(oldId&&!mineIds().includes(oldId)){alert("この端末から掲載した項目だけ編集できます。");return}
+ const id=oldId||makeId(currentPostType);const old=records[id]||{};
+ const rec={...old,id,type:currentPostType,title:$("title").value.trim(),area:$("area").value.trim(),category:$("category").value,description:$("description").value.trim(),dateStart:currentPostType==="event"?$("dateStart").value:"",dateEnd:currentPostType==="event"?$("dateEnd").value:"",needs:currentPostType==="event"?[...document.querySelectorAll(".need:checked")].map(x=>x.value):[],capacity:currentPostType==="venue"?$("capacity").value:"",venuePrice:currentPostType==="venue"?$("venuePrice").value.trim():"",channels:currentPostType==="promotion"?$("channels").value.trim():"",promoPrice:currentPostType==="promotion"?$("promoPrice").value.trim():"",tags:$("tags").value.split(",").map(x=>x.trim()).filter(Boolean).slice(0,20),contactUrl:contact,status:"published",createdAt:old.createdAt||nowIso(),updatedAt:nowIso()};
+ try{await persist(rec);setMine([...mineIds(),id]);alert(oldId?"更新しました。":"掲載しました。");resetForm();go("mine")}catch(err){alert("共有保存に失敗しました。ブラウザのローカル保存へ切り替えます。");remote=false;records=localData();records[id]=rec;saveLocalData(records);setMine([...mineIds(),id]);$("storageStatus").textContent="ローカル保存モード";$("storageStatus").className="status local";$("storageNote").textContent="（共有保存に接続できないため、この端末だけに保存）";renderAll();go("mine")}
+});
+function exportMine(){const data=mineIds().map(id=>records[id]).filter(Boolean);const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="event-listings.json";a.click();URL.revokeObjectURL(a.href)}
+function renderAll(){renderBrowse();renderMine();renderFav()}
+setPostType("event");initStorage();
+</script>
+</body>
+</html>
