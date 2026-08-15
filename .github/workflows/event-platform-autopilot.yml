@@ -1,0 +1,84 @@
+name: Event Platform Autopilot
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'event-platform/**'
+      - '.github/workflows/event-platform-autopilot.yml'
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: event-platform-autopilot
+  cancel-in-progress: false
+
+env:
+  SITE_URL: https://nknkny.github.io/Homepage/event-platform/
+  FIREBASE_ROOT: https://piano-lesson-system-default-rtdb.asia-southeast1.firebasedatabase.app/event_notice_platform_v2
+
+jobs:
+  verify-and-maintain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Static syntax checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check event-platform/app.js
+          python -m py_compile event-platform/maintenance.py
+          grep -Fq '2026-08-15-autopilot-v2' event-platform/app.js
+          grep -Fq 'Content-Security-Policy' event-platform/index.html
+          ! grep -Eq 'onclick=|onchange=|onsubmit=' event-platform/index.html
+
+      - name: Verify Firebase read/write and run maintenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          probe="ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          code=$(curl --silent --show-error --max-time 30 -o /tmp/probe-put.json -w '%{http_code}' -X PUT -H 'Content-Type: application/json' --data "{\"ok\":true,\"run\":\"$GITHUB_RUN_ID\"}" "$FIREBASE_ROOT/health/$probe.json")
+          test "$code" -ge 200 && test "$code" -lt 300
+          code=$(curl --silent --show-error --max-time 30 -o /tmp/probe-get.json -w '%{http_code}' "$FIREBASE_ROOT/health/$probe.json")
+          test "$code" -ge 200 && test "$code" -lt 300
+          grep -Fq '"ok":true' /tmp/probe-get.json
+          python event-platform/maintenance.py | tee /tmp/maintenance.json
+          curl --silent --show-error --max-time 30 -X DELETE "$FIREBASE_ROOT/health/$probe.json" >/dev/null
+
+      - name: Verify published site
+        if: github.event_name != 'schedule'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=0
+          for i in $(seq 1 12); do
+            code=$(curl --silent --show-error --location --max-time 30 -o /tmp/site.html -w '%{http_code}' "$SITE_URL?run=$GITHUB_RUN_ID" || true)
+            if [ "$code" = "200" ] && grep -Fq 'イベントと、必要な資源を' /tmp/site.html; then ok=1; break; fi
+            sleep 10
+          done
+          test "$ok" = "1"
+          curl --fail --silent --show-error --location --max-time 30 "${SITE_URL}app.js?run=$GITHUB_RUN_ID" -o /tmp/app.js
+          curl --fail --silent --show-error --location --max-time 30 "${SITE_URL}styles.css?run=$GITHUB_RUN_ID" -o /tmp/styles.css
+          grep -Fq '2026-08-15-autopilot-v2' /tmp/app.js
+          ! grep -Eq 'sk_(live|test)_[A-Za-z0-9]+' /tmp/app.js
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: event-platform-evidence-${{ github.run_id }}
+          path: |
+            /tmp/probe-put.json
+            /tmp/probe-get.json
+            /tmp/maintenance.json
+            /tmp/site.html
+            /tmp/app.js
+            /tmp/styles.css
+          if-no-files-found: ignore
+          retention-days: 14
