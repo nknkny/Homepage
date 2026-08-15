@@ -1,0 +1,77 @@
+name: Event Platform E2E
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/event-platform-e2e.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  API: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/event-platform-api
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Full authenticated flow
+        shell: bash
+        run: |
+          set -euo pipefail
+          A_ID=$(python -c 'import uuid; print(uuid.uuid4())')
+          B_ID=$(python -c 'import uuid; print(uuid.uuid4())')
+          A_KEY=$(openssl rand -hex 32)
+          B_KEY=$(openssl rand -hex 32)
+          auth() { curl --fail --silent --show-error --max-time 30 -H 'Content-Type: application/json' -H "x-owner-id: $1" -H "x-owner-key: $2"; }
+
+          auth "$A_ID" "$A_KEY" -X POST -d '{}' "$API?action=bootstrap" | tee /tmp/a-bootstrap.json
+          auth "$B_ID" "$B_KEY" -X POST -d '{}' "$API?action=bootstrap" | tee /tmp/b-bootstrap.json
+          grep -Fq '"ok":true' /tmp/a-bootstrap.json
+          grep -Fq '"ok":true' /tmp/b-bootstrap.json
+
+          auth "$B_ID" "$B_KEY" -X POST -d '{"type":"venue","title":"E2Eテスト会場スペース","area":"青森市","category":"文化・アート","description":"自動E2E試験のために作成する一時的な会場掲載です。試験完了後に削除します。","availableFrom":"2026-08-20","availableTo":"2026-12-31","capacity":120,"priceGuide":"テスト","channels":"","tags":["屋内","文化"],"contactUrl":"https://example.com/"}' "$API?action=save_listing" | tee /tmp/venue.json
+          VENUE_ID=$(jq -r '.listing.id' /tmp/venue.json)
+          test "$VENUE_ID" != "null"
+
+          auth "$A_ID" "$A_KEY" -X POST -d '{"type":"event","title":"E2Eテスト文化イベント","area":"青森市","category":"文化・アート","description":"自動E2E試験のために作成する一時的なイベント掲載です。会場マッチングを確認後に削除します。","dateStart":"2026-09-10","dateEnd":"2026-09-10","needs":["venue"],"tags":["屋内","文化"],"contactUrl":"https://example.com/"}' "$API?action=save_listing" | tee /tmp/event.json
+          EVENT_ID=$(jq -r '.listing.id' /tmp/event.json)
+          test "$EVENT_ID" != "null"
+
+          curl --fail --silent --show-error --max-time 30 "$API?action=public_listings" -o /tmp/public.json
+          jq -e --arg id "$VENUE_ID" '.listings[] | select(.id==$id)' /tmp/public.json >/dev/null
+          jq -e --arg id "$EVENT_ID" '.listings[] | select(.id==$id)' /tmp/public.json >/dev/null
+
+          auth "$A_ID" "$A_KEY" -X POST -d "{\"sourceListingId\":\"$EVENT_ID\",\"targetListingId\":\"$VENUE_ID\",\"message\":\"E2Eマッチ試験です。\"}" "$API?action=create_interest" | tee /tmp/request.json
+          REQUEST_ID=$(jq -r '.request.id' /tmp/request.json)
+          test "$REQUEST_ID" != "null"
+
+          auth "$B_ID" "$B_KEY" "$API?action=dashboard" -o /tmp/b-dashboard.json
+          jq -e --arg id "$REQUEST_ID" '.incoming[] | select(.id==$id and .status=="pending")' /tmp/b-dashboard.json >/dev/null
+
+          auth "$B_ID" "$B_KEY" -X POST -d "{\"id\":\"$REQUEST_ID\",\"decision\":\"accepted\"}" "$API?action=request_action" | tee /tmp/accepted.json
+          jq -e '.request.status=="accepted"' /tmp/accepted.json >/dev/null
+
+          auth "$A_ID" "$A_KEY" "$API?action=dashboard" -o /tmp/a-dashboard.json
+          jq -e --arg id "$REQUEST_ID" '.outgoing[] | select(.id==$id and .status=="accepted")' /tmp/a-dashboard.json >/dev/null
+          jq -e '.notifications | length >= 1' /tmp/a-dashboard.json >/dev/null
+
+          auth "$A_ID" "$A_KEY" -X POST -d "{\"id\":\"$EVENT_ID\"}" "$API?action=delete_listing" >/tmp/delete-event.json
+          auth "$B_ID" "$B_KEY" -X POST -d "{\"id\":\"$VENUE_ID\"}" "$API?action=delete_listing" >/tmp/delete-venue.json
+          jq -e '.ok==true' /tmp/delete-event.json >/dev/null
+          jq -e '.ok==true' /tmp/delete-venue.json >/dev/null
+
+          printf '{"owner_a":"%s","owner_b":"%s","event":"%s","venue":"%s","request":"%s"}\n' "$A_ID" "$B_ID" "$EVENT_ID" "$VENUE_ID" "$REQUEST_ID" | tee /tmp/e2e-ids.json
+          echo 'E2E_OK'
+
+      - name: Evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: event-platform-e2e-${{ github.run_id }}
+          path: /tmp/*.json
+          retention-days: 3
+          if-no-files-found: ignore
