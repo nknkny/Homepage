@@ -28,10 +28,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v5
+      - id: configure
+        uses: actions/configure-pages@v5
         with:
           enablement: true
       - name: Build public artifact
+        id: build
         shell: bash
         run: |
           set -euo pipefail
@@ -46,13 +48,15 @@ jobs:
           test -f dist/akiya-pocket/request.html
           test -f dist/akiya-pocket/checkout.html
           ! find dist -path '*/owner*' -print -quit | grep -q .
-      - uses: actions/upload-pages-artifact@v3
+      - id: upload
+        uses: actions/upload-pages-artifact@v3
         with:
           path: dist
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
       - name: Verify public Akiya Pocket sales pages
+        id: verify
         env:
           PAGE_URL: ${{ steps.deployment.outputs.page_url }}
         shell: bash
@@ -81,16 +85,31 @@ jobs:
           grep -Fq 'akiya-pocket-payment-api' "$RUNNER_TEMP/config.js"
           echo "AKIYA_PUBLIC_URL=$base/"
           echo 'AKIYA_PUBLIC_VERIFY=PASS'
-      - name: Record deployment result
-        if: success()
+      - name: Record deployment diagnostic
+        if: always()
         env:
           GH_TOKEN: ${{ github.token }}
           PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          CONFIGURE_OUTCOME: ${{ steps.configure.outcome }}
+          BUILD_OUTCOME: ${{ steps.build.outcome }}
+          UPLOAD_OUTCOME: ${{ steps.upload.outcome }}
+          DEPLOY_OUTCOME: ${{ steps.deployment.outcome }}
+          VERIFY_OUTCOME: ${{ steps.verify.outcome }}
         shell: bash
         run: |
           set -euo pipefail
           base="${PAGE_URL%/}/akiya-pocket/"
-          body=$(jq -n --arg url "$base" --arg run "$GITHUB_RUN_ID" '{body:("AKIYA_PUBLIC_DEPLOY=PASS\nRUN_ID="+$run+"\nURL="+$url+"\nPAGES=index,register,member-login,request,checkout\nPAYMENT_CONFIG=akiya-pocket-payment-api\nSTATUS=Public sales site deployed and externally verified from GitHub Actions.")}')
+          if [ "$VERIFY_OUTCOME" = success ]; then overall=PASS; else overall=FAIL; fi
+          body=$(jq -n \
+            --arg overall "$overall" \
+            --arg url "$base" \
+            --arg run "$GITHUB_RUN_ID" \
+            --arg configure "$CONFIGURE_OUTCOME" \
+            --arg build "$BUILD_OUTCOME" \
+            --arg upload "$UPLOAD_OUTCOME" \
+            --arg deploy "$DEPLOY_OUTCOME" \
+            --arg verify "$VERIFY_OUTCOME" \
+            '{body:("AKIYA_PUBLIC_DEPLOY="+$overall+"\nRUN_ID="+$run+"\nURL="+$url+"\nCONFIGURE="+$configure+"\nBUILD="+$build+"\nUPLOAD="+$upload+"\nDEPLOY="+$deploy+"\nVERIFY="+$verify)}')
           curl -fsSL -X POST \
             -H "Authorization: Bearer $GH_TOKEN" \
             -H 'Accept: application/vnd.github+json' \
