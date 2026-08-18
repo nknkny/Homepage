@@ -1,42 +1,22 @@
-name: Cloudflare credential presence probe
+name: Cloudflare device auth capability probe
 on:
   pull_request:
     branches: [main]
 permissions:
   contents: read
-  issues: write
 jobs:
   probe:
     runs-on: ubuntu-latest
-    env:
-      HAS_CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
-      HAS_CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN != '' }}
-      HAS_CF_API_TOKEN: ${{ secrets.CF_API_TOKEN != '' }}
-      HAS_CF_TOKEN: ${{ secrets.CF_TOKEN != '' }}
-      HAS_WRANGLER_API_TOKEN: ${{ secrets.WRANGLER_API_TOKEN != '' }}
-      HAS_CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY != '' }}
-      HAS_CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL != '' }}
+    timeout-minutes: 5
     steps:
-      - name: Report presence only
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          REPO: ${{ github.repository }}
+      - name: Inspect current Wrangler device-auth options
         shell: bash
         run: |
           set -euo pipefail
-          found=none
-          for item in \
-            CLOUDFLARE_API_TOKEN:$HAS_CLOUDFLARE_API_TOKEN \
-            CLOUDFLARE_TOKEN:$HAS_CLOUDFLARE_TOKEN \
-            CF_API_TOKEN:$HAS_CF_API_TOKEN \
-            CF_TOKEN:$HAS_CF_TOKEN \
-            WRANGLER_API_TOKEN:$HAS_WRANGLER_API_TOKEN \
-            CLOUDFLARE_GLOBAL_API_KEY:$HAS_CLOUDFLARE_GLOBAL_API_KEY; do
-            name=${item%%:*}; flag=${item#*:}
-            if [ "$flag" = true ]; then found=$name; break; fi
-          done
-          if [ "$found" = none ] && [ "$HAS_CLOUDFLARE_GLOBAL_API_KEY" = true ] && [ "$HAS_CLOUDFLARE_EMAIL" = true ]; then found=CLOUDFLARE_GLOBAL_API_KEY_PLUS_EMAIL; fi
-          body=$(jq -n --arg found "$found" '{body:("CLOUDFLARE_SECRET_PROBE\nAVAILABLE="+$found+"\nVALUES_EXPOSED=false")}')
-          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/$REPO/issues/$PR_NUMBER/comments" >/dev/null
-          test "$found" != none || true
+          npm install --no-audit --no-fund --prefix "$RUNNER_TEMP/cfcli" wrangler@latest >/dev/null 2>&1
+          W="$RUNNER_TEMP/cfcli/node_modules/.bin/wrangler"
+          "$W" --version
+          echo '=== WRANGLER LOGIN HELP ==='
+          "$W" login --help
+          echo '=== WRANGLER LOGIN DEVICE HELP ==='
+          "$W" login --device --help || true
