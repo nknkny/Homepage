@@ -1,0 +1,88 @@
+name: Akiya request/payment diagnostic
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  diag:
+    if: github.event.issue.number == 42 && contains(github.event.comment.body, 'RUN_AKIYA_FLOW_DIAG')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ORIGIN: https://nknkny.github.io
+      API: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-api
+      PAY: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-payment-api
+    steps:
+      - name: Test register request payment safely
+        id: flow
+        shell: bash
+        run: |
+          set -u
+          email="akiya.flowdiag.${GITHUB_RUN_ID}@example.invalid"
+          password="Akiya-FlowDiag-${GITHUB_RUN_ID}-X9!"
+          token=''
+          cleanup(){
+            if [ -n "$token" ]; then
+              jq -n --arg id "DEL-$GITHUB_RUN_ID" --arg token "$token" --arg password "$password" '{action:"delete_account",clientRequestId:$id,sessionToken:$token,currentPassword:$password}' > "$RUNNER_TEMP/del.json"
+              curl -sS -H "Origin: $ORIGIN" -H 'Content-Type: application/json' --data-binary @"$RUNNER_TEMP/del.json" "$API" >/dev/null || true
+            fi
+          }
+          trap cleanup EXIT
+
+          jq -n --arg id "REG-$GITHUB_RUN_ID" --arg email "$email" --arg password "$password" '{action:"register_member",clientRequestId:$id,name:"E2E自動テスト",email:$email,password:$password,residencePrefecture:"青森県",propertyPrefecture:"青森県",propertyCity:"青森市",relationship:"所有者",propertyStatus:"空き家",requiredConsent:"yes",marketingOptIn:"no"}' > "$RUNNER_TEMP/reg.json"
+          reg_http=$(curl -sS -o "$RUNNER_TEMP/reg-res.json" -w '%{http_code}' -H "Origin: $ORIGIN" -H 'Content-Type: application/json' --data-binary @"$RUNNER_TEMP/reg.json" "$API" || true)
+          token=$(jq -r '.sessionToken // ""' "$RUNNER_TEMP/reg-res.json" 2>/dev/null || true)
+          reg_ok=$(jq -r '.ok // false' "$RUNNER_TEMP/reg-res.json" 2>/dev/null || echo invalid)
+
+          req_http='skipped'; req_ok='skipped'; req_code=''; req_msg=''; rid=''
+          pay_http='skipped'; pay_ok='skipped'; pay_code=''; pay_msg=''; amount=''; currency=''; pay_host=''
+          if [ "$reg_ok" = true ] && [ -n "$token" ]; then
+            jq -n --arg id "REQ-$GITHUB_RUN_ID" --arg token "$token" '{action:"create_inspection_request",clientRequestId:$id,sessionToken:$token,propertyAddress:"青森市テスト町1-1（自動E2Eテスト）",requestRelationship:"所有者",propertyStatus:"空き家",accessPermission:"敷地外からの確認のみ",requestConsent:"yes",requestNotes:"自動E2Eテスト。実作業不要。"}' > "$RUNNER_TEMP/req.json"
+            req_http=$(curl -sS -o "$RUNNER_TEMP/req-res.json" -w '%{http_code}' -H "Origin: $ORIGIN" -H 'Content-Type: application/json' --data-binary @"$RUNNER_TEMP/req.json" "$API" || true)
+            req_ok=$(jq -r '.ok // false' "$RUNNER_TEMP/req-res.json" 2>/dev/null || echo invalid)
+            req_code=$(jq -r '.code // ""' "$RUNNER_TEMP/req-res.json" 2>/dev/null || echo invalid)
+            req_msg=$(jq -r '.message // ""' "$RUNNER_TEMP/req-res.json" 2>/dev/null || echo invalid)
+            rid=$(jq -r '.requestId // ""' "$RUNNER_TEMP/req-res.json" 2>/dev/null || true)
+          fi
+          if [ "$req_ok" = true ] && [ -n "$rid" ]; then
+            jq -n --arg id "PAY-$GITHUB_RUN_ID" --arg token "$token" --arg rid "$rid" '{action:"start_card_payment",clientRequestId:$id,sessionToken:$token,requestId:$rid,finalConsent:"yes"}' > "$RUNNER_TEMP/pay.json"
+            pay_http=$(curl -sS -o "$RUNNER_TEMP/pay-res.json" -w '%{http_code}' -H "Origin: $ORIGIN" -H 'Content-Type: application/json' --data-binary @"$RUNNER_TEMP/pay.json" "$PAY" || true)
+            pay_ok=$(jq -r '.ok // false' "$RUNNER_TEMP/pay-res.json" 2>/dev/null || echo invalid)
+            pay_code=$(jq -r '.code // ""' "$RUNNER_TEMP/pay-res.json" 2>/dev/null || echo invalid)
+            pay_msg=$(jq -r '.message // ""' "$RUNNER_TEMP/pay-res.json" 2>/dev/null || echo invalid)
+            amount=$(jq -r '.amountTotal // ""' "$RUNNER_TEMP/pay-res.json" 2>/dev/null || true)
+            currency=$(jq -r '.currency // ""' "$RUNNER_TEMP/pay-res.json" 2>/dev/null || true)
+            url=$(jq -r '.paymentUrl // ""' "$RUNNER_TEMP/pay-res.json" 2>/dev/null || true)
+            if [[ "$url" == https://buy.stripe.com/* ]]; then pay_host='buy.stripe.com'; fi
+          fi
+          {
+            echo "reg_http=$reg_http"; echo "reg_ok=$reg_ok"
+            echo "req_http=$req_http"; echo "req_ok=$req_ok"; echo "req_code=$req_code"; echo "req_msg<<EOF"; echo "$req_msg"; echo EOF; echo "rid=$rid"
+            echo "pay_http=$pay_http"; echo "pay_ok=$pay_ok"; echo "pay_code=$pay_code"; echo "pay_msg<<EOF"; echo "$pay_msg"; echo EOF; echo "amount=$amount"; echo "currency=$currency"; echo "pay_host=$pay_host"
+          } >> "$GITHUB_OUTPUT"
+      - name: Record diagnostic
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REG_HTTP: ${{ steps.flow.outputs.reg_http }}
+          REG_OK: ${{ steps.flow.outputs.reg_ok }}
+          REQ_HTTP: ${{ steps.flow.outputs.req_http }}
+          REQ_OK: ${{ steps.flow.outputs.req_ok }}
+          REQ_CODE: ${{ steps.flow.outputs.req_code }}
+          REQ_MSG: ${{ steps.flow.outputs.req_msg }}
+          RID: ${{ steps.flow.outputs.rid }}
+          PAY_HTTP: ${{ steps.flow.outputs.pay_http }}
+          PAY_OK: ${{ steps.flow.outputs.pay_ok }}
+          PAY_CODE: ${{ steps.flow.outputs.pay_code }}
+          PAY_MSG: ${{ steps.flow.outputs.pay_msg }}
+          AMOUNT: ${{ steps.flow.outputs.amount }}
+          CURRENCY: ${{ steps.flow.outputs.currency }}
+          PAY_HOST: ${{ steps.flow.outputs.pay_host }}
+        shell: bash
+        run: |
+          body=$(jq -n --arg rh "$REG_HTTP" --arg ro "$REG_OK" --arg qh "$REQ_HTTP" --arg qo "$REQ_OK" --arg qc "$REQ_CODE" --arg qm "$REQ_MSG" --arg rid "$RID" --arg ph "$PAY_HTTP" --arg po "$PAY_OK" --arg pc "$PAY_CODE" --arg pm "$PAY_MSG" --arg a "$AMOUNT" --arg c "$CURRENCY" --arg host "$PAY_HOST" '{body:("AKIYA_FLOW_DIAG\nREGISTER="+$rh+"/"+$ro+"\nREQUEST="+$qh+"/"+$qo+" CODE="+$qc+" MESSAGE="+$qm+" REQUEST_ID="+$rid+"\nPAYMENT="+$ph+"/"+$po+" CODE="+$pc+" MESSAGE="+$pm+" AMOUNT="+$a+" CURRENCY="+$c+" HOST="+$host)}')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
