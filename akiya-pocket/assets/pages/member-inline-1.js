@@ -1,3 +1,31 @@
 'use strict';
 if(window.AkiyaAnalytics)AkiyaAnalytics.track('member_page_view',{contentCategory:'member',contentId:'dashboard',actionLabel:'view'});
-(async()=>{const t=AkiyaAPI.token();if(!t){location.replace('member-login.html');return}try{const r=await AkiyaAPI.submit('get_dashboard',{sessionToken:t});if(!r.ok){AkiyaAPI.setToken('');AkiyaUI.show(dashboardStatus,r.message||'ログインが必要です。');setTimeout(()=>location.replace('member-login.html'),900);return}const m=r.member;mName.textContent=m.name||'';mEmail.textContent=m.emailMasked||'未登録';mPhone.textContent=m.phoneMasked||'未登録';mProperty.textContent=[m.propertyPrefecture,m.propertyCity].filter(Boolean).join(' ')||'未登録';mMarketing.textContent=m.marketingOptIn?'受け取る':'受け取らない';mAiTraining.textContent=m.aiTrainingOptIn?'同意中':'同意していない';mStatus.textContent=m.status||'無料会員';welcome.textContent=(m.name||'会員')+' 様';const rows=r.requests||[];if(rows.length){noHistory.classList.add('hidden');historyTable.classList.remove('hidden');const tb=historyTable.querySelector('tbody');tb.textContent='';rows.forEach(x=>{const tr=document.createElement('tr');[x.requestId,x.createdAt,x.propertySummary,x.status,x.quotedTotal?Number(x.quotedTotal).toLocaleString('ja-JP')+'円':'未提示',x.paymentStatus||'未設定'].forEach(v=>{const td=document.createElement('td');td.textContent=v||'';tr.append(td)});const action=document.createElement('td');const paid=String(x.paymentStatus||'').toLowerCase()==='paid'||x.paymentStatus==='支払済み';if(x.cardAvailable&&x.quotedTotal&&!paid&&!x.contractedAt&&x.status!=='取消'&&x.status!=='返金済み'){const a=document.createElement('a');a.className='btn btn-primary';a.href='checkout.html?request_id='+encodeURIComponent(x.requestId);a.textContent='最終確認・カード払い';action.append(a)}else if(x.reportUrl&&/^https:\/\//i.test(String(x.reportUrl))){const a=document.createElement('a');a.className='btn btn-ghost';a.href=x.reportUrl;a.target='_blank';a.rel='noopener noreferrer';a.textContent='報告書を見る';action.append(a)}else if(paid){action.textContent='支払い確認済み'}else action.textContent='—';tr.append(action);tb.append(tr)})}if(new URLSearchParams(location.search).get('payment')==='success')AkiyaUI.show(dashboardStatus,'Stripeでのお支払い後、支払い状況を自動確認しています。履歴が「paid」または「支払済み」になれば反映完了です。',true);dashboard.classList.remove('hidden')}catch(e){AkiyaUI.show(dashboardStatus,e.message||'会員情報を取得できませんでした。')}})();
+(async()=>{
+  const t=AkiyaAPI.token();if(!t){location.replace('member-login.html');return}
+  const paymentReturn=new URLSearchParams(location.search).get('payment')==='success';
+  const renderDashboard=async()=>{
+    const r=await AkiyaAPI.submit('get_dashboard',{sessionToken:t});
+    if(!r.ok){AkiyaAPI.setToken('');AkiyaUI.show(dashboardStatus,r.message||'ログインが必要です。');setTimeout(()=>location.replace('member-login.html'),900);return null}
+    const m=r.member;mName.textContent=m.name||'';mEmail.textContent=m.emailMasked||'未登録';mPhone.textContent=m.phoneMasked||'未登録';mProperty.textContent=[m.propertyPrefecture,m.propertyCity].filter(Boolean).join(' ')||'未登録';mMarketing.textContent=m.marketingOptIn?'受け取る':'受け取らない';mAiTraining.textContent=m.aiTrainingOptIn?'同意中':'同意していない';mStatus.textContent=m.status||'無料会員';welcome.textContent=(m.name||'会員')+' 様';
+    const rows=r.requests||[];
+    if(rows.length){noHistory.classList.add('hidden');historyTable.classList.remove('hidden');const tb=historyTable.querySelector('tbody');tb.textContent='';rows.forEach(x=>{const tr=document.createElement('tr');[x.requestId,x.createdAt,x.propertySummary,x.status,x.quotedTotal?Number(x.quotedTotal).toLocaleString('ja-JP')+'円':'未提示',x.paymentStatus||'未設定'].forEach(v=>{const td=document.createElement('td');td.textContent=v||'';tr.append(td)});const action=document.createElement('td');const paid=String(x.paymentStatus||'').toLowerCase()==='paid'||x.paymentStatus==='支払済み';if(x.cardAvailable&&x.quotedTotal&&!paid&&!x.contractedAt&&x.status!=='取消'&&x.status!=='返金済み'){const a=document.createElement('a');a.className='btn btn-primary';a.href='checkout.html?request_id='+encodeURIComponent(x.requestId);a.textContent='最終確認・カード払い';action.append(a)}else if(x.reportUrl&&/^https:\/\//i.test(String(x.reportUrl))){const a=document.createElement('a');a.className='btn btn-ghost';a.href=x.reportUrl;a.target='_blank';a.rel='noopener noreferrer';a.textContent='報告書を見る';action.append(a)}else if(paid){action.textContent='支払い確認済み'}else action.textContent='—';tr.append(action);tb.append(tr)})}
+    dashboard.classList.remove('hidden');return rows;
+  };
+  try{
+    let rows=await renderDashboard();if(!rows)return;
+    if(paymentReturn){
+      let paid=rows.some(x=>String(x.paymentStatus||'').toLowerCase()==='paid'||x.paymentStatus==='支払済み');
+      if(paid){AkiyaUI.show(dashboardStatus,'Stripeでのお支払いを確認しました。',true);history.replaceState({},'',location.pathname)}
+      else{
+        AkiyaUI.show(dashboardStatus,'Stripeでのお支払いを確認中です。通常は数秒で反映されます。',true);
+        for(const delay of [1500,2500,4000,6000]){
+          await new Promise(resolve=>setTimeout(resolve,delay));
+          rows=await renderDashboard();if(!rows)return;
+          paid=rows.some(x=>String(x.paymentStatus||'').toLowerCase()==='paid'||x.paymentStatus==='支払済み');
+          if(paid){AkiyaUI.show(dashboardStatus,'Stripeでのお支払いを確認しました。',true);history.replaceState({},'',location.pathname);break}
+        }
+        if(!paid)AkiyaUI.show(dashboardStatus,'お支払いは完了していますが、反映に時間がかかっています。しばらくしてから「更新」または再読み込みをしてください。支払いを重ねて行わないでください。',false);
+      }
+    }
+  }catch(e){AkiyaUI.show(dashboardStatus,e.message||'会員情報を取得できませんでした。')}
+})();
