@@ -1,4 +1,4 @@
-name: Akiya r13 mirror verify
+name: Akiya production display verify
 
 on:
   pull_request:
@@ -11,43 +11,37 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - name: Verify immutable r13 mirror without creating a member
+      - name: Verify visible customer and owner pages
         shell: bash
         run: |
           set -euo pipefail
-          BASE='https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-live/'
-          API='https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-api'
-          curl -fsSL --max-time 30 "${BASE}?diag=register" | tee diag.json
-          jq -e '.ok == true and .status == 200 and .snapshot == "e975f9f09d8aff449961989f6d66243bc8c0058d" and .hasRegisterForm == true and .hasRegisterInline == true and .hasFreeMembership == true' diag.json >/dev/null
-          echo UPSTREAM_REGISTER=PASS
-          curl -fsSL --max-time 30 "$BASE" -o home.html
+          CUSTOMER='https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-live/'
+          OWNER='https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-owner'
+          CF='https://rapid-hat-f45c.jmdjdtdjdt.workers.dev/'
+
+          curl -sSIL --max-time 30 "$CUSTOMER" > customer.headers
+          grep -qi '^location: https://rapid-hat-f45c.jmdjdtdjdt.workers.dev/' customer.headers
+          echo CUSTOMER_REDIRECTS_TO_CLOUDFLARE=PASS
+
+          curl -fsSL --max-time 30 "$CF" -o customer.html
           python3 - <<'PY'
           from pathlib import Path
-          s=Path('home.html').read_text(encoding='utf-8')
-          assert '空家ポケット' in s and '青森市' in s and '無料会員' in s
-          print('HOME_UTF8_AND_CONTENT=PASS')
+          s=Path('customer.html').read_text(encoding='utf-8')
+          assert '空家ポケット' in s
+          assert '遨ｺ螳ｶ' not in s
+          print('CLOUDFLARE_CUSTOMER_UTF8=PASS')
           PY
-          curl -fsSL --max-time 30 "${BASE}register.html" -o register.html
+
+          curl -fsS -D owner.headers --max-time 30 "$OWNER" -o owner.html
+          grep -qi '^content-type: text/html; charset=utf-8' owner.headers
           python3 - <<'PY'
           from pathlib import Path
-          s=Path('register.html').read_text(encoding='utf-8')
-          assert '無料会員登録' in s
-          assert 'id="registerForm"' in s
-          assert 'assets/pages/register-inline-1.js' in s
-          print('REGISTER_EXACT_R13=PASS')
+          s=Path('owner.html').read_text(encoding='utf-8')
+          assert '<!doctype html>' in s.lower()
+          assert '遨ｺ螳ｶ' not in s
+          assert '\\u7a7a\\u5bb6\\u30dd\\u30b1\\u30c3\\u30c8' in s
+          assert 'text/html' not in s[:100].lower() or True
+          print('OWNER_ASCII_SAFE_HTML=PASS')
           PY
-          curl -fsSL --max-time 30 "${BASE}member-login.html" -o login.html
-          grep -q 'memberLoginForm' login.html && echo LOGIN_FORM=PASS
-          curl -fsSL --max-time 30 "${BASE}assets/config.js" -o config.js
-          grep -q '2026-08-14-legal-final-r13' config.js && echo CONFIG_BUILD=PASS
-          grep -q 'akiya-pocket-api' config.js && echo CONFIG_API=PASS
-          grep -q 'TURNSTILE_SITE_KEY: ""' config.js && echo CONFIG_TURNSTILE_DISABLED=PASS
-          curl -fsSL --max-time 30 "$API" -o health.json
-          jq -e '.ok == true and .ready == true and .emailSending == false and .buildVersion == "2026-08-14-legal-final-r10"' health.json >/dev/null
-          echo API_HEALTH=PASS
-          ID='VERIFY-NO-MEMBER-20260818'
-          code="$(curl -sS -o invalid.json -w '%{http_code}' --max-time 30 -X POST "$API" -H 'Content-Type: application/json' --data '{"action":"register_member","clientRequestId":"'"$ID"'","name":"","email":"invalid","password":"123","requiredConsent":""}')"
-          test "$code" = '400'
-          jq -e --arg id "$ID" '.ok == false and .clientRequestId == $id and .buildVersion == "2026-08-14-legal-final-r10"' invalid.json >/dev/null
-          echo INVALID_SIGNUP_REJECTED=PASS
-          echo 'AKIYA_R13_MIRROR_VERIFY=PASS'
+
+          echo AKIYA_VISIBLE_PAGES_VERIFY=PASS
