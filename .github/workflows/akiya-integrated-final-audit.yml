@@ -1,0 +1,39 @@
+name: Akiya integrated final audit
+on:
+  issue_comment:
+    types: [created]
+permissions:
+  contents: read
+  issues: write
+jobs:
+  audit:
+    if: github.event.issue.number == 42 && contains(github.event.comment.body, 'RUN_AKIYA_INTEGRATED_FINAL_AUDIT')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CUSTOMER: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-live/
+      ADMIN: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-owner-ui
+      UNIFIED: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-unified-api
+    steps:
+      - id: a
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 30 "$CUSTOMER" -o "$RUNNER_TEMP/customer.html"
+          grep -Fq '空家ポケット' "$RUNNER_TEMP/customer.html"
+          curl -fsSL --max-time 30 "$ADMIN?health=1" -o "$RUNNER_TEMP/admin.json"
+          jq -e '.ok==true and .ready==true and .private==true and .fullAutoButton==true' "$RUNNER_TEMP/admin.json" >/dev/null
+          curl -fsSL --max-time 30 "$ADMIN" -o "$RUNNER_TEMP/admin.html"
+          grep -Fq '完全自動で全作業を開始' "$RUNNER_TEMP/admin.html"
+          curl -fsSL --max-time 30 "$UNIFIED" -o "$RUNNER_TEMP/unified.json"
+          jq -e '.ok==true and .paymentApi.ready==true and .paymentApi.amountJpy==3480 and .paymentApi.paymentLinkReady==true' "$RUNNER_TEMP/unified.json" >/dev/null
+          echo 'PASS=true' >> "$GITHUB_OUTPUT"
+      - name: record
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PASS: ${{ steps.a.outputs.PASS }}
+        shell: bash
+        run: |
+          body=$(jq -n --arg p "$PASS" --arg r "$GITHUB_RUN_ID" --arg c "$CUSTOMER" --arg a "$ADMIN" '{body:("AKIYA_INTEGRATED_FINAL_AUDIT="+($p|if .=="true" then "PASS" else "FAIL" end)+"\nRUN_ID="+$r+"\nCUSTOMER_URL="+$c+"\nADMIN_URL="+$a)}')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
