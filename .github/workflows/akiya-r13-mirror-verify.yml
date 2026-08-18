@@ -18,11 +18,9 @@ jobs:
           CUSTOMER='https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-live/'
           OWNER='https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-owner'
           CF='https://rapid-hat-f45c.jmdjdtdjdt.workers.dev/'
-
           curl -sSIL --max-time 30 "$CUSTOMER" > customer.headers
           grep -qi '^location: https://rapid-hat-f45c.jmdjdtdjdt.workers.dev/' customer.headers
           echo CUSTOMER_REDIRECTS_TO_CLOUDFLARE=PASS
-
           curl -fsSL --max-time 30 "$CF" -o customer.html
           python3 - <<'PY'
           from pathlib import Path
@@ -31,17 +29,21 @@ jobs:
           assert '遨ｺ螳ｶ' not in s
           print('CLOUDFLARE_CUSTOMER_UTF8=PASS')
           PY
-
           curl -fsS -D owner.headers --max-time 30 "$OWNER" -o owner.html
-          grep -qi '^content-type: text/html; charset=utf-8' owner.headers
+          echo '---OWNER_HEADERS---'
+          cat owner.headers
+          echo '---OWNER_BODY_PREFIX---'
+          head -c 300 owner.html
+          echo
           python3 - <<'PY'
           from pathlib import Path
+          h=Path('owner.headers').read_text(encoding='utf-8',errors='replace').lower()
           s=Path('owner.html').read_text(encoding='utf-8')
+          assert 'content-type:' in h and 'text/html' in h
+          assert 'charset=utf-8' in h
           assert '<!doctype html>' in s.lower()
           assert '遨ｺ螳ｶ' not in s
           assert '\\u7a7a\\u5bb6\\u30dd\\u30b1\\u30c3\\u30c8' in s
-          assert 'text/html' not in s[:100].lower() or True
-          print('OWNER_ASCII_SAFE_HTML=PASS')
+          print('OWNER_RESPONSE_HTML=PASS')
           PY
-
           echo AKIYA_VISIBLE_PAGES_VERIFY=PASS
