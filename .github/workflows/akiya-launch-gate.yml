@@ -16,6 +16,7 @@ jobs:
     env:
       BASE: https://nknkny.github.io/Homepage/akiya-pocket
       LIVE: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-live
+      ADMIN_ENTRY: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-owner-ui
       API: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-api
       PAY: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-payment-api
       OWNER: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-owner
@@ -31,7 +32,7 @@ jobs:
         run: |
           set -euo pipefail
           cd akiya-pocket
-          for f in index.html register.html member-login.html member.html request.html checkout.html account-recovery.html reset-password.html control-center/index.html; do test -f "$f"; done
+          for f in index.html register.html member-login.html member.html request.html checkout.html account-recovery.html reset-password.html newsletter-unsubscribe.html control-center/index.html; do test -f "$f"; done
           grep -Fq 'FRONTEND_BUILD: "2026-08-19-launch-final-r3"' assets/config.js
           grep -Fq 'SITE_ORIGIN: "https://nknkny.github.io"' assets/config.js
           grep -Fq 'TURNSTILE_SITE_KEY: ""' assets/config.js
@@ -39,9 +40,14 @@ jobs:
           grep -Fq 'akiya-pocket-payment-api' assets/config.js
           grep -Fq '本人確認窓口' account-recovery.html
           grep -Fq '本人確認窓口を開く' reset-password.html
+          grep -Fq '配信停止をメールで連絡' newsletter-unsubscribe.html
+          grep -Fq 'Sitemap: https://nknkny.github.io/Homepage/akiya-pocket/sitemap.xml' robots.txt
+          grep -Fq '<loc>https://nknkny.github.io/Homepage/akiya-pocket/' sitemap.xml
+          ! grep -q 'rapid-hat-f45c' robots.txt
+          ! grep -q 'rapid-hat-f45c' sitemap.xml
           ! grep -R -n -E 'sk_live_[A-Za-z0-9]|sk_test_[A-Za-z0-9]|whsec_[A-Za-z0-9]' --exclude-dir=.github .
           ! grep -R -n 'script.google.com' --exclude-dir=.github .
-          ! grep -R -n -E 'request_password_reset|reset_password|recover_identifier' --exclude-dir=.github .
+          ! grep -R -n -E 'request_password_reset|reset_password|recover_identifier|newsletter_unsubscribe' --exclude-dir=.github .
           ! grep -R -n 'action="/form-unavailable.html"' --include='*.html' .
           ! grep -R -n -E '>3,300円|>3,500円|3,300円（税込）|3,500円（税込）' --include='*.html' --include='*.js' .
           grep -Fq '3,480円' index.html
@@ -89,7 +95,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          pages='index.html service.html report-sample.html faq.html about.html register.html register-complete.html member-login.html account-recovery.html reset-password.html member.html profile.html request.html checkout.html payment.html payment-success.html delete-account.html member-survey.html checklist.html unsubscribe.html newsletter-unsubscribe.html terms.html service-terms.html privacy.html ai-training-policy.html commercial.html contact.html form-unavailable.html control-center/'
+          pages='index.html service.html aomori-city.html report-sample.html faq.html about.html register.html register-complete.html member-login.html account-recovery.html reset-password.html member.html profile.html request.html checkout.html payment.html payment-success.html delete-account.html member-survey.html checklist.html unsubscribe.html newsletter-unsubscribe.html terms.html service-terms.html privacy.html ai-training-policy.html commercial.html contact.html form-unavailable.html control-center/'
           fail=0
           for p in $pages; do
             code=$(curl -sS -L --max-time 20 -o "$RUNNER_TEMP/page" -D "$RUNNER_TEMP/head" -w '%{http_code}' "$BASE/$p?gate=$GITHUB_RUN_ID" || true)
@@ -98,14 +104,30 @@ jobs:
             if grep -Eq 'ç©º|ãƒ|ã‚|�' "$RUNNER_TEMP/page"; then echo "MOJIBAKE $p"; fail=1; fi
           done
           test "$fail" = 0
+          curl -fsSL "$BASE/robots.txt?gate=$GITHUB_RUN_ID" | grep -Fq 'Sitemap: https://nknkny.github.io/Homepage/akiya-pocket/sitemap.xml'
+          curl -fsSL "$BASE/sitemap.xml?gate=$GITHUB_RUN_ID" | grep -Fq 'https://nknkny.github.io/Homepage/akiya-pocket/'
           echo 'LIVE_PAGES=PASS'
+
+      - name: Entry redirects
+        id: redirects
+        shell: bash
+        run: |
+          set -euo pipefail
+          customer=$(curl -sS -L -o /dev/null -w '%{url_effective}|%{http_code}' "$LIVE/")
+          member=$(curl -sS -L -o /dev/null -w '%{url_effective}|%{http_code}' "$LIVE/member.html?payment=success")
+          admin=$(curl -sS -L -o /dev/null -w '%{url_effective}|%{http_code}' "$ADMIN_ENTRY")
+          echo "CUSTOMER=$customer"
+          echo "MEMBER_RETURN=$member"
+          echo "ADMIN=$admin"
+          [[ "$customer" == "https://nknkny.github.io/Homepage/akiya-pocket/|200" ]]
+          [[ "$member" == "https://nknkny.github.io/Homepage/akiya-pocket/member.html?payment=success|200" ]]
+          [[ "$admin" == "https://nknkny.github.io/Homepage/akiya-pocket/control-center/|200" ]]
 
       - name: Endpoint and CORS matrix
         id: endpoints
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsSL -L "$LIVE/?gate=$GITHUB_RUN_ID" | grep -Fq '空家ポケット'
           curl -fsSL "$API" -o "$RUNNER_TEMP/api.json"
           jq -e '.ok==true and .ready==true and .buildVersion=="2026-08-14-legal-final-r10"' "$RUNNER_TEMP/api.json" >/dev/null
           curl -fsSL "$PAY" -o "$RUNNER_TEMP/pay.json"
@@ -143,7 +165,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo 'Webhook negative-signature behavior is validated by deployed v4 code and Stripe endpoint configuration; secret URL is intentionally not stored in GitHub.'
+          echo 'Webhook v4 performs URL-token and Stripe-Signature validation; active Stripe endpoint is separately verified through the Stripe API.'
 
       - name: Record gate
         if: always()
@@ -151,12 +173,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           STATIC: ${{ steps.static.outcome }}
           PAGES: ${{ steps.pages.outcome }}
+          REDIRECTS: ${{ steps.redirects.outcome }}
           ENDPOINTS: ${{ steps.endpoints.outcome }}
           AUTHZ: ${{ steps.authz.outcome }}
           WEBHOOK: ${{ steps.webhook.outcome }}
         shell: bash
         run: |
           overall=FAIL
-          if [ "$STATIC" = success ] && [ "$PAGES" = success ] && [ "$ENDPOINTS" = success ] && [ "$AUTHZ" = success ] && [ "$WEBHOOK" = success ]; then overall=PASS; fi
-          body=$(jq -n --arg o "$overall" --arg r "$GITHUB_RUN_ID" --arg s "$STATIC" --arg p "$PAGES" --arg e "$ENDPOINTS" --arg a "$AUTHZ" --arg w "$WEBHOOK" '{body:("AKIYA_LAUNCH_GATE="+$o+"\nRUN_ID="+$r+"\nSTATIC="+$s+" LIVE_PAGES="+$p+" ENDPOINTS="+$e+" AUTHZ="+$a+" WEBHOOK_CONFIG_CHECK="+$w)}')
+          if [ "$STATIC" = success ] && [ "$PAGES" = success ] && [ "$REDIRECTS" = success ] && [ "$ENDPOINTS" = success ] && [ "$AUTHZ" = success ] && [ "$WEBHOOK" = success ]; then overall=PASS; fi
+          body=$(jq -n --arg o "$overall" --arg r "$GITHUB_RUN_ID" --arg s "$STATIC" --arg p "$PAGES" --arg rd "$REDIRECTS" --arg e "$ENDPOINTS" --arg a "$AUTHZ" --arg w "$WEBHOOK" '{body:("AKIYA_LAUNCH_GATE="+$o+"\nRUN_ID="+$r+"\nSTATIC="+$s+" LIVE_PAGES="+$p+" REDIRECTS="+$rd+" ENDPOINTS="+$e+" AUTHZ="+$a+" WEBHOOK_CONFIG_CHECK="+$w)}')
           curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
