@@ -1,0 +1,19 @@
+name: Cloudflare device auth output probe
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe device flow without completing authorization
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund --prefix "$RUNNER_TEMP/cfcli" wrangler@latest >/dev/null 2>&1
+          W="$RUNNER_TEMP/cfcli/node_modules/.bin/wrangler"
+          timeout 12s "$W" login --device --scopes account:read --scopes user:read --scopes workers:write --scopes workers_scripts:write --no-use-keyring > "$RUNNER_TEMP/device.log" 2>&1 || true
+          sed -E 's#(access_token|refresh_token|device_code)[:=][^[:space:]]+#\1=[REDACTED]#g' "$RUNNER_TEMP/device.log"
+          echo DEVICE_PROBE_DONE
