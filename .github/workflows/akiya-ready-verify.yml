@@ -1,0 +1,28 @@
+name: Akiya r13 Supabase-ready verify
+on:
+  push:
+    branches: [akiya-r13-ready-20260818]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static and API checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check assets/api.js
+          node --check assets/config.js
+          grep -q 'akiya-pocket-api' assets/config.js
+          ! grep -q 'script.google.com/macros' assets/config.js
+          ! grep -q 'trustedApiMessageOrigin' assets/api.js
+          grep -q "fetch(apiUrl" assets/api.js
+          API='https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-api'
+          curl -fsS --max-time 30 "$API" -o health.json
+          jq -e '.ok == true and .ready == true and .emailSending == false and .buildVersion == "2026-08-14-legal-final-r10"' health.json >/dev/null
+          code=$(curl -sS -o bad.json -w '%{http_code}' --max-time 30 -X POST "$API" -H 'Origin: https://rapid-hat-f45c.jmdjdtdjdt.workers.dev' -H 'Content-Type: application/json' --data '{"action":"register_member","clientRequestId":"PREP-INVALID","name":"","email":"invalid","password":"x","requiredConsent":""}')
+          test "$code" = '400'
+          jq -e '.ok == false and .clientRequestId == "PREP-INVALID"' bad.json >/dev/null
+          echo AKIYA_R13_SUPABASE_READY=PASS
