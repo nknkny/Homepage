@@ -88,8 +88,81 @@ jobs:
           curl -fsSL --max-time 20 "$base/assets/config.js?v=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/config.js"
           grep -Fq 'akiya-pocket-api' "$RUNNER_TEMP/config.js"
           grep -Fq 'akiya-pocket-payment-api' "$RUNNER_TEMP/config.js"
+          grep -Fq 'SITE_ORIGIN: "https://nknkny.github.io"' "$RUNNER_TEMP/config.js"
           echo "AKIYA_PUBLIC_URL=$base/"
           echo 'AKIYA_PUBLIC_VERIFY=PASS'
+      - name: End-to-end registration request and paid-sales bridge test
+        id: e2e
+        env:
+          ORIGIN: https://nknkny.github.io
+          API_URL: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-api
+          PAYMENT_API_URL: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-payment-api
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Browser-equivalent CORS preflight.
+          code=$(curl -sS -o "$RUNNER_TEMP/preflight.body" -D "$RUNNER_TEMP/preflight.headers" -w '%{http_code}' \
+            -X OPTIONS \
+            -H "Origin: $ORIGIN" \
+            -H 'Access-Control-Request-Method: POST' \
+            -H 'Access-Control-Request-Headers: content-type' \
+            "$API_URL")
+          test "$code" = 204
+          grep -Eiq '^access-control-allow-origin: https://nknkny\.github\.io\r?$' "$RUNNER_TEMP/preflight.headers"
+
+          code=$(curl -sS -o "$RUNNER_TEMP/pay-preflight.body" -D "$RUNNER_TEMP/pay-preflight.headers" -w '%{http_code}' \
+            -X OPTIONS \
+            -H "Origin: $ORIGIN" \
+            -H 'Access-Control-Request-Method: POST' \
+            -H 'Access-Control-Request-Headers: content-type' \
+            "$PAYMENT_API_URL")
+          test "$code" = 204
+          grep -Eiq '^access-control-allow-origin: https://nknkny\.github\.io\r?$' "$RUNNER_TEMP/pay-preflight.headers"
+
+          # Confirm live payment configuration without charging anything.
+          curl -fsSL -H "Origin: $ORIGIN" "$PAYMENT_API_URL" -o "$RUNNER_TEMP/payment-config.json"
+          jq -e '.ok==true and .ready==true and .amountJpy==3480 and .paymentLinkReady==true and .buildVersion=="2026-08-18-payment-bridge-r2"' "$RUNNER_TEMP/payment-config.json" >/dev/null
+
+          email="akiya.e2e.${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}@example.invalid"
+          password="Akiya-E2E-${GITHUB_RUN_ID}-X9!"
+          reg_id="E2E-REG-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          jq -n \
+            --arg id "$reg_id" --arg email "$email" --arg password "$password" \
+            '{action:"register_member",clientRequestId:$id,name:"E2E自動テスト",email:$email,password:$password,residencePrefecture:"青森県",propertyPrefecture:"青森県",propertyCity:"青森市",relationship:"所有者",propertyStatus:"空き家",requiredConsent:"yes",marketingOptIn:"no"}' \
+            > "$RUNNER_TEMP/register.json"
+          curl -fsSL -H "Origin: $ORIGIN" -H 'Content-Type: application/json' --data-binary @"$RUNNER_TEMP/register.json" "$API_URL" -o "$RUNNER_TEMP/register-response.json"
+          jq -e --arg id "$reg_id" '.ok==true and .clientRequestId==$id and .buildVersion=="2026-08-14-legal-final-r10" and (.sessionToken|length>20)' "$RUNNER_TEMP/register-response.json" >/dev/null
+          token=$(jq -r '.sessionToken' "$RUNNER_TEMP/register-response.json")
+
+          req_id="E2E-REQ-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          jq -n \
+            --arg id "$req_id" --arg token "$token" \
+            '{action:"create_inspection_request",clientRequestId:$id,sessionToken:$token,propertyAddress:"青森市テスト町1-1（自動E2Eテスト）",requestRelationship:"所有者",propertyStatus:"空き家",accessPermission:"敷地外からの確認のみ",requestConsent:"yes",requestNotes:"自動E2Eテスト。実作業不要。"}' \
+            > "$RUNNER_TEMP/request.json"
+          curl -fsSL -H "Origin: $ORIGIN" -H 'Content-Type: application/json' --data-binary @"$RUNNER_TEMP/request.json" "$API_URL" -o "$RUNNER_TEMP/request-response.json"
+          jq -e --arg id "$req_id" '.ok==true and .clientRequestId==$id and (.requestId|startswith("AKR-"))' "$RUNNER_TEMP/request-response.json" >/dev/null
+          request_id=$(jq -r '.requestId' "$RUNNER_TEMP/request-response.json")
+
+          pay_id="E2E-PAY-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          jq -n \
+            --arg id "$pay_id" --arg token "$token" --arg request "$request_id" \
+            '{action:"start_card_payment",clientRequestId:$id,sessionToken:$token,requestId:$request,finalConsent:"yes"}' \
+            > "$RUNNER_TEMP/payment.json"
+          curl -fsSL -H "Origin: $ORIGIN" -H 'Content-Type: application/json' --data-binary @"$RUNNER_TEMP/payment.json" "$PAYMENT_API_URL" -o "$RUNNER_TEMP/payment-response.json"
+          jq -e --arg id "$pay_id" '.ok==true and .clientRequestId==$id and .amountTotal==3480 and .currency=="jpy" and (.paymentUrl|startswith("https://buy.stripe.com/"))' "$RUNNER_TEMP/payment-response.json" >/dev/null
+
+          # Remove the production test account and cascade its test request/session.
+          del_id="E2E-DEL-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          jq -n \
+            --arg id "$del_id" --arg token "$token" --arg password "$password" \
+            '{action:"delete_account",clientRequestId:$id,sessionToken:$token,currentPassword:$password}' \
+            > "$RUNNER_TEMP/delete.json"
+          curl -fsSL -H "Origin: $ORIGIN" -H 'Content-Type: application/json' --data-binary @"$RUNNER_TEMP/delete.json" "$API_URL" -o "$RUNNER_TEMP/delete-response.json"
+          jq -e --arg id "$del_id" '.ok==true and .clientRequestId==$id' "$RUNNER_TEMP/delete-response.json" >/dev/null
+
+          echo "E2E_REQUEST_ID=$request_id"
+          echo 'AKIYA_E2E_PAID_SALES_BRIDGE=PASS'
       - name: Record deployment diagnostic
         if: always()
         env:
@@ -100,11 +173,12 @@ jobs:
           UPLOAD_OUTCOME: ${{ steps.upload.outcome }}
           DEPLOY_OUTCOME: ${{ steps.deployment.outcome }}
           VERIFY_OUTCOME: ${{ steps.verify.outcome }}
+          E2E_OUTCOME: ${{ steps.e2e.outcome }}
         shell: bash
         run: |
           set -euo pipefail
           base="${PAGE_URL%/}/akiya-pocket/"
-          if [ "$VERIFY_OUTCOME" = success ]; then overall=PASS; else overall=FAIL; fi
+          if [ "$VERIFY_OUTCOME" = success ] && [ "$E2E_OUTCOME" = success ]; then overall=PASS; else overall=FAIL; fi
           body=$(jq -n \
             --arg overall "$overall" \
             --arg url "$base" \
@@ -114,7 +188,8 @@ jobs:
             --arg upload "$UPLOAD_OUTCOME" \
             --arg deploy "$DEPLOY_OUTCOME" \
             --arg verify "$VERIFY_OUTCOME" \
-            '{body:("AKIYA_PUBLIC_DEPLOY="+$overall+"\nRUN_ID="+$run+"\nURL="+$url+"\nCONFIGURE="+$configure+"\nBUILD="+$build+"\nUPLOAD="+$upload+"\nDEPLOY="+$deploy+"\nVERIFY="+$verify)}')
+            --arg e2e "$E2E_OUTCOME" \
+            '{body:("AKIYA_PUBLIC_DEPLOY="+$overall+"\nRUN_ID="+$run+"\nURL="+$url+"\nCONFIGURE="+$configure+"\nBUILD="+$build+"\nUPLOAD="+$upload+"\nDEPLOY="+$deploy+"\nVERIFY="+$verify+"\nE2E_PAID_SALES="+$e2e)}')
           curl -fsSL -X POST \
             -H "Authorization: Bearer $GH_TOKEN" \
             -H 'Accept: application/vnd.github+json' \
