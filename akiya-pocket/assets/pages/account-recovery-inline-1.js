@@ -1,0 +1,2 @@
+'use strict';
+const resetForm=document.getElementById('resetForm');if(resetForm)resetForm.addEventListener('submit',async e=>{e.preventDefault();const b=e.submitter;AkiyaUI.busy(b,true);try{const r=await AkiyaAPI.submit('request_password_reset',AkiyaUI.formData(resetForm));AkiyaUI.show(resetStatus,r.message||'該当する登録がある場合、再設定案内を送信しました。',!!r.ok)}catch(err){AkiyaUI.show(resetStatus,err.message||'送信できませんでした。')}finally{AkiyaUI.busy(b,false)}});

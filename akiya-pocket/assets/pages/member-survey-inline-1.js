@@ -1,0 +1,4 @@
+'use strict';
+if(!AkiyaAPI.token())location.replace('member-login.html');
+if(window.AkiyaAnalytics)AkiyaAnalytics.track('survey_open',{contentCategory:'demand_research',contentId:'need_survey_v1',actionLabel:'view'});
+needSurveyForm.addEventListener('submit',async e=>{e.preventDefault();const b=e.submitter,categories=Array.from(needSurveyForm.querySelectorAll('input[name=category]:checked')).map(x=>x.value);if(!categories.length)return AkiyaUI.show(surveyStatus,'関心のある項目を1つ以上選択してください。');if(!needStrength.value||!needTiming.value)return AkiyaUI.show(surveyStatus,'必要度と時期を選択してください。');AkiyaUI.busy(b,true);try{const r=await AkiyaAPI.submit('submit_need_survey',{sessionToken:AkiyaAPI.token(),categories:JSON.stringify(categories),needStrength:needStrength.value,timing:needTiming.value});AkiyaUI.show(surveyStatus,r.message||'回答を保存しました。',!!r.ok)}catch(err){AkiyaUI.show(surveyStatus,err.message||'回答を保存できませんでした。')}finally{AkiyaUI.busy(b,false)}});
