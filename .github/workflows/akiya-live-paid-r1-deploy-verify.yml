@@ -1,0 +1,44 @@
+name: Akiya paid live r1 deployment verify
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Wait for paid live r1
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN='https://rapid-hat-f45c.jmdjdtdjdt.workers.dev'
+          ok=0
+          for i in $(seq 1 30); do
+            echo "attempt=$i"
+            curl -fsSL --max-time 20 "$ORIGIN/VERSION.txt?paid-r1=${GITHUB_SHA}-$i" -o version.txt || true
+            head -n 8 version.txt || true
+            if grep -Fq 'siteVersion=2026-08-18-paid-live-r1' version.txt; then ok=1; break; fi
+            sleep 8
+          done
+          test "$ok" -eq 1
+          curl -fsSL --max-time 30 "$ORIGIN/assets/config.js?paid-r1=${GITHUB_SHA}" -o config.js
+          curl -fsSL --max-time 30 "$ORIGIN/register.html?paid-r1=${GITHUB_SHA}" -o register.html
+          curl -fsSL --max-time 30 "$ORIGIN/member-login.html?paid-r1=${GITHUB_SHA}" -o login.html
+          curl -fsSL --max-time 30 "$ORIGIN/request.html?paid-r1=${GITHUB_SHA}" -o request.html
+          curl -fsSL --max-time 30 "$ORIGIN/checkout.html?paid-r1=${GITHUB_SHA}" -o checkout.html
+          curl -fsSL --max-time 30 "$ORIGIN/service-terms.html?paid-r1=${GITHUB_SHA}" -o terms.html
+          curl -fsSL --max-time 30 "$ORIGIN/commercial.html?paid-r1=${GITHUB_SHA}" -o commercial.html
+          grep -Fq 'FRONTEND_BUILD: "2026-08-18-paid-live-r1"' config.js
+          grep -Fq 'akiya-pocket-api' config.js
+          grep -Fq 'akiya-pocket-payment-api' config.js
+          grep -Fq 'id="registerForm"' register.html
+          grep -Fq 'id="loginForm"' login.html
+          grep -Fq '3,480円' request.html
+          grep -Fq '3,480円' checkout.html
+          grep -Fq '原則7日以内' terms.html
+          grep -Fq '原則7日以内' commercial.html
+          ! grep -Eq '契約成立メール|個別案内メール|銀行振込' request.html checkout.html terms.html commercial.html
+          ! grep -R -q '遨ｺ螳ｶ' version.txt config.js register.html login.html request.html checkout.html terms.html commercial.html
+          echo 'AKIYA_PAID_LIVE_R1_DEPLOY=PASS'
