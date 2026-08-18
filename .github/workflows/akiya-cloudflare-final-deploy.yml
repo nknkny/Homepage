@@ -1,0 +1,210 @@
+name: Akiya Cloudflare final deploy
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  deploy:
+    if: github.event.issue.number == 42 && contains(github.event.comment.body, 'RUN_AKIYA_CLOUDFLARE_FINAL_DEPLOY')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CUSTOMER_URL: https://rapid-hat-f45c.jmdjdtdjdt.workers.dev
+      API_URL: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-api
+      PAYMENT_API_URL: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-payment-api
+      ADMIN_URL: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-owner-ui
+      EXPECTED_SITE_BUILD: 2026-08-18-paid-live-r2
+      EXPECTED_API_BUILD: 2026-08-14-legal-final-r10
+      EXPECTED_PAYMENT_BUILD: 2026-08-18-payment-bridge-r2
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve Cloudflare credentials
+        id: auth
+        env:
+          TOKEN_A: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT_A: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TOKEN_B: ${{ secrets.CF_API_TOKEN }}
+          ACCOUNT_B: ${{ secrets.CF_ACCOUNT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          token=''; account=''
+          if [ -n "${TOKEN_A:-}" ] && [ -n "${ACCOUNT_A:-}" ]; then token="$TOKEN_A"; account="$ACCOUNT_A"; fi
+          if [ -z "$token" ] && [ -n "${TOKEN_B:-}" ] && [ -n "${ACCOUNT_B:-}" ]; then token="$TOKEN_B"; account="$ACCOUNT_B"; fi
+          if [ -z "$token" ] || [ -z "$account" ]; then
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo 'ready=true' >> "$GITHUB_OUTPUT"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+          echo "account=$account" >> "$GITHUB_OUTPUT"
+          echo "::add-mask::$token"
+          echo "::add-mask::$account"
+
+      - name: Prepare Worker asset bundle
+        if: steps.auth.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/akiya-cloudflare"
+          rm -rf "$work"
+          mkdir -p "$work/public"
+          cp -R akiya-pocket/. "$work/public/"
+          rm -rf "$work/public/.github"
+          cat > "$work/public/_headers" <<'EOF'
+          /*
+            X-Content-Type-Options: nosniff
+            Referrer-Policy: no-referrer
+            X-Frame-Options: DENY
+            Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+            Strict-Transport-Security: max-age=31536000; includeSubDomains
+            Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: https://images.unsplash.com; style-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; connect-src 'self' https://challenges.cloudflare.com https://fpgtwgtoqtokpitzlbie.supabase.co
+
+          /VERSION.txt
+            Cache-Control: no-store, max-age=0
+          /member.html
+            Cache-Control: no-store, max-age=0
+          /member-login.html
+            Cache-Control: no-store, max-age=0
+          /profile.html
+            Cache-Control: no-store, max-age=0
+          /request.html
+            Cache-Control: no-store, max-age=0
+          /delete-account.html
+            Cache-Control: no-store, max-age=0
+          /reset-password.html
+            Cache-Control: no-store, max-age=0
+          /account-recovery.html
+            Cache-Control: no-store, max-age=0
+          /unsubscribe.html
+            Cache-Control: no-store, max-age=0
+          /checkout.html
+            Cache-Control: no-store, max-age=0
+          /payment-success.html
+            Cache-Control: no-store, max-age=0
+          /newsletter-unsubscribe.html
+            Cache-Control: no-store, max-age=0
+          /checklist.html
+            Cache-Control: no-store, max-age=0
+          /member-survey.html
+            Cache-Control: no-store, max-age=0
+          /assets/api.js
+            Cache-Control: no-store, max-age=0
+          /assets/config.js
+            Cache-Control: no-store, max-age=0
+          EOF
+          cat > "$work/wrangler.jsonc" <<'EOF'
+          {
+            "name": "rapid-hat-f45c",
+            "compatibility_date": "2026-08-18",
+            "workers_dev": true,
+            "assets": { "directory": "./public" }
+          }
+          EOF
+          grep -Fq 'FRONTEND_BUILD: "2026-08-18-paid-live-r2"' "$work/public/assets/config.js"
+          grep -Fq 'akiya-pocket-api' "$work/public/assets/config.js"
+          grep -Fq 'akiya-pocket-payment-api' "$work/public/assets/config.js"
+          grep -Fq 'rapid-hat-f45c.jmdjdtdjdt.workers.dev' "$work/public/assets/config.js"
+          grep -Fq 'fpgtwgtoqtokpitzlbie.supabase.co' "$work/public/_headers"
+
+      - name: Deploy existing Cloudflare Worker
+        id: deploy
+        if: steps.auth.outputs.ready == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ steps.auth.outputs.token }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ steps.auth.outputs.account }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/akiya-cloudflare"
+          npx --yes wrangler@latest deploy
+
+      - name: Verify customer production and APIs
+        id: verify
+        if: steps.auth.outputs.ready == 'true' && steps.deploy.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/evidence"
+          for n in $(seq 1 20); do
+            if curl -fsSL --max-time 20 "$CUSTOMER_URL/assets/config.js?v=$GITHUB_RUN_ID-$n" -o "$RUNNER_TEMP/evidence/config.js" \
+              && grep -Fq "FRONTEND_BUILD: \"$EXPECTED_SITE_BUILD\"" "$RUNNER_TEMP/evidence/config.js"; then break; fi
+            sleep 3
+          done
+          grep -Fq "FRONTEND_BUILD: \"$EXPECTED_SITE_BUILD\"" "$RUNNER_TEMP/evidence/config.js"
+          grep -Fq "$API_URL" "$RUNNER_TEMP/evidence/config.js"
+          grep -Fq "$PAYMENT_API_URL" "$RUNNER_TEMP/evidence/config.js"
+          grep -Fq 'SITE_ORIGIN: "https://rapid-hat-f45c.jmdjdtdjdt.workers.dev"' "$RUNNER_TEMP/evidence/config.js"
+          curl -fsSL "$CUSTOMER_URL/VERSION.txt?v=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/evidence/version.txt"
+          grep -Fq "siteVersion=$EXPECTED_SITE_BUILD" "$RUNNER_TEMP/evidence/version.txt"
+          curl -fsSL -D "$RUNNER_TEMP/evidence/headers.txt" -o "$RUNNER_TEMP/evidence/home.html" "$CUSTOMER_URL/?v=$GITHUB_RUN_ID"
+          tr -d '\r' < "$RUNNER_TEMP/evidence/headers.txt" > "$RUNNER_TEMP/evidence/headers-normalized.txt"
+          grep -Eiq '^strict-transport-security:.*max-age=' "$RUNNER_TEMP/evidence/headers-normalized.txt"
+          grep -Eiq '^x-content-type-options:[[:space:]]*nosniff' "$RUNNER_TEMP/evidence/headers-normalized.txt"
+          grep -Eiq '^x-frame-options:[[:space:]]*DENY' "$RUNNER_TEMP/evidence/headers-normalized.txt"
+          grep -Eiq '^content-security-policy:.*fpgtwgtoqtokpitzlbie\.supabase\.co' "$RUNNER_TEMP/evidence/headers-normalized.txt"
+          curl -fsSL "$API_URL" -o "$RUNNER_TEMP/evidence/api.json"
+          jq -e --arg b "$EXPECTED_API_BUILD" '.ok==true and .ready==true and .buildVersion==$b' "$RUNNER_TEMP/evidence/api.json" >/dev/null
+          curl -fsSL "$PAYMENT_API_URL" -o "$RUNNER_TEMP/evidence/payment.json"
+          jq -e --arg b "$EXPECTED_PAYMENT_BUILD" '.ok==true and .ready==true and .amountJpy==3480 and .paymentLinkReady==true and .buildVersion==$b' "$RUNNER_TEMP/evidence/payment.json" >/dev/null
+          curl -fsSL "$ADMIN_URL?health=1" -o "$RUNNER_TEMP/evidence/admin-health.json"
+          jq -e '.ok==true and .ready==true and .private==true' "$RUNNER_TEMP/evidence/admin-health.json" >/dev/null
+          curl -fsSL -D "$RUNNER_TEMP/evidence/admin-headers.txt" -o "$RUNNER_TEMP/evidence/admin.html" "$ADMIN_URL"
+          grep -Fq '空家ポケット 運営センター' "$RUNNER_TEMP/evidence/admin.html"
+          tr -d '\r' < "$RUNNER_TEMP/evidence/admin-headers.txt" > "$RUNNER_TEMP/evidence/admin-headers-normalized.txt"
+          grep -Eiq '^content-security-policy:' "$RUNNER_TEMP/evidence/admin-headers-normalized.txt"
+          grep -Eiq '^x-frame-options:[[:space:]]*DENY' "$RUNNER_TEMP/evidence/admin-headers-normalized.txt"
+
+      - name: Verify live registration request and Stripe handoff
+        id: e2e
+        if: steps.auth.outputs.ready == 'true' && steps.verify.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          email="akiya.cf.e2e.${GITHUB_RUN_ID}@example.invalid"
+          password="Akiya-CF-E2E-${GITHUB_RUN_ID}-X9!"
+          token=''
+          cleanup(){
+            if [ -n "$token" ]; then
+              jq -n --arg id "DEL-$GITHUB_RUN_ID" --arg token "$token" --arg password "$password" '{action:"delete_account",clientRequestId:$id,sessionToken:$token,currentPassword:$password}' > "$RUNNER_TEMP/delete.json"
+              curl -sS -H "Origin: $CUSTOMER_URL" -H 'Content-Type: application/json' --data-binary @"$RUNNER_TEMP/delete.json" "$API_URL" >/dev/null || true
+            fi
+          }
+          trap cleanup EXIT
+          jq -n --arg id "REG-$GITHUB_RUN_ID" --arg email "$email" --arg password "$password" '{action:"register_member",clientRequestId:$id,name:"Cloudflare本番E2E",email:$email,password:$password,residencePrefecture:"青森県",propertyPrefecture:"青森県",propertyCity:"青森市",relationship:"所有者",propertyStatus:"空き家",requiredConsent:"yes",marketingOptIn:"no"}' > "$RUNNER_TEMP/register.json"
+          curl -fsSL -H "Origin: $CUSTOMER_URL" -H 'Content-Type: application/json' --data-binary @"$RUNNER_TEMP/register.json" "$API_URL" -o "$RUNNER_TEMP/register-response.json"
+          jq -e '.ok==true and (.sessionToken|length>20)' "$RUNNER_TEMP/register-response.json" >/dev/null
+          token=$(jq -r '.sessionToken' "$RUNNER_TEMP/register-response.json")
+          jq -n --arg id "REQ-$GITHUB_RUN_ID" --arg token "$token" '{action:"create_inspection_request",clientRequestId:$id,sessionToken:$token,propertyAddress:"青森市テスト町1-1（Cloudflare本番E2E）",requestRelationship:"所有者",propertyStatus:"空き家",accessPermission:"敷地外からの確認のみ",requestConsent:"yes",requestNotes:"自動E2E。実作業不要。"}' > "$RUNNER_TEMP/request.json"
+          curl -fsSL -H "Origin: $CUSTOMER_URL" -H 'Content-Type: application/json' --data-binary @"$RUNNER_TEMP/request.json" "$API_URL" -o "$RUNNER_TEMP/request-response.json"
+          jq -e '.ok==true and (.requestId|startswith("AKR-"))' "$RUNNER_TEMP/request-response.json" >/dev/null
+          rid=$(jq -r '.requestId' "$RUNNER_TEMP/request-response.json")
+          jq -n --arg id "PAY-$GITHUB_RUN_ID" --arg token "$token" --arg rid "$rid" '{action:"start_card_payment",clientRequestId:$id,sessionToken:$token,requestId:$rid,finalConsent:"yes"}' > "$RUNNER_TEMP/payment-request.json"
+          curl -fsSL -H "Origin: $CUSTOMER_URL" -H 'Content-Type: application/json' --data-binary @"$RUNNER_TEMP/payment-request.json" "$PAYMENT_API_URL" -o "$RUNNER_TEMP/payment-response.json"
+          jq -e '.ok==true and .amountTotal==3480 and .currency=="jpy" and (.paymentUrl|startswith("https://buy.stripe.com/"))' "$RUNNER_TEMP/payment-response.json" >/dev/null
+          echo "request_id=$rid" >> "$GITHUB_OUTPUT"
+
+      - name: Record final result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTH_READY: ${{ steps.auth.outputs.ready }}
+          DEPLOY: ${{ steps.deploy.outcome }}
+          VERIFY: ${{ steps.verify.outcome }}
+          E2E: ${{ steps.e2e.outcome }}
+          REQUEST_ID: ${{ steps.e2e.outputs.request_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          overall=FAIL
+          reason='CHECK_FAILED'
+          if [ "$AUTH_READY" != true ]; then reason='CLOUDFLARE_AUTH_MISSING'; fi
+          if [ "$AUTH_READY" = true ] && [ "$DEPLOY" = success ] && [ "$VERIFY" = success ] && [ "$E2E" = success ]; then overall=PASS; reason='COMPLETE'; fi
+          body=$(jq -n --arg o "$overall" --arg reason "$reason" --arg run "$GITHUB_RUN_ID" --arg a "$AUTH_READY" --arg d "$DEPLOY" --arg v "$VERIFY" --arg e "$E2E" --arg rid "$REQUEST_ID" --arg cu "$CUSTOMER_URL" --arg au "$ADMIN_URL" '{body:("AKIYA_CLOUDFLARE_FINAL="+$o+"\nREASON="+$reason+"\nRUN_ID="+$run+"\nAUTH="+$a+" DEPLOY="+$d+" VERIFY="+$v+" E2E="+$e+"\nREQUEST_ID="+$rid+"\nCUSTOMER_URL="+$cu+"/\nADMIN_URL="+$au)}')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
