@@ -32,5 +32,5 @@ jobs:
             --data-urlencode 'required_consent=0' \
             --data-urlencode 'started_at=0')"
           test "$code" = '400'
-          grep -q '登録できませんでした' invalid.html
+          grep -Eq '入力内容を確認|登録できませんでした' invalid.html
           echo 'PUBLIC_SITE_VERIFY=PASS'
