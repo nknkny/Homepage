@@ -49,8 +49,11 @@ jobs:
           test -f dist/akiya-pocket/member-login.html
           test -f dist/akiya-pocket/request.html
           test -f dist/akiya-pocket/checkout.html
-          grep -Fq 'SITE_ORIGIN: "https://rapid-hat-f45c.jmdjdtdjdt.workers.dev"' dist/akiya-pocket/assets/config.js
+          test -f dist/akiya-pocket/control-center/index.html
+          grep -Fq 'SITE_ORIGIN: "https://nknkny.github.io"' dist/akiya-pocket/assets/config.js
           grep -Fq '"https://nknkny.github.io"' dist/akiya-pocket/assets/config.js
+          grep -Fq '本人確認窓口' dist/akiya-pocket/account-recovery.html
+          ! grep -Fq 'request_password_reset' dist/akiya-pocket/account-recovery.html
           ! find dist -path '*/owner*' -print -quit | grep -q .
 
       - id: upload
@@ -81,12 +84,14 @@ jobs:
           check index.html '空家ポケット'
           check register.html '無料会員登録'
           check member-login.html 'ログイン'
+          check account-recovery.html '本人確認窓口'
           check request.html '3,480円'
           check checkout.html '3,480円'
+          check control-center/ '空家ポケット 運営センター'
           curl -fsSL "$base/assets/config.js?v=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/config.js"
           grep -Fq 'akiya-pocket-api' "$RUNNER_TEMP/config.js"
           grep -Fq 'akiya-pocket-payment-api' "$RUNNER_TEMP/config.js"
-          grep -Fq 'SITE_ORIGIN: "https://rapid-hat-f45c.jmdjdtdjdt.workers.dev"' "$RUNNER_TEMP/config.js"
+          grep -Fq 'SITE_ORIGIN: "https://nknkny.github.io"' "$RUNNER_TEMP/config.js"
           grep -Fq '"https://nknkny.github.io"' "$RUNNER_TEMP/config.js"
           echo "PUBLIC_URL=$base/"
 
