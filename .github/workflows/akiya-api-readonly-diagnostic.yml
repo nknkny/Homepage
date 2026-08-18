@@ -1,0 +1,21 @@
+name: Akiya API read-only diagnostic
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read public API health only
+        shell: bash
+        run: |
+          set -euo pipefail
+          API='https://script.google.com/macros/s/AKfycbzWYTf9K_XyEfo1CD4Pshg18ANH5_zhOsTnyiFhKTwbDgs17ZOXqLgAxKrvO7TA3wYr0w/exec'
+          BODY="$(curl -fsSL --max-time 30 "$API?type=health&ts=$(date +%s)")"
+          printf '%s' "$BODY" | jq '{ok,app,buildVersion,ready,paidSalesReady,code}'
+          printf '%s' "$BODY" | jq -e '.buildVersion == "2026-08-14-legal-final-r10"' >/dev/null
