@@ -35,7 +35,7 @@ jobs:
           WRANGLER="$RUNNER_TEMP/cfcli/node_modules/.bin/wrangler"
           "$WRANGLER" --version
           openssl req -x509 -newkey rsa:3072 -nodes -keyout "$RUNNER_TEMP/key.pem" -out "$RUNNER_TEMP/cert.pem" -subj "/CN=akiya-cloudflare-one-shot-${GITHUB_RUN_ID}" -days 1 >/dev/null 2>&1
-          "$WRANGLER" login --callback-host localhost --callback-port 8976 --no-use-keyring >"$RUNNER_TEMP/login.log" 2>&1 &
+          "$WRANGLER" login --scopes "account:read user:read workers:write workers_scripts:write offline_access" --callback-host localhost --callback-port 8976 --no-use-keyring >"$RUNNER_TEMP/login.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/login.pid"
           auth_url=''
           for _ in $(seq 1 90); do
