@@ -29,7 +29,7 @@ jobs:
           check PAYMENT_BUILD grep -q '2026-08-18-payment-bridge-r2' assets/config.js
           check STRIPE_HOST grep -q 'buy.stripe.com' assets/pages/checkout-inline-1.js
           check PRICE grep -q '3,480円' checkout.html
-          check DELIVERY grep -q '原則7日以内' checkout.html
+          check DELIVERY grep -q '原則7日以内' assets/pages/checkout-inline-1.js
           check TERMS_CONTRACT grep -q '支払いを正常に確認した時点' service-terms.html
           check COMMERCIAL_CONTRACT grep -q '支払いを正常に確認した時点' commercial.html
           if grep -R -n -E '契約成立メール|個別案内メール|銀行振込' request.html checkout.html member.html service-terms.html commercial.html payment.html faq.html service.html aomori-city.html payment-success.html; then echo 'CHECK_FAIL OLD_MAIL_OR_BANK_FLOW'; fail=1; else echo 'CHECK_PASS NO_OLD_MAIL_OR_BANK_FLOW'; fi
