@@ -1,0 +1,108 @@
+name: Akiya live r13 snapshot
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Recover current live site without changing production
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin akiya-rescue-cloudflare:refs/remotes/origin/akiya-rescue-cloudflare
+          mkdir -p live
+          python3 - <<'PY'
+          import os, re, urllib.request, urllib.error, urllib.parse
+          from pathlib import Path
+
+          BASE='https://rapid-hat-f45c.jmdjdtdjdt.workers.dev/'
+          out=Path('live')
+          candidates=set()
+          for raw in os.popen("git ls-tree -r --name-only origin/akiya-rescue-cloudflare").read().splitlines():
+              p=raw.strip()
+              if not p or p.startswith('.git') or p.startswith('.github/') or p in {'_headers'}:
+                  continue
+              candidates.add(p)
+          candidates.update({'','VERSION.txt','robots.txt','sitemap.xml','favicon.ico'})
+          queue=list(candidates)
+          seen=set()
+          log=[]
+          ua={'User-Agent':'AkiyaPocketProductionSnapshot/1.0'}
+          while queue:
+              rel=queue.pop(0).lstrip('/')
+              if rel in seen: continue
+              seen.add(rel)
+              url=urllib.parse.urljoin(BASE, urllib.parse.quote(rel, safe='/._-'))
+              try:
+                  req=urllib.request.Request(url,headers=ua)
+                  with urllib.request.urlopen(req,timeout=20) as r:
+                      status=r.status
+                      data=r.read()
+                      ctype=(r.headers.get('content-type') or '').lower()
+              except urllib.error.HTTPError as e:
+                  log.append(f'{e.code}\t{rel}')
+                  continue
+              except Exception as e:
+                  log.append(f'ERR\t{rel}\t{type(e).__name__}')
+                  continue
+              if status != 200:
+                  log.append(f'{status}\t{rel}')
+                  continue
+              target=out/(rel or 'index.html')
+              target.parent.mkdir(parents=True,exist_ok=True)
+              target.write_bytes(data)
+              log.append(f'200\t{rel or "index.html"}\t{len(data)}')
+              if 'text/html' in ctype or target.suffix.lower() in {'.html','.htm'}:
+                  try: text=data.decode('utf-8','ignore')
+                  except Exception: text=''
+                  for attr in re.findall(r'''(?:href|src)=["']([^"'#?]+)''', text, re.I):
+                      u=urllib.parse.urljoin(url,attr)
+                      pu=urllib.parse.urlparse(u)
+                      if pu.netloc == urllib.parse.urlparse(BASE).netloc:
+                          child=urllib.parse.unquote(pu.path.lstrip('/'))
+                          if child and child not in seen:
+                              queue.append(child)
+          # Preserve deployment header configuration from the latest retained source only as a separate reference.
+          os.system("git show origin/akiya-rescue-cloudflare:_headers > live/_headers.source-reference 2>/dev/null || true")
+          Path('snapshot-log.tsv').write_text('\n'.join(log)+'\n',encoding='utf-8')
+          print('SNAPSHOT_FILES', sum(1 for p in out.rglob('*') if p.is_file()))
+          for key in ['index.html','register.html','member-login.html','request.html','checkout.html','payment-success.html','assets/config.js','assets/api.js']:
+              p=out/key
+              print(f'{key}={"PRESENT" if p.exists() else "MISSING"}')
+          PY
+
+      - name: Record safe deployment credential presence only
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          : > credential-presence.txt
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID CF_API_TOKEN CF_ACCOUNT_ID; do
+            if [ -n "${!name:-}" ]; then state=PRESENT; else state=MISSING; fi
+            echo "$name=$state" | tee -a credential-presence.txt
+          done
+
+      - name: Upload recovered live snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: akiya-live-r13-snapshot
+          path: |
+            live
+            snapshot-log.tsv
+            credential-presence.txt
+          retention-days: 1
+          if-no-files-found: error
