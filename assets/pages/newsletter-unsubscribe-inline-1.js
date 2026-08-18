@@ -1,0 +1,2 @@
+'use strict';
+const token=new URLSearchParams(location.search).get('token')||'';unsubButton.addEventListener('click',async()=>{if(!token)return AkiyaUI.show(unsubStatus,'配信停止用の情報がありません。');AkiyaUI.busy(unsubButton,true);try{const r=await AkiyaAPI.submit('newsletter_unsubscribe',{unsubscribeToken:token});AkiyaUI.show(unsubStatus,r.message||'配信を停止しました。',!!r.ok)}catch(e){AkiyaUI.show(unsubStatus,e.message||'配信停止を完了できませんでした。')}finally{AkiyaUI.busy(unsubButton,false)}});
