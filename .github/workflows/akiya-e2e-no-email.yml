@@ -1,0 +1,60 @@
+name: Akiya membership E2E no email
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Register login dashboard delete
+        shell: bash
+        run: |
+          set -euo pipefail
+          API='https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-api'
+          EMAIL="akiya-e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}@example.invalid"
+          PASSWORD="E2E-$(openssl rand -hex 12)"
+          ID="E2E-REGISTER-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          cleanup(){
+            if [ -n "${TOKEN:-}" ]; then
+              curl -sS --max-time 30 -X POST "$API" -H 'Content-Type: application/json' \
+                --data "$(jq -nc --arg t "$TOKEN" --arg p "$PASSWORD" --arg id "E2E-CLEANUP-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" '{action:"delete_account",sessionToken:$t,currentPassword:$p,clientRequestId:$id}')" >/dev/null || true
+            fi
+          }
+          trap cleanup EXIT
+          jq -nc --arg e "$EMAIL" --arg p "$PASSWORD" --arg id "$ID" '{action:"register_member",clientRequestId:$id,name:"E2E自動テスト",email:$e,password:$p,phone:"",residencePrefecture:"東京都",propertyPrefecture:"青森県",propertyCity:"青森市",relationship:"所有者本人",propertyStatus:"情報収集中",requiredConsent:"yes",marketingOptIn:"",analyticsSource:"e2e_test"}' > register-payload.json
+          curl -fsSL --max-time 45 -X POST "$API" -H 'Content-Type: application/json' --data-binary @register-payload.json -o register.json
+          jq -e --arg id "$ID" '.ok == true and (.sessionToken|length) > 20 and .clientRequestId == $id and .buildVersion == "2026-08-14-legal-final-r10"' register.json >/dev/null
+          TOKEN="$(jq -r '.sessionToken' register.json)"
+          echo REGISTER=PASS
+
+          ID2="E2E-DASH-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          curl -fsSL --max-time 45 -X POST "$API" -H 'Content-Type: application/json' \
+            --data "$(jq -nc --arg t "$TOKEN" --arg id "$ID2" '{action:"get_dashboard",sessionToken:$t,clientRequestId:$id}')" -o dash.json
+          jq -e --arg id "$ID2" --arg e "$EMAIL" '.ok == true and .member.email == $e and .clientRequestId == $id and (.requests|type)=="array"' dash.json >/dev/null
+          echo DASHBOARD=PASS
+
+          ID3="E2E-LOGIN-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          curl -fsSL --max-time 45 -X POST "$API" -H 'Content-Type: application/json' \
+            --data "$(jq -nc --arg e "$EMAIL" --arg p "$PASSWORD" --arg id "$ID3" '{action:"member_login",credential:$e,password:$p,clientRequestId:$id}')" -o login.json
+          jq -e --arg id "$ID3" '.ok == true and (.sessionToken|length) > 20 and .clientRequestId == $id' login.json >/dev/null
+          LOGIN_TOKEN="$(jq -r '.sessionToken' login.json)"
+          echo LOGIN=PASS
+
+          ID4="E2E-DELETE-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          curl -fsSL --max-time 45 -X POST "$API" -H 'Content-Type: application/json' \
+            --data "$(jq -nc --arg t "$LOGIN_TOKEN" --arg p "$PASSWORD" --arg id "$ID4" '{action:"delete_account",sessionToken:$t,currentPassword:$p,clientRequestId:$id}')" -o delete.json
+          jq -e --arg id "$ID4" '.ok == true and .clientRequestId == $id' delete.json >/dev/null
+          TOKEN=''
+          echo DELETE=PASS
+
+          ID5="E2E-AFTER-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          code="$(curl -sS -o after.json -w '%{http_code}' --max-time 45 -X POST "$API" -H 'Content-Type: application/json' --data "$(jq -nc --arg t "$LOGIN_TOKEN" --arg id "$ID5" '{action:"get_dashboard",sessionToken:$t,clientRequestId:$id}')")"
+          test "$code" = '401'
+          jq -e '.ok == false and .code == "AUTH_REQUIRED"' after.json >/dev/null
+          echo DELETED_SESSION_REJECTED=PASS
+          echo AKIYA_MEMBERSHIP_E2E_NO_EMAIL=PASS
