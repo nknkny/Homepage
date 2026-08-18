@@ -1,0 +1,3 @@
+unified-pages-deploy=2026-08-18T23:00+09:00
+customer=akiya-pocket/
+admin=akiya-pocket/control-center/
