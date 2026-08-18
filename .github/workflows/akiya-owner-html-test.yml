@@ -1,4 +1,4 @@
-name: Akiya owner HTML delivery verify
+name: Akiya owner private page verify
 
 on:
   pull_request:
@@ -11,17 +11,16 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - name: Verify Supabase can serve UTF-8 HTML
+      - name: Provision private owner page and verify signed rendering
         shell: bash
         run: |
           set -euo pipefail
-          URL='https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-owner-html-test'
-          curl -fsSL --max-time 30 -D headers.txt "$URL?ts=${GITHUB_SHA}" -o body.html
-          grep -i '^content-type: text/html' headers.txt
-          python3 - <<'PY'
-          from pathlib import Path
-          s=Path('body.html').read_text('utf-8')
-          assert '空家ポケット管理テスト' in s
-          assert '遨ｺ螳ｶ' not in s
-          print('OWNER_HTML_UTF8=PASS')
-          PY
+          PROVISION='https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-owner-provision-once'
+          CHECK='https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-owner-storage-check'
+          curl -fsSL --max-time 45 "$PROVISION?ts=${GITHUB_SHA}" -o provision.json
+          cat provision.json
+          jq -e '.ok == true and .public == false and .bucket == "akiya-owner-private"' provision.json >/dev/null
+          curl -fsSL --max-time 45 "$CHECK?ts=${GITHUB_SHA}" -o check.json
+          cat check.json
+          jq -e '.ok == true and .bucket == true and .object == true and .http == 200 and .hasBrand == true and .hasMojibake == false and .noindex == true and (.contentType|startswith("text/html"))' check.json >/dev/null
+          echo 'AKIYA_PRIVATE_OWNER_PAGE=PASS'
