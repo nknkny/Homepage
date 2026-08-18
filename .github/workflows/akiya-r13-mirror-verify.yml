@@ -1,4 +1,4 @@
-name: Akiya production display verify
+name: Akiya current connection audit
 
 on:
   pull_request:
@@ -8,40 +8,53 @@ permissions:
   contents: read
 
 jobs:
-  verify:
+  audit:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect customer and owner pages
+      - name: Read-only audit current production connection
         shell: bash
         run: |
           set -euo pipefail
-          CF='https://rapid-hat-f45c.jmdjdtdjdt.workers.dev/'
-          OWNER1='https://nknkny.github.io/Homepage/'
-          OWNER2='https://nknkny.github.io/Homepage/owner/'
-          OWNER_API='https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-owner'
-          curl -fsSL --max-time 30 "$CF" -o customer.html
+          CF='https://rapid-hat-f45c.jmdjdtdjdt.workers.dev'
+          curl -fsSL --max-time 30 "$CF/" -o home.html
+          curl -fsSL --max-time 30 "$CF/assets/config.js?audit=${GITHUB_SHA}" -o config.js
+          curl -fsSL --max-time 30 "$CF/assets/api.js?audit=${GITHUB_SHA}" -o api.js
+          curl -fsSL --max-time 30 "$CF/register.html?audit=${GITHUB_SHA}" -o register.html
           python3 - <<'PY'
           from pathlib import Path
-          s=Path('customer.html').read_text(encoding='utf-8')
-          assert '空家ポケット' in s and '遨ｺ螳ｶ' not in s
-          print('CUSTOMER_CLOUDFLARE_UTF8=PASS')
+          import re
+          home=Path('home.html').read_text('utf-8')
+          cfg=Path('config.js').read_text('utf-8')
+          api=Path('api.js').read_text('utf-8')
+          reg=Path('register.html').read_text('utf-8')
+          print('HOME_UTF8=', '空家ポケット' in home and '遨ｺ螳ｶ' not in home)
+          print('REGISTER_PAGE_PRESENT=', '無料会員' in reg or '会員登録' in reg)
+          m=re.search(r'API_URL:\s*"([^"]+)"',cfg)
+          api_url=m.group(1) if m else ''
+          print('LIVE_API_URL='+api_url)
+          print('CONFIG_USES_APPS_SCRIPT=', api_url.startswith('https://script.google.com/macros/s/'))
+          print('API_JS_APPS_SCRIPT_ONLY=', 'script\\.google\\.com' in api and 'trustedApiMessageOrigin' in api)
+          Path('api-url.txt').write_text(api_url,encoding='utf-8')
           PY
-          for n in 1 2; do
-            v="OWNER${n}"
-            url="${!v}"
-            code=$(curl -sS -o "owner${n}.html" -D "owner${n}.headers" -w '%{http_code}' --max-time 30 "$url")
-            echo "OWNER${n}_STATUS=$code URL=$url"
-            grep -i '^content-type:' "owner${n}.headers" || true
-            python3 - "$n" <<'PY'
-          import sys
+          API_URL=$(cat api-url.txt)
+          if [ -n "$API_URL" ]; then
+            set +e
+            code=$(curl -sSL -o api-response.txt -D api-headers.txt -w '%{http_code}' --max-time 30 "$API_URL?audit=${GITHUB_SHA}")
+            rc=$?
+            set -e
+            echo "API_CURL_RC=$rc"
+            echo "API_HTTP_CODE=$code"
+            echo '---API_FINAL_HEADERS---'
+            tail -n 30 api-headers.txt || true
+            echo '---API_RESPONSE_PREFIX---'
+            head -c 700 api-response.txt || true
+            echo
+            python3 - <<'PY'
           from pathlib import Path
-          n=sys.argv[1]
-          s=Path(f'owner{n}.html').read_text(encoding='utf-8',errors='replace')
-          print(f'OWNER{n}_HAS_BRAND=', '空家ポケット 運営センター' in s)
-          print(f'OWNER{n}_HAS_MOJIBAKE=', '遨ｺ螳ｶ' in s)
-          print(f'OWNER{n}_PREFIX=', s[:260].replace('\n',' '))
+          s=Path('api-response.txt').read_text('utf-8',errors='replace') if Path('api-response.txt').exists() else ''
+          lo=s.lower()
+          print('API_RESPONSE_LOOKS_JSON=', s.lstrip().startswith('{'))
+          print('API_RESPONSE_GOOGLE_LOGIN=', ('accounts.google.com' in lo) or ('sign in' in lo) or ('ログイン' in s and '<html' in lo))
+          print('API_RESPONSE_ACCESS_DENIED=', 'ACCESS_DENIED' in s)
           PY
-          done
-          curl -isS --max-time 30 -X OPTIONS "$OWNER_API" -H 'Origin: https://nknkny.github.io' -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type' > cors.txt
-          echo '---CORS---'
-          grep -i '^access-control-' cors.txt || true
+          fi
