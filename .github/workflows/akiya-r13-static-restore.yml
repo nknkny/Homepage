@@ -1,0 +1,44 @@
+name: Akiya r13 static restore
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Download exact r13 snapshot artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/9311059142/zip" -o /tmp/r13.zip
+          mkdir -p /tmp/r13
+          unzip -q /tmp/r13.zip -d /tmp/r13
+          test -f /tmp/r13/live/index.html
+          test -f /tmp/r13/live/register.html
+          grep -q 'id="registerForm"' /tmp/r13/live/register.html
+          grep -q '2026-08-14-legal-final-r13' /tmp/r13/live/VERSION.txt
+          echo R13_ARTIFACT_VALID=PASS
+      - name: Publish isolated static source branch
+        run: |
+          set -euo pipefail
+          git config user.name 'akiya-pocket-restore-bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git checkout --orphan akiya-r13-static-tmp
+          git rm -rf . >/dev/null 2>&1 || true
+          cp -a /tmp/r13/live/. .
+          rm -f _headers.source-reference
+          git add -A
+          git commit -m 'restore: exact Akiya Pocket r13 production snapshot'
+          git push origin HEAD:refs/heads/akiya-r13-static --force
+          echo R13_STATIC_BRANCH=PASS
