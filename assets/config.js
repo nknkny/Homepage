@@ -1,5 +1,5 @@
 window.AKIYA_CONFIG = {
-  FRONTEND_BUILD: "2026-08-14-legal-final-r13",
+  FRONTEND_BUILD: "2026-08-18-paid-live-r1",
   API_URL: "https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-api",
   REQUIRED_API_BUILD: "2026-08-14-legal-final-r10",
   PAYMENT_API_URL: "https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-payment-api",
