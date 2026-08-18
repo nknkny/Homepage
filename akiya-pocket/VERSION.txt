@@ -1,4 +1,4 @@
-siteVersion=2026-08-18-paid-live-r1
+siteVersion=2026-08-18-paid-live-r2
 apiRequiredBuild=2026-08-14-legal-final-r10
 paymentApiBuild=2026-08-18-payment-bridge-r2
 paymentMode=fixed_3480_final_confirmation_then_stripe
@@ -11,12 +11,16 @@ invoiceRegistrationNumber=T5810907887896
 invoiceRegistrationDate=2025-01-01
 taxMode=manual_inclusive_jp_10_percent
 
-audit_revision=2026-08-18-paid-live-r1
+audit_revision=2026-08-18-paid-live-r2
 privacy_version=2026-08-12-v7
 service_terms_version=service-terms-2026-08-18
 turnstile_hostname_binding=enabled
 turnstile_action_binding=enabled
 obsolete_apps_script_backend=removed_from_customer_flow
+cloudflare_canonical_origin=rapid-hat-f45c.jmdjdtdjdt.workers.dev
+supabase_member_api=akiya-pocket-api
+supabase_payment_api=akiya-pocket-payment-api
+
 
 authority_gate=required_before_request
 field_execution_ledger=required_before_invoice
