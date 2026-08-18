@@ -1,0 +1,2 @@
+'use strict';
+deleteForm.addEventListener('submit',async e=>{e.preventDefault();const b=e.submitter;AkiyaUI.busy(b,true);try{const d=AkiyaUI.formData(deleteForm);d.sessionToken=AkiyaAPI.token();const r=await AkiyaAPI.submit('delete_account',d);AkiyaUI.show(deleteStatus,r.message||'処理できませんでした。',!!r.ok);if(r.ok){AkiyaAPI.setToken('');setTimeout(()=>location.href='index.html',1200)}}catch(err){AkiyaUI.show(deleteStatus,err.message||'処理できませんでした。')}finally{AkiyaUI.busy(b,false)}});
