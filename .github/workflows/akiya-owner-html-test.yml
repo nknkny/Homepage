@@ -17,10 +17,14 @@ jobs:
           set -euo pipefail
           PROVISION='https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-owner-provision-once'
           CHECK='https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-owner-storage-check'
-          curl -fsSL --max-time 45 "$PROVISION?ts=${GITHUB_SHA}" -o provision.json
-          cat provision.json
+          code=$(curl -sSL --max-time 45 -w '%{http_code}' "$PROVISION?ts=${GITHUB_SHA}" -o provision.json || true)
+          echo "PROVISION_HTTP=$code"
+          cat provision.json || true
+          test "$code" = '200'
           jq -e '.ok == true and .public == false and .bucket == "akiya-owner-private"' provision.json >/dev/null
-          curl -fsSL --max-time 45 "$CHECK?ts=${GITHUB_SHA}" -o check.json
-          cat check.json
+          code2=$(curl -sSL --max-time 45 -w '%{http_code}' "$CHECK?ts=${GITHUB_SHA}" -o check.json || true)
+          echo "CHECK_HTTP=$code2"
+          cat check.json || true
+          test "$code2" = '200'
           jq -e '.ok == true and .bucket == true and .object == true and .http == 200 and .hasBrand == true and .hasMojibake == false and .noindex == true and (.contentType|startswith("text/html"))' check.json >/dev/null
           echo 'AKIYA_PRIVATE_OWNER_PAGE=PASS'
