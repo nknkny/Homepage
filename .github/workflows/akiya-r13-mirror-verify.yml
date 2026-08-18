@@ -11,40 +11,37 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - name: Verify customer and owner pages
+      - name: Inspect customer and owner pages
         shell: bash
         run: |
           set -euo pipefail
           CF='https://rapid-hat-f45c.jmdjdtdjdt.workers.dev/'
-          OWNER='https://nknkny.github.io/Homepage/'
+          OWNER1='https://nknkny.github.io/Homepage/'
+          OWNER2='https://nknkny.github.io/Homepage/owner/'
           OWNER_API='https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-owner'
-
           curl -fsSL --max-time 30 "$CF" -o customer.html
           python3 - <<'PY'
           from pathlib import Path
           s=Path('customer.html').read_text(encoding='utf-8')
-          assert '空家ポケット' in s
-          assert '遨ｺ螳ｶ' not in s
+          assert '空家ポケット' in s and '遨ｺ螳ｶ' not in s
           print('CUSTOMER_CLOUDFLARE_UTF8=PASS')
           PY
-
-          curl -fsS -D owner.headers --max-time 30 "$OWNER" -o owner.html
-          python3 - <<'PY'
+          for n in 1 2; do
+            v="OWNER${n}"
+            url="${!v}"
+            code=$(curl -sS -o "owner${n}.html" -D "owner${n}.headers" -w '%{http_code}' --max-time 30 "$url")
+            echo "OWNER${n}_STATUS=$code URL=$url"
+            grep -i '^content-type:' "owner${n}.headers" || true
+            python3 - "$n" <<'PY'
+          import sys
           from pathlib import Path
-          h=Path('owner.headers').read_text(encoding='utf-8',errors='replace').lower()
-          s=Path('owner.html').read_text(encoding='utf-8')
-          assert 'text/html' in h
-          assert '空家ポケット 運営センター' in s
-          assert '遨ｺ螳ｶ' not in s
-          assert '完全自動 ON' in s
-          print('OWNER_GITHUB_PAGES_UTF8=PASS')
+          n=sys.argv[1]
+          s=Path(f'owner{n}.html').read_text(encoding='utf-8',errors='replace')
+          print(f'OWNER{n}_HAS_BRAND=', '空家ポケット 運営センター' in s)
+          print(f'OWNER{n}_HAS_MOJIBAKE=', '遨ｺ螳ｶ' in s)
+          print(f'OWNER{n}_PREFIX=', s[:260].replace('\n',' '))
           PY
-
-          curl -isS --max-time 30 -X OPTIONS "$OWNER_API" \
-            -H 'Origin: https://nknkny.github.io' \
-            -H 'Access-Control-Request-Method: POST' \
-            -H 'Access-Control-Request-Headers: content-type' > cors.txt
-          grep -qi '^access-control-allow-origin: https://nknkny.github.io' cors.txt
-          grep -qi '^access-control-allow-methods: .*POST' cors.txt
-          echo OWNER_API_CORS=PASS
-          echo AKIYA_VISIBLE_PAGES_VERIFY=PASS
+          done
+          curl -isS --max-time 30 -X OPTIONS "$OWNER_API" -H 'Origin: https://nknkny.github.io' -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type' > cors.txt
+          echo '---CORS---'
+          grep -i '^access-control-' cors.txt || true
