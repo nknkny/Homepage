@@ -18,20 +18,36 @@ jobs:
           BASE='https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-live/'
           API='https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-api'
           curl -fsSL --max-time 30 "$BASE" -o home.html
-          grep -q '空家ポケット' home.html
-          grep -q '青森市' home.html
-          grep -q '無料会員' home.html
+          echo HOME_FETCH=PASS
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('home.html').read_text(encoding='utf-8')
+          print('HOME_UTF8=PASS')
+          print('HOME_HAS_BRAND=', '空家ポケット' in s)
+          print('HOME_HAS_AOMORI=', '青森市' in s)
+          print('HOME_HAS_FREE=', '無料会員' in s)
+          assert '空家ポケット' in s and '青森市' in s and '無料会員' in s
+          PY
           curl -fsSL --max-time 30 "${BASE}register.html" -o register.html
-          grep -q '無料会員登録' register.html
-          grep -q 'registerForm' register.html
+          echo REGISTER_FETCH=PASS
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('register.html').read_text(encoding='utf-8')
+          print('REGISTER_UTF8=PASS')
+          print('REGISTER_HAS_TITLE=', '無料会員登録' in s)
+          print('REGISTER_HAS_FORM=', 'registerForm' in s)
+          assert '無料会員登録' in s and 'registerForm' in s
+          PY
           curl -fsSL --max-time 30 "${BASE}assets/config.js" -o config.js
-          grep -q '2026-08-14-legal-final-r13' config.js
-          grep -q 'akiya-pocket-api' config.js
-          grep -q 'TURNSTILE_SITE_KEY: ""' config.js
+          grep -q '2026-08-14-legal-final-r13' config.js && echo CONFIG_BUILD=PASS
+          grep -q 'akiya-pocket-api' config.js && echo CONFIG_API=PASS
+          grep -q 'TURNSTILE_SITE_KEY: ""' config.js && echo CONFIG_TURNSTILE_DISABLED=PASS
           curl -fsSL --max-time 30 "$API" -o health.json
           jq -e '.ok == true and .ready == true and .emailSending == false and .buildVersion == "2026-08-14-legal-final-r10"' health.json >/dev/null
+          echo API_HEALTH=PASS
           ID='VERIFY-NO-MEMBER-20260818'
           code="$(curl -sS -o invalid.json -w '%{http_code}' --max-time 30 -X POST "$API" -H 'Content-Type: application/json' --data '{"action":"register_member","clientRequestId":"'"$ID"'","name":"","email":"invalid","password":"123","requiredConsent":""}')"
           test "$code" = '400'
           jq -e --arg id "$ID" '.ok == false and .clientRequestId == $id and .buildVersion == "2026-08-14-legal-final-r10"' invalid.json >/dev/null
+          echo INVALID_SIGNUP_REJECTED=PASS
           echo 'AKIYA_R13_MIRROR_VERIFY=PASS'
