@@ -1,0 +1,86 @@
+name: Akiya final Pages deploy
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  issues: write
+
+concurrency:
+  group: akiya-final-pages-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event.issue.number == 42 && contains(github.event.comment.body, 'RUN_AKIYA_FINAL_PAGES_DEPLOY')
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - name: Build exact public artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p dist
+          cp index.html dist/index.html
+          cp -R event-platform dist/event-platform
+          cp -R akiya-pocket dist/akiya-pocket
+          test -s dist/akiya-pocket/index.html
+          test -s dist/akiya-pocket/register.html
+          test -s dist/akiya-pocket/member-login.html
+          test -s dist/akiya-pocket/request.html
+          test -s dist/akiya-pocket/checkout.html
+          test -s dist/akiya-pocket/control-center/index.html
+          grep -Fq '空家ポケット 運営センター' dist/akiya-pocket/control-center/index.html
+          grep -Fq 'start_full_auto' dist/akiya-pocket/control-center/index.html
+          grep -Fq 'akiya-pocket-api' dist/akiya-pocket/assets/config.js
+          grep -Fq 'akiya-pocket-payment-api' dist/akiya-pocket/assets/config.js
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deployment
+        uses: actions/deploy-pages@v4
+      - name: Verify deployed customer and admin HTML
+        id: verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          customer='https://nknkny.github.io/Homepage/akiya-pocket/'
+          admin='https://nknkny.github.io/Homepage/akiya-pocket/control-center/'
+          ok=0
+          for n in $(seq 1 30); do
+            ch=$(curl -sS -L -o "$RUNNER_TEMP/customer.html" -D "$RUNNER_TEMP/customer.h" -w '%{http_code}' "$customer?v=$GITHUB_RUN_ID-$n" || true)
+            ah=$(curl -sS -L -o "$RUNNER_TEMP/admin.html" -D "$RUNNER_TEMP/admin.h" -w '%{http_code}' "$admin?v=$GITHUB_RUN_ID-$n" || true)
+            if [ "$ch" = 200 ] && [ "$ah" = 200 ] && grep -Fq '空家ポケット' "$RUNNER_TEMP/customer.html" && grep -Fq '空家ポケット 運営センター' "$RUNNER_TEMP/admin.html"; then ok=1; break; fi
+            sleep 3
+          done
+          test "$ok" = 1
+          grep -Eiq '^content-type:.*text/html' "$RUNNER_TEMP/customer.h"
+          grep -Eiq '^content-type:.*text/html' "$RUNNER_TEMP/admin.h"
+          ! grep -Eq 'ç©º|ãƒ|ã‚|�' "$RUNNER_TEMP/customer.html"
+          ! grep -Eq 'ç©º|ãƒ|ã‚|�' "$RUNNER_TEMP/admin.html"
+          echo 'VERIFY=PASS'
+      - name: Record result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOY: ${{ steps.deployment.outcome }}
+          VERIFY: ${{ steps.verify.outcome }}
+        shell: bash
+        run: |
+          if [ "$DEPLOY" = success ] && [ "$VERIFY" = success ]; then overall=PASS; else overall=FAIL; fi
+          body=$(jq -n --arg o "$overall" --arg d "$DEPLOY" --arg v "$VERIFY" --arg r "$GITHUB_RUN_ID" '{body:("AKIYA_FINAL_PAGES_DEPLOY="+$o+"\nRUN_ID="+$r+"\nDEPLOY="+$d+" VERIFY="+$v+"\nCUSTOMER=https://nknkny.github.io/Homepage/akiya-pocket/\nADMIN=https://nknkny.github.io/Homepage/akiya-pocket/control-center/")}')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
