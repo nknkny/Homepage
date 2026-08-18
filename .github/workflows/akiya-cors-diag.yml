@@ -1,0 +1,47 @@
+name: Akiya Cloudflare CORS diagnostic
+on:
+  issue_comment:
+    types: [created]
+permissions:
+  contents: read
+  issues: write
+jobs:
+  cors:
+    if: github.event.issue.number == 42 && contains(github.event.comment.body, 'RUN_AKIYA_CLOUDFLARE_CORS_DIAG')
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    env:
+      ORIGIN: https://rapid-hat-f45c.jmdjdtdjdt.workers.dev
+      API: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-api
+      PAY: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-payment-api
+    steps:
+      - id: test
+        shell: bash
+        run: |
+          set -u
+          check(){
+            local name="$1" url="$2" h="$RUNNER_TEMP/$name.h"
+            code=$(curl -sS -o /dev/null -D "$h" -w '%{http_code}' -X OPTIONS -H "Origin: $ORIGIN" -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type' "$url" || true)
+            tr -d '\r' < "$h" > "$h.n"
+            acao=$(grep -i '^access-control-allow-origin:' "$h.n" | head -1 | sed 's/^[^:]*:[[:space:]]*//' || true)
+            methods=$(grep -i '^access-control-allow-methods:' "$h.n" | head -1 | sed 's/^[^:]*:[[:space:]]*//' || true)
+            headers=$(grep -i '^access-control-allow-headers:' "$h.n" | head -1 | sed 's/^[^:]*:[[:space:]]*//' || true)
+            echo "${name}_code=$code" >> "$GITHUB_OUTPUT"; echo "${name}_acao=$acao" >> "$GITHUB_OUTPUT"; echo "${name}_methods=$methods" >> "$GITHUB_OUTPUT"; echo "${name}_headers=$headers" >> "$GITHUB_OUTPUT"
+          }
+          check api "$API"
+          check pay "$PAY"
+      - name: Record
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AC: ${{ steps.test.outputs.api_code }}
+          AO: ${{ steps.test.outputs.api_acao }}
+          AM: ${{ steps.test.outputs.api_methods }}
+          AH: ${{ steps.test.outputs.api_headers }}
+          PC: ${{ steps.test.outputs.pay_code }}
+          PO: ${{ steps.test.outputs.pay_acao }}
+          PM: ${{ steps.test.outputs.pay_methods }}
+          PH: ${{ steps.test.outputs.pay_headers }}
+        shell: bash
+        run: |
+          body=$(jq -n --arg ac "$AC" --arg ao "$AO" --arg am "$AM" --arg ah "$AH" --arg pc "$PC" --arg po "$PO" --arg pm "$PM" --arg ph "$PH" '{body:("AKIYA_CLOUDFLARE_CORS_DIAG\nAPI_OPTIONS="+$ac+" ACAO="+$ao+" METHODS="+$am+" HEADERS="+$ah+"\nPAY_OPTIONS="+$pc+" ACAO="+$po+" METHODS="+$pm+" HEADERS="+$ph)}')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
