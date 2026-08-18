@@ -1,1 +1,2 @@
-Akiya Pocket public Pages deployment trigger 2026-08-18T20:20+09:00
+Akiya Pocket public Pages deployment trigger 2026-08-18T20:24+09:00
+Run production E2E: registration -> request -> Stripe payment URL -> delete test account.
