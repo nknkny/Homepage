@@ -28,15 +28,20 @@ jobs:
           const browser=await chromium.launch({headless:true});
           const out={};
           for(const [k,url] of Object.entries(urls)){
+            const raw=await fetch(url,{redirect:'follow'});
+            const rawText=await raw.text();
             const page=await browser.newPage();
             const resp=await page.goto(url,{waitUntil:'networkidle',timeout:45000});
             const title=await page.title();
-            const text=(await page.locator('body').innerText()).replace(/\s+/g,' ').slice(0,1200);
+            const bodyText=(await page.locator('body').innerText()).replace(/\s+/g,' ').slice(0,900);
+            const bodyHtml=(await page.locator('body').innerHTML()).replace(/\s+/g,' ').slice(0,700);
             const charset=await page.evaluate(()=>document.characterSet);
-            const mojibake=/[�]|(?:Ã.|Â.|ã[\x80-\xBF]|æ[\x80-\xBF]|ç[\x80-\xBF]|è[\x80-\xBF]|é[\x80-\xBF])/u.test(text);
-            const japanese=/[ぁ-んァ-ヶ一-龠]/u.test(text);
-            await page.screenshot({path:`${k}.png`,fullPage:true});
-            out[k]={status:resp?.status()||0,title,charset,japanese,mojibake,text};
+            const ct=resp?.headers()['content-type']||'';
+            const rawCt=raw.headers.get('content-type')||'';
+            const mojibake=/[�]|(?:Ã.|Â.|ã[\x80-\xBF]|æ[\x80-\xBF]|ç[\x80-\xBF]|è[\x80-\xBF]|é[\x80-\xBF])/u.test(bodyText);
+            const japanese=/[ぁ-んァ-ヶ一-龠]/u.test(bodyText);
+            const rawEscaped=/^\s*&lt;|^\s*<!doctype/i.test(bodyText)&&/^\s*(?:&lt;|<!doctype)/i.test(rawText.trim());
+            out[k]={status:resp?.status()||0,title,charset,ct,rawCt,japanese,mojibake,rawEscaped,bodyText,bodyHtml,rawPrefix:rawText.replace(/\s+/g,' ').slice(0,700)};
             await page.close();
           }
           await browser.close();
@@ -44,32 +49,32 @@ jobs:
           EOF
           node check.mjs > result.json
           cat result.json
-          customer_status=$(jq -r '.customer.status' result.json)
-          customer_jp=$(jq -r '.customer.japanese' result.json)
-          customer_moji=$(jq -r '.customer.mojibake' result.json)
-          admin_status=$(jq -r '.admin.status' result.json)
-          admin_jp=$(jq -r '.admin.japanese' result.json)
-          admin_moji=$(jq -r '.admin.mojibake' result.json)
-          admin_text=$(jq -r '.admin.text' result.json | head -c 500)
-          customer_text=$(jq -r '.customer.text' result.json | head -c 500)
-          {
-            echo "customer_status=$customer_status"; echo "customer_jp=$customer_jp"; echo "customer_moji=$customer_moji";
-            echo "admin_status=$admin_status"; echo "admin_jp=$admin_jp"; echo "admin_moji=$admin_moji";
-            echo "customer_text<<EOF"; echo "$customer_text"; echo EOF;
-            echo "admin_text<<EOF"; echo "$admin_text"; echo EOF;
-          } >> "$GITHUB_OUTPUT"
+          for key in customer admin; do
+            for field in status japanese mojibake rawEscaped ct rawCt bodyText bodyHtml rawPrefix; do
+              val=$(jq -r ".${key}.${field}" result.json | head -c 700)
+              echo "${key}_${field}<<EOF" >> "$GITHUB_OUTPUT"; echo "$val" >> "$GITHUB_OUTPUT"; echo EOF >> "$GITHUB_OUTPUT"
+            done
+          done
       - name: Record browser result
         env:
           GH_TOKEN: ${{ github.token }}
           CS: ${{ steps.inspect.outputs.customer_status }}
-          CJ: ${{ steps.inspect.outputs.customer_jp }}
-          CM: ${{ steps.inspect.outputs.customer_moji }}
+          CJ: ${{ steps.inspect.outputs.customer_japanese }}
+          CM: ${{ steps.inspect.outputs.customer_mojibake }}
+          CE: ${{ steps.inspect.outputs.customer_rawEscaped }}
+          CC: ${{ steps.inspect.outputs.customer_ct }}
+          CR: ${{ steps.inspect.outputs.customer_rawCt }}
+          CT: ${{ steps.inspect.outputs.customer_bodyText }}
+          CP: ${{ steps.inspect.outputs.customer_rawPrefix }}
           AS: ${{ steps.inspect.outputs.admin_status }}
-          AJ: ${{ steps.inspect.outputs.admin_jp }}
-          AM: ${{ steps.inspect.outputs.admin_moji }}
-          CT: ${{ steps.inspect.outputs.customer_text }}
-          AT: ${{ steps.inspect.outputs.admin_text }}
+          AJ: ${{ steps.inspect.outputs.admin_japanese }}
+          AM: ${{ steps.inspect.outputs.admin_mojibake }}
+          AE: ${{ steps.inspect.outputs.admin_rawEscaped }}
+          AC: ${{ steps.inspect.outputs.admin_ct }}
+          AR: ${{ steps.inspect.outputs.admin_rawCt }}
+          AT: ${{ steps.inspect.outputs.admin_bodyText }}
+          AP: ${{ steps.inspect.outputs.admin_rawPrefix }}
         shell: bash
         run: |
-          body=$(jq -n --arg cs "$CS" --arg cj "$CJ" --arg cm "$CM" --arg as "$AS" --arg aj "$AJ" --arg am "$AM" --arg ct "$CT" --arg at "$AT" '{body:("AKIYA_BROWSER_RENDER_CHECK\nCUSTOMER status="+$cs+" japanese="+$cj+" mojibake="+$cm+" text="+$ct+"\nADMIN status="+$as+" japanese="+$aj+" mojibake="+$am+" text="+$at)}')
+          body=$(jq -n --arg cs "$CS" --arg cj "$CJ" --arg cm "$CM" --arg ce "$CE" --arg cc "$CC" --arg cr "$CR" --arg ct "$CT" --arg cp "$CP" --arg as "$AS" --arg aj "$AJ" --arg am "$AM" --arg ae "$AE" --arg ac "$AC" --arg ar "$AR" --arg at "$AT" --arg ap "$AP" '{body:("AKIYA_BROWSER_RENDER_CHECK_V2\nCUSTOMER status="+$cs+" jp="+$cj+" mojibake="+$cm+" escaped="+$ce+" ct="+$cc+" rawCt="+$cr+"\nBODY="+$ct+"\nRAW="+$cp+"\nADMIN status="+$as+" jp="+$aj+" mojibake="+$am+" escaped="+$ae+" ct="+$ac+" rawCt="+$ar+"\nBODY="+$at+"\nRAW="+$ap)}')
           curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
