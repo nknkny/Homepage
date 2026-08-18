@@ -11,39 +11,40 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - name: Verify visible customer and owner pages
+      - name: Verify customer and owner pages
         shell: bash
         run: |
           set -euo pipefail
-          CUSTOMER='https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-live/'
-          OWNER='https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-owner'
           CF='https://rapid-hat-f45c.jmdjdtdjdt.workers.dev/'
-          curl -sSIL --max-time 30 "$CUSTOMER" > customer.headers
-          grep -qi '^location: https://rapid-hat-f45c.jmdjdtdjdt.workers.dev/' customer.headers
-          echo CUSTOMER_REDIRECTS_TO_CLOUDFLARE=PASS
+          OWNER='https://nknkny.github.io/Homepage/'
+          OWNER_API='https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-owner'
+
           curl -fsSL --max-time 30 "$CF" -o customer.html
           python3 - <<'PY'
           from pathlib import Path
           s=Path('customer.html').read_text(encoding='utf-8')
           assert '空家ポケット' in s
           assert '遨ｺ螳ｶ' not in s
-          print('CLOUDFLARE_CUSTOMER_UTF8=PASS')
+          print('CUSTOMER_CLOUDFLARE_UTF8=PASS')
           PY
+
           curl -fsS -D owner.headers --max-time 30 "$OWNER" -o owner.html
-          echo '---OWNER_HEADERS---'
-          cat owner.headers
-          echo '---OWNER_BODY_PREFIX---'
-          head -c 300 owner.html
-          echo
           python3 - <<'PY'
           from pathlib import Path
           h=Path('owner.headers').read_text(encoding='utf-8',errors='replace').lower()
           s=Path('owner.html').read_text(encoding='utf-8')
-          assert 'content-type:' in h and 'text/html' in h
-          assert 'charset=utf-8' in h
-          assert '<!doctype html>' in s.lower()
+          assert 'text/html' in h
+          assert '空家ポケット 運営センター' in s
           assert '遨ｺ螳ｶ' not in s
-          assert '\\u7a7a\\u5bb6\\u30dd\\u30b1\\u30c3\\u30c8' in s
-          print('OWNER_RESPONSE_HTML=PASS')
+          assert '完全自動 ON' in s
+          print('OWNER_GITHUB_PAGES_UTF8=PASS')
           PY
+
+          curl -isS --max-time 30 -X OPTIONS "$OWNER_API" \
+            -H 'Origin: https://nknkny.github.io' \
+            -H 'Access-Control-Request-Method: POST' \
+            -H 'Access-Control-Request-Headers: content-type' > cors.txt
+          grep -qi '^access-control-allow-origin: https://nknkny.github.io' cors.txt
+          grep -qi '^access-control-allow-methods: .*POST' cors.txt
+          echo OWNER_API_CORS=PASS
           echo AKIYA_VISIBLE_PAGES_VERIFY=PASS
