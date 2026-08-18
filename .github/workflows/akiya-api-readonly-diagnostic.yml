@@ -16,6 +16,14 @@ jobs:
         run: |
           set -euo pipefail
           API='https://script.google.com/macros/s/AKfycbzWYTf9K_XyEfo1CD4Pshg18ANH5_zhOsTnyiFhKTwbDgs17ZOXqLgAxKrvO7TA3wYr0w/exec'
-          BODY="$(curl -fsSL --max-time 30 "$API?type=health&ts=$(date +%s)")"
-          printf '%s' "$BODY" | jq '{ok,app,buildVersion,ready,paidSalesReady,code}'
-          printf '%s' "$BODY" | jq -e '.buildVersion == "2026-08-14-legal-final-r10"' >/dev/null
+          curl -sS -L --max-time 30 -D headers.txt -o body.txt -w 'HTTP=%{http_code}\nFINAL_URL=%{url_effective}\nCONTENT_TYPE=%{content_type}\n' "$API?type=health&ts=$(date +%s)"
+          echo '--- SAFE RESPONSE CLASSIFICATION ---'
+          if jq -e . body.txt >/dev/null 2>&1; then
+            jq '{ok,app,buildVersion,ready,paidSalesReady,code}' body.txt
+          else
+            echo 'BODY_FORMAT=NON_JSON'
+            TITLE="$(tr '\n' ' ' < body.txt | sed -n 's:.*<title[^>]*>\([^<]*\)</title>.*:\1:p' | head -c 180)"
+            if [ -n "$TITLE" ]; then printf 'HTML_TITLE=%s\n' "$TITLE"; fi
+            if grep -qiE 'accounts\.google\.com|Sign in|ログイン|Google アカウント' body.txt; then echo 'LOGIN_PAGE_DETECTED=YES'; else echo 'LOGIN_PAGE_DETECTED=NO'; fi
+            if grep -qiE 'Authorization is required|認証が必要|アクセス権|permission|denied' body.txt; then echo 'ACCESS_RESTRICTION_TEXT=YES'; else echo 'ACCESS_RESTRICTION_TEXT=NO'; fi
+          fi
