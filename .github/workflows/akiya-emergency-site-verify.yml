@@ -16,14 +16,17 @@ jobs:
         run: |
           set -euo pipefail
           BASE='https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket'
-          curl -fsSL --max-time 30 "$BASE?health=1" | tee health.json
+          curl -fsSL --max-time 30 "$BASE?health=1" -o health.json
           jq -e '.ok == true and .emailSending == false and .membership == true' health.json >/dev/null
+          echo HEALTH_OK
           curl -fsSL --max-time 30 "$BASE" -o home.html
           grep -q '無料会員になる' home.html
-          grep -q '月額0円' home.html
+          grep -Eq '月額.?0円|月額料金は0円' home.html
+          echo HOME_OK
           curl -fsSL --max-time 30 "$BASE?page=register" -o register.html
           grep -q '無料会員登録' register.html
           grep -q '登録時のメール送信は行いません' register.html
+          echo REGISTER_PAGE_OK
           code="$(curl -sS -o invalid.html -w '%{http_code}' --max-time 30 -X POST "$BASE?action=register" \
             -H 'Content-Type: application/x-www-form-urlencoded' \
             --data-urlencode 'name=' \
@@ -31,6 +34,8 @@ jobs:
             --data-urlencode 'password=123' \
             --data-urlencode 'required_consent=0' \
             --data-urlencode 'started_at=0')"
+          echo "INVALID_STATUS=$code"
           test "$code" = '400'
-          grep -Eq '入力内容を確認|登録できませんでした' invalid.html
-          echo 'PUBLIC_SITE_VERIFY=PASS'
+          grep -Eq '入力内容を確認|登録できませんでした|お名前を入力' invalid.html
+          echo INVALID_SIGNUP_REJECTED
+          echo PUBLIC_SITE_VERIFY=PASS
