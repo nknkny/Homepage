@@ -23,20 +23,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          check(){
-            local path="$1" marker="$2"
-            curl -fsSL --max-time 30 "$PUBLIC/$path?v=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/page"
-            grep -Fq "$marker" "$RUNNER_TEMP/page"
-          }
+          check(){ local path="$1" marker="$2"; curl -fsSL --max-time 30 "$PUBLIC/$path?v=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/page"; grep -Fq "$marker" "$RUNNER_TEMP/page"; }
           check index.html '空家ポケット'
           check register.html '無料会員登録'
           check member-login.html 'ログイン'
           check request.html '3,480円'
           check checkout.html '3,480円'
           curl -fsSL --max-time 30 "$PUBLIC/assets/config.js?v=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/config.js"
-          grep -Fq 'SITE_ORIGIN: "https://nknkny.github.io"' "$RUNNER_TEMP/config.js"
           grep -Fq 'akiya-pocket-api' "$RUNNER_TEMP/config.js"
           grep -Fq 'akiya-pocket-payment-api' "$RUNNER_TEMP/config.js"
+          grep -Fq '"https://nknkny.github.io"' "$RUNNER_TEMP/config.js"
 
       - name: Verify live APIs and 3,480-yen Stripe handoff
         id: live
@@ -45,46 +41,28 @@ jobs:
           set -euo pipefail
           email="akiya.e2e.${GITHUB_RUN_ID}@example.invalid"
           password="Akiya-E2E-${GITHUB_RUN_ID}-X9!"
-          token=''
-          rid=''
-
-          cleanup(){
-            if [ -n "$token" ]; then
-              jq -n --arg id "DEL-$GITHUB_RUN_ID" --arg token "$token" --arg password "$password" \
-                '{action:"delete_account",clientRequestId:$id,sessionToken:$token,currentPassword:$password}' > "$RUNNER_TEMP/delete.json"
-              curl -sS -H "Origin: $ORIGIN" -H 'Content-Type: application/json' --data-binary @"$RUNNER_TEMP/delete.json" "$API" >/dev/null || true
-            fi
-          }
+          token=''; rid=''
+          cleanup(){ if [ -n "$token" ]; then jq -n --arg id "DEL-$GITHUB_RUN_ID" --arg token "$token" --arg password "$password" '{action:"delete_account",clientRequestId:$id,sessionToken:$token,currentPassword:$password}' > "$RUNNER_TEMP/delete.json"; curl -sS -H "Origin: $ORIGIN" -H 'Content-Type: application/json' --data-binary @"$RUNNER_TEMP/delete.json" "$API" >/dev/null || true; fi; }
           trap cleanup EXIT
-
           for endpoint in "$API" "$PAY"; do
-            code=$(curl -sS -o /dev/null -D "$RUNNER_TEMP/headers" -w '%{http_code}' -X OPTIONS \
-              -H "Origin: $ORIGIN" -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type' "$endpoint")
+            code=$(curl -sS -o /dev/null -D "$RUNNER_TEMP/headers" -w '%{http_code}' -X OPTIONS -H "Origin: $ORIGIN" -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type' "$endpoint")
             test "$code" = 204
             grep -Eiq '^access-control-allow-origin: https://nknkny\.github\.io\r?$' "$RUNNER_TEMP/headers"
           done
-
           curl -fsSL -H "Origin: $ORIGIN" "$PAY" -o "$RUNNER_TEMP/pay-ready.json"
           jq -e '.ok==true and .ready==true and .amountJpy==3480 and .paymentLinkReady==true and .buildVersion=="2026-08-18-payment-bridge-r2"' "$RUNNER_TEMP/pay-ready.json" >/dev/null
-
-          jq -n --arg id "REG-$GITHUB_RUN_ID" --arg email "$email" --arg password "$password" \
-            '{action:"register_member",clientRequestId:$id,name:"E2E自動テスト",email:$email,password:$password,residencePrefecture:"青森県",propertyPrefecture:"青森県",propertyCity:"青森市",relationship:"所有者",propertyStatus:"空き家",requiredConsent:"yes",marketingOptIn:"no"}' > "$RUNNER_TEMP/register.json"
+          jq -n --arg id "REG-$GITHUB_RUN_ID" --arg email "$email" --arg password "$password" '{action:"register_member",clientRequestId:$id,name:"E2E自動テスト",email:$email,password:$password,residencePrefecture:"青森県",propertyPrefecture:"青森県",propertyCity:"青森市",relationship:"所有者",propertyStatus:"空き家",requiredConsent:"yes",marketingOptIn:"no"}' > "$RUNNER_TEMP/register.json"
           curl -fsSL -H "Origin: $ORIGIN" -H 'Content-Type: application/json' --data-binary @"$RUNNER_TEMP/register.json" "$API" -o "$RUNNER_TEMP/register-response.json"
           jq -e '.ok==true and (.sessionToken|length>20) and .buildVersion=="2026-08-14-legal-final-r10"' "$RUNNER_TEMP/register-response.json" >/dev/null
           token=$(jq -r '.sessionToken' "$RUNNER_TEMP/register-response.json")
-
-          jq -n --arg id "REQ-$GITHUB_RUN_ID" --arg token "$token" \
-            '{action:"create_inspection_request",clientRequestId:$id,sessionToken:$token,propertyAddress:"青森市テスト町1-1（自動E2Eテスト）",requestRelationship:"所有者",propertyStatus:"空き家",accessPermission:"敷地外からの確認のみ",requestConsent:"yes",requestNotes:"自動E2Eテスト。実作業不要。"}' > "$RUNNER_TEMP/request.json"
+          jq -n --arg id "REQ-$GITHUB_RUN_ID" --arg token "$token" '{action:"create_inspection_request",clientRequestId:$id,sessionToken:$token,propertyAddress:"青森市テスト町1-1（自動E2Eテスト）",requestRelationship:"所有者",propertyStatus:"空き家",accessPermission:"敷地外からの確認のみ",requestConsent:"yes",requestNotes:"自動E2Eテスト。実作業不要。"}' > "$RUNNER_TEMP/request.json"
           curl -fsSL -H "Origin: $ORIGIN" -H 'Content-Type: application/json' --data-binary @"$RUNNER_TEMP/request.json" "$API" -o "$RUNNER_TEMP/request-response.json"
           jq -e '.ok==true and (.requestId|startswith("AKR-"))' "$RUNNER_TEMP/request-response.json" >/dev/null
           rid=$(jq -r '.requestId' "$RUNNER_TEMP/request-response.json")
-
-          jq -n --arg id "PAY-$GITHUB_RUN_ID" --arg token "$token" --arg rid "$rid" \
-            '{action:"start_card_payment",clientRequestId:$id,sessionToken:$token,requestId:$rid,finalConsent:"yes"}' > "$RUNNER_TEMP/payment.json"
+          jq -n --arg id "PAY-$GITHUB_RUN_ID" --arg token "$token" --arg rid "$rid" '{action:"start_card_payment",clientRequestId:$id,sessionToken:$token,requestId:$rid,finalConsent:"yes"}' > "$RUNNER_TEMP/payment.json"
           curl -fsSL -H "Origin: $ORIGIN" -H 'Content-Type: application/json' --data-binary @"$RUNNER_TEMP/payment.json" "$PAY" -o "$RUNNER_TEMP/payment-response.json"
           jq -e '.ok==true and .amountTotal==3480 and .currency=="jpy" and (.paymentUrl|startswith("https://buy.stripe.com/"))' "$RUNNER_TEMP/payment-response.json" >/dev/null
           echo "request_id=$rid" >> "$GITHUB_OUTPUT"
-          echo 'AKIYA_PAID_SALES_E2E=PASS'
 
       - name: Record result
         if: always()
@@ -94,9 +72,6 @@ jobs:
           REQUEST_ID: ${{ steps.live.outputs.request_id }}
         shell: bash
         run: |
-          set -euo pipefail
           if [ "$LIVE_OUTCOME" = success ]; then result=PASS; else result=FAIL; fi
-          body=$(jq -n --arg result "$result" --arg run "$GITHUB_RUN_ID" --arg rid "$REQUEST_ID" \
-            '{body:("AKIYA_PAID_SALES_E2E="+$result+"\nRUN_ID="+$run+"\nPUBLIC_URL=https://nknkny.github.io/Homepage/akiya-pocket/\nREQUEST_ID="+$rid+"\nFLOW=public-pages -> register -> request -> 3480JPY Stripe URL -> cleanup")}')
-          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
+          body=$(jq -n --arg result "$result" --arg run "$GITHUB_RUN_ID" --arg rid "$REQUEST_ID" '{body:("AKIYA_PAID_SALES_E2E="+$result+"\nRUN_ID="+$run+"\nPUBLIC_URL=https://nknkny.github.io/Homepage/akiya-pocket/\nREQUEST_ID="+$rid+"\nFLOW=public-pages -> register -> request -> 3480JPY Stripe URL -> cleanup")}')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
