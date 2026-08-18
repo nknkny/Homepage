@@ -16,6 +16,8 @@ jobs:
         run: |
           set -euo pipefail
           CF='https://rapid-hat-f45c.jmdjdtdjdt.workers.dev'
+          OWNER_OLD='https://nknkny.github.io/Homepage/owner/'
+          OWNER_API='https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-owner'
           curl -fsSL --max-time 30 "$CF/" -o home.html
           curl -fsSL --max-time 30 "$CF/assets/config.js?audit=${GITHUB_SHA}" -o config.js
           curl -fsSL --max-time 30 "$CF/assets/api.js?audit=${GITHUB_SHA}" -o api.js
@@ -37,24 +39,28 @@ jobs:
           Path('api-url.txt').write_text(api_url,encoding='utf-8')
           PY
           API_URL=$(cat api-url.txt)
-          if [ -n "$API_URL" ]; then
-            set +e
-            code=$(curl -sSL -o api-response.txt -D api-headers.txt -w '%{http_code}' --max-time 30 "$API_URL?audit=${GITHUB_SHA}")
-            rc=$?
-            set -e
-            echo "API_CURL_RC=$rc"
-            echo "API_HTTP_CODE=$code"
-            echo '---API_FINAL_HEADERS---'
-            tail -n 30 api-headers.txt || true
-            echo '---API_RESPONSE_PREFIX---'
-            head -c 700 api-response.txt || true
-            echo
-            python3 - <<'PY'
+          code=$(curl -sSL -o api-response.txt -D api-headers.txt -w '%{http_code}' --max-time 30 "$API_URL?audit=${GITHUB_SHA}" || true)
+          echo "LEGACY_API_HTTP=$code"
+          python3 - <<'PY'
           from pathlib import Path
           s=Path('api-response.txt').read_text('utf-8',errors='replace') if Path('api-response.txt').exists() else ''
           lo=s.lower()
-          print('API_RESPONSE_LOOKS_JSON=', s.lstrip().startswith('{'))
-          print('API_RESPONSE_GOOGLE_LOGIN=', ('accounts.google.com' in lo) or ('sign in' in lo) or ('ログイン' in s and '<html' in lo))
-          print('API_RESPONSE_ACCESS_DENIED=', 'ACCESS_DENIED' in s)
+          print('LEGACY_API_GOOGLE_LOGIN=', ('accounts.google.com' in lo) or ('sign in' in lo) or ('ログイン' in s and '<html' in lo))
           PY
-          fi
+          old_code=$(curl -sSL -o old-owner.html -w '%{http_code}' --max-time 30 "$OWNER_OLD" || true)
+          echo "OLD_PUBLIC_OWNER_HTTP=$old_code"
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('old-owner.html').read_text('utf-8',errors='replace') if Path('old-owner.html').exists() else ''
+          print('OLD_PUBLIC_OWNER_HAS_ADMIN=', '空家ポケット 運営センター' in s or '完全自動 ON' in s)
+          PY
+          keyless=$(curl -sS -o keyless.json -w '%{http_code}' --max-time 30 -X POST "$OWNER_API" -H 'Content-Type: application/json' --data '{"action":"dashboard","token":"fake"}' || true)
+          echo "OWNER_API_KEYLESS_HTTP=$keyless"
+          cat keyless.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          x=json.loads(Path('keyless.json').read_text('utf-8'))
+          assert x.get('ok') is False and x.get('code')=='UI_KEY_REQUIRED'
+          print('OWNER_API_UI_KEY_LOCK=PASS')
+          PY
