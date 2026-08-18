@@ -1,0 +1,155 @@
+name: Akiya launch gate
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit:
+    if: github.event.issue.number == 42 && contains(github.event.comment.body, 'RUN_AKIYA_LAUNCH_GATE')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BASE: https://nknkny.github.io/Homepage/akiya-pocket
+      LIVE: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-live
+      API: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-api
+      PAY: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-payment-api
+      OWNER: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-owner
+      MODULES: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-owner-modules
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Static integrity
+        id: static
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd akiya-pocket
+          test -f index.html && test -f register.html && test -f member-login.html && test -f member.html && test -f request.html && test -f checkout.html
+          test -f control-center/index.html
+          grep -Fq 'FRONTEND_BUILD: "2026-08-19-launch-final-r3"' assets/config.js
+          grep -Fq 'SITE_ORIGIN: "https://nknkny.github.io"' assets/config.js
+          grep -Fq 'akiya-pocket-api' assets/config.js
+          grep -Fq 'akiya-pocket-payment-api' assets/config.js
+          grep -Fq '本人確認窓口' account-recovery.html
+          ! grep -R -n -E 'sk_live_[A-Za-z0-9]|sk_test_[A-Za-z0-9]|whsec_[A-Za-z0-9]' --exclude-dir=.github .
+          ! grep -R -n 'script.google.com' --exclude-dir=.github .
+          ! grep -R -n 'request_password_reset' --exclude-dir=.github .
+          ! grep -R -n -E '>3,300円|>3,500円|3,300円（税込）|3,500円（税込）' --include='*.html' --include='*.js' .
+          grep -Fq '3,480円' index.html
+          grep -Fq '3,480円' request.html
+          grep -Fq '3,480円' checkout.html
+          grep -Fq '個別自動機能 ON / OFF' control-center/index.html
+          grep -Fq 'set_all_modules' control-center/index.html
+          grep -Fq 'set_module' control-center/index.html
+          grep -Fq 'akiya_pending_payment_request_id' assets/pages/checkout-inline-1.js
+          grep -Fq 'akiya_pending_payment_request_id' assets/pages/member-inline-1.js
+
+          python3 - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+          from urllib.parse import urlsplit, unquote
+          root=Path('.').resolve()
+          broken=[]
+          absolute_fallback=[]
+          class P(HTMLParser):
+              def __init__(self,path): super().__init__(); self.path=path
+              def handle_starttag(self,tag,attrs):
+                  d=dict(attrs)
+                  for key in ('href','src','action'):
+                      v=d.get(key)
+                      if not v or v.startswith(('#','mailto:','tel:','javascript:','data:','https://','http://','//')): continue
+                      if key=='action' and v.startswith('/'):
+                          absolute_fallback.append((str(self.path),v))
+                          continue
+                      path=unquote(urlsplit(v).path)
+                      if not path: continue
+                      target=(self.path.parent/path).resolve()
+                      try: target.relative_to(root)
+                      except ValueError: broken.append((str(self.path),key,v,'outside root')); continue
+                      if path.endswith('/'):
+                          target=target/'index.html'
+                      if not target.exists(): broken.append((str(self.path),key,v,str(target)))
+          for f in root.rglob('*.html'):
+              try:
+                  p=P(f);p.feed(f.read_text(encoding='utf-8'))
+              except Exception as e: broken.append((str(f),'parse','',repr(e)))
+          if absolute_fallback:
+              print('ABSOLUTE_FALLBACKS')
+              for x in absolute_fallback: print(*x)
+          if broken:
+              print('BROKEN_LOCAL_LINKS')
+              for x in broken: print(*x)
+              raise SystemExit(1)
+          print('LOCAL_LINKS=PASS')
+          PY
+
+      - name: Live page matrix
+        id: pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          pages='index.html service.html report-sample.html faq.html about.html register.html register-complete.html member-login.html account-recovery.html member.html profile.html request.html checkout.html payment-success.html delete-account.html member-survey.html checklist.html terms.html service-terms.html privacy.html ai-training-policy.html commercial.html contact.html form-unavailable.html control-center/'
+          fail=0
+          for p in $pages; do
+            code=$(curl -sS -L --max-time 20 -o "$RUNNER_TEMP/page" -D "$RUNNER_TEMP/head" -w '%{http_code}' "$BASE/$p?gate=$GITHUB_RUN_ID" || true)
+            ct=$(tr -d '\r' < "$RUNNER_TEMP/head" | grep -i '^content-type:' | tail -1 || true)
+            if [ "$code" != 200 ] || ! echo "$ct" | grep -Eiq 'text/html'; then echo "FAIL $p HTTP=$code CT=$ct"; fail=1; fi
+            if grep -Eq 'ç©º|ãƒ|ã‚|�' "$RUNNER_TEMP/page"; then echo "MOJIBAKE $p"; fail=1; fi
+          done
+          test "$fail" = 0
+          echo 'LIVE_PAGES=PASS'
+
+      - name: Endpoint and CORS matrix
+        id: endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL -L "$LIVE/?gate=$GITHUB_RUN_ID" | grep -Fq '空家ポケット'
+          curl -fsSL "$API" -o "$RUNNER_TEMP/api.json"
+          jq -e '.ok==true and .ready==true and .buildVersion=="2026-08-14-legal-final-r10"' "$RUNNER_TEMP/api.json" >/dev/null
+          curl -fsSL "$PAY" -o "$RUNNER_TEMP/pay.json"
+          jq -e '.ok==true and .ready==true and .amountJpy==3480 and .paymentLinkReady==true and .buildVersion=="2026-08-18-payment-bridge-r2"' "$RUNNER_TEMP/pay.json" >/dev/null
+          curl -fsSL "$OWNER" -o "$RUNNER_TEMP/owner.json"
+          jq -e '.ok==true and .ready==true and .auth=="password-session" and .fullAutoButton==true and .granularControls==true' "$RUNNER_TEMP/owner.json" >/dev/null
+          curl -fsSL "$MODULES" -o "$RUNNER_TEMP/modules.json"
+          jq -e '.ok==true and .ready==true and .granularFeatures==true' "$RUNNER_TEMP/modules.json" >/dev/null
+          for e in "$API" "$PAY" "$OWNER" "$MODULES"; do
+            code=$(curl -sS -o /dev/null -D "$RUNNER_TEMP/h" -w '%{http_code}' -X OPTIONS -H 'Origin: https://nknkny.github.io' -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type' "$e")
+            test "$code" = 204
+            grep -Eiq '^access-control-allow-origin:[[:space:]]*https://nknkny\.github\.io\r?$' "$RUNNER_TEMP/h"
+          done
+          echo 'ENDPOINTS=PASS'
+
+      - name: Verify webhook rejects unsigned payload
+        id: webhook
+        shell: bash
+        env:
+          WEBHOOK_URL: ${{ secrets.AKIYA_STRIPE_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${WEBHOOK_URL:-}" ]; then echo 'WEBHOOK_SECRET_URL_NOT_IN_GITHUB=EXPECTED'; exit 0; fi
+          code=$(curl -sS -o "$RUNNER_TEMP/webhook.json" -w '%{http_code}' -H 'Content-Type: application/json' -d '{"id":"evt_unsigned_audit","type":"checkout.session.completed"}' "$WEBHOOK_URL")
+          test "$code" = 400
+          jq -e '.error=="INVALID_STRIPE_SIGNATURE"' "$RUNNER_TEMP/webhook.json" >/dev/null
+
+      - name: Record gate
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATIC: ${{ steps.static.outcome }}
+          PAGES: ${{ steps.pages.outcome }}
+          ENDPOINTS: ${{ steps.endpoints.outcome }}
+          WEBHOOK: ${{ steps.webhook.outcome }}
+        shell: bash
+        run: |
+          overall=FAIL
+          if [ "$STATIC" = success ] && [ "$PAGES" = success ] && [ "$ENDPOINTS" = success ] && [ "$WEBHOOK" = success ]; then overall=PASS; fi
+          body=$(jq -n --arg o "$overall" --arg r "$GITHUB_RUN_ID" --arg s "$STATIC" --arg p "$PAGES" --arg e "$ENDPOINTS" --arg w "$WEBHOOK" '{body:("AKIYA_LAUNCH_GATE="+$o+"\nRUN_ID="+$r+"\nSTATIC="+$s+" LIVE_PAGES="+$p+" ENDPOINTS="+$e+" WEBHOOK_NEGATIVE_TEST="+$w)}')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
