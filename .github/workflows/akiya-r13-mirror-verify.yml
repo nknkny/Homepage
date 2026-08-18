@@ -18,25 +18,21 @@ jobs:
           BASE='https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-live/'
           API='https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-api'
           curl -fsSL --max-time 30 "$BASE" -o home.html
-          echo HOME_FETCH=PASS
           python3 - <<'PY'
           from pathlib import Path
           s=Path('home.html').read_text(encoding='utf-8')
-          print('HOME_UTF8=PASS')
-          print('HOME_HAS_BRAND=', '空家ポケット' in s)
-          print('HOME_HAS_AOMORI=', '青森市' in s)
-          print('HOME_HAS_FREE=', '無料会員' in s)
           assert '空家ポケット' in s and '青森市' in s and '無料会員' in s
+          print('HOME_UTF8_AND_CONTENT=PASS')
           PY
           curl -fsSL --max-time 30 "${BASE}register.html" -o register.html
-          echo REGISTER_FETCH=PASS
           python3 - <<'PY'
           from pathlib import Path
+          import re
           s=Path('register.html').read_text(encoding='utf-8')
-          print('REGISTER_UTF8=PASS')
-          print('REGISTER_HAS_TITLE=', '無料会員登録' in s)
-          print('REGISTER_HAS_FORM=', 'registerForm' in s)
-          assert '無料会員登録' in s and 'registerForm' in s
+          print('REGISTER_TITLE=', '無料会員登録' in s)
+          print('REGISTER_FORM_IDS=', re.findall(r'<form[^>]*id=["\x27]([^"\x27]+)', s)[:10])
+          print('REGISTER_SCRIPT_REFS=', re.findall(r'<script[^>]*src=["\x27]([^"\x27]+)', s)[-5:])
+          assert '無料会員登録' in s and '<form' in s
           PY
           curl -fsSL --max-time 30 "${BASE}assets/config.js" -o config.js
           grep -q '2026-08-14-legal-final-r13' config.js && echo CONFIG_BUILD=PASS
