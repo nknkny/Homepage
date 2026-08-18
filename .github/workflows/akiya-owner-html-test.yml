@@ -1,0 +1,27 @@
+name: Akiya owner HTML delivery verify
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify Supabase can serve UTF-8 HTML
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-owner-html-test'
+          curl -fsSL --max-time 30 -D headers.txt "$URL?ts=${GITHUB_SHA}" -o body.html
+          grep -i '^content-type: text/html' headers.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('body.html').read_text('utf-8')
+          assert '空家ポケット管理テスト' in s
+          assert '遨ｺ螳ｶ' not in s
+          print('OWNER_HTML_UTF8=PASS')
+          PY
