@@ -1,26 +1,29 @@
-siteVersion=2026-08-18-paid-live-r2
+siteVersion=2026-08-19-launch-final-r3
 apiRequiredBuild=2026-08-14-legal-final-r10
 paymentApiBuild=2026-08-18-payment-bridge-r2
 paymentMode=fixed_3480_final_confirmation_then_stripe
 contractFormation=stripe_payment_confirmed_by_system
 serviceTiming=within_7_days_after_contract
 reportTiming=within_1_to_2_business_days_after_field_check
-externalEmailSending=disabled_locked
+externalEmailSending=conditional_owner_controlled_gate
 newsletterSending=disabled_locked
 invoiceRegistrationNumber=T5810907887896
 invoiceRegistrationDate=2025-01-01
 taxMode=manual_inclusive_jp_10_percent
 
-audit_revision=2026-08-18-paid-live-r2
+audit_revision=2026-08-19-launch-final-r3
 privacy_version=2026-08-12-v7
 service_terms_version=service-terms-2026-08-18
-turnstile_hostname_binding=enabled
-turnstile_action_binding=enabled
+turnstile_hostname_binding=not_enabled_in_current_supabase_registration
+turnstile_action_binding=not_enabled_in_current_supabase_registration
 obsolete_apps_script_backend=removed_from_customer_flow
-cloudflare_canonical_origin=rapid-hat-f45c.jmdjdtdjdt.workers.dev
+public_canonical_origin=nknkny.github.io/Homepage/akiya-pocket
+supabase_public_entry=akiya-pocket-live
 supabase_member_api=akiya-pocket-api
 supabase_payment_api=akiya-pocket-payment-api
-
+stripeWebhookAuth=url_token_plus_stripe_signature
+passwordRecovery=manual_identity_verification_contact
+adminAutomationControls=10_modules_plus_53_features
 
 authority_gate=required_before_request
 field_execution_ledger=required_before_invoice
