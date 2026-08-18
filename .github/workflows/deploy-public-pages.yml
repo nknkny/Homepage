@@ -44,16 +44,11 @@ jobs:
           cp index.html dist/index.html
           cp -R event-platform dist/event-platform
           cp -R akiya-pocket dist/akiya-pocket
-          test -f dist/akiya-pocket/index.html
-          test -f dist/akiya-pocket/register.html
-          test -f dist/akiya-pocket/member-login.html
-          test -f dist/akiya-pocket/request.html
-          test -f dist/akiya-pocket/checkout.html
-          test -f dist/akiya-pocket/control-center/index.html
+          for f in index.html register.html member-login.html request.html checkout.html control-center/index.html; do test -f "dist/akiya-pocket/$f"; done
           grep -Fq 'SITE_ORIGIN: "https://nknkny.github.io"' dist/akiya-pocket/assets/config.js
           grep -Fq '"https://nknkny.github.io"' dist/akiya-pocket/assets/config.js
           grep -Fq '本人確認窓口' dist/akiya-pocket/account-recovery.html
-          ! grep -Fq 'request_password_reset' dist/akiya-pocket/account-recovery.html
+          ! grep -R -n 'action="/form-unavailable.html"' dist/akiya-pocket --include='*.html'
           ! find dist -path '*/owner*' -print -quit | grep -q .
 
       - id: upload
@@ -92,10 +87,9 @@ jobs:
           grep -Fq 'akiya-pocket-api' "$RUNNER_TEMP/config.js"
           grep -Fq 'akiya-pocket-payment-api' "$RUNNER_TEMP/config.js"
           grep -Fq 'SITE_ORIGIN: "https://nknkny.github.io"' "$RUNNER_TEMP/config.js"
-          grep -Fq '"https://nknkny.github.io"' "$RUNNER_TEMP/config.js"
           echo "PUBLIC_URL=$base/"
 
-      - name: Verify registration, request and 3,480-yen Stripe handoff
+      - name: Verify registration request and 3,480-yen Stripe handoff
         id: e2e
         env:
           ORIGIN: https://nknkny.github.io
@@ -117,7 +111,9 @@ jobs:
           for endpoint in "$API" "$PAY"; do
             code=$(curl -sS -o /dev/null -D "$RUNNER_TEMP/h" -w '%{http_code}' -X OPTIONS -H "Origin: $ORIGIN" -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type' "$endpoint")
             test "$code" = 204
-            grep -Eiq '^access-control-allow-origin: https://nknkny\.github\.io\r?$' "$RUNNER_TEMP/h"
+            tr -d '\r' < "$RUNNER_TEMP/h" > "$RUNNER_TEMP/hn"
+            acao=$(grep -i '^access-control-allow-origin:' "$RUNNER_TEMP/hn" | head -1 | sed 's/^[^:]*:[[:space:]]*//')
+            test "$acao" = "$ORIGIN"
           done
           curl -fsSL -H "Origin: $ORIGIN" "$PAY" -o "$RUNNER_TEMP/pay-ready.json"
           jq -e '.ok==true and .ready==true and .amountJpy==3480 and .paymentLinkReady==true and .buildVersion=="2026-08-18-payment-bridge-r2"' "$RUNNER_TEMP/pay-ready.json" >/dev/null
