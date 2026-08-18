@@ -14,6 +14,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  issues: write
 
 concurrency:
   group: pages
@@ -51,3 +52,48 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Verify public Akiya Pocket sales pages
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="${PAGE_URL%/}/akiya-pocket"
+          verify() {
+            local path="$1" marker="$2" out="$RUNNER_TEMP/page.html"
+            ok=0
+            for _ in $(seq 1 20); do
+              if curl -fsSL --max-time 20 "$base/$path?v=$GITHUB_RUN_ID-$RANDOM" -o "$out" && grep -Fq "$marker" "$out"; then
+                ok=1
+                break
+              fi
+              sleep 3
+            done
+            test "$ok" = 1
+          }
+          verify 'index.html' '空家ポケット'
+          verify 'register.html' '無料会員登録'
+          verify 'member-login.html' 'ログイン'
+          verify 'request.html' '3,480円'
+          verify 'checkout.html' '3,480円'
+          curl -fsSL --max-time 20 "$base/assets/config.js?v=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/config.js"
+          grep -Fq 'akiya-pocket-api' "$RUNNER_TEMP/config.js"
+          grep -Fq 'akiya-pocket-payment-api' "$RUNNER_TEMP/config.js"
+          echo "AKIYA_PUBLIC_URL=$base/"
+          echo 'AKIYA_PUBLIC_VERIFY=PASS'
+      - name: Record deployment result
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="${PAGE_URL%/}/akiya-pocket/"
+          body=$(jq -n --arg url "$base" --arg run "$GITHUB_RUN_ID" '{body:("AKIYA_PUBLIC_DEPLOY=PASS\nRUN_ID="+$run+"\nURL="+$url+"\nPAGES=index,register,member-login,request,checkout\nPAYMENT_CONFIG=akiya-pocket-payment-api\nSTATUS=Public sales site deployed and externally verified from GitHub Actions.")}')
+          curl -fsSL -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'Content-Type: application/json' \
+            -d "$body" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
