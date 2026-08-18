@@ -1,9 +1,10 @@
 User-agent: *
 Allow: /
-Disallow: /member.html
-Disallow: /profile.html
-Disallow: /request.html
-Disallow: /checkout.html
-Disallow: /payment-success.html
-Disallow: /newsletter-unsubscribe.html
-Sitemap: https://rapid-hat-f45c.jmdjdtdjdt.workers.dev/sitemap.xml
+Disallow: /Homepage/akiya-pocket/member.html
+Disallow: /Homepage/akiya-pocket/profile.html
+Disallow: /Homepage/akiya-pocket/request.html
+Disallow: /Homepage/akiya-pocket/checkout.html
+Disallow: /Homepage/akiya-pocket/payment-success.html
+Disallow: /Homepage/akiya-pocket/newsletter-unsubscribe.html
+Disallow: /Homepage/akiya-pocket/control-center/
+Sitemap: https://nknkny.github.io/Homepage/akiya-pocket/sitemap.xml
