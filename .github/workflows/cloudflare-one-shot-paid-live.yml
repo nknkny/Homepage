@@ -12,18 +12,18 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 20
     env:
       TARGET_WORKER: rapid-hat-f45c
       ADMIN_WORKER: akiya-pocket-owner-private
       OWNER_EMAIL: jmdjdtdjdt@gmail.com
       CANDIDATE_BRANCH: akiya-r13-ready-20260818
       ROLLBACK_BRANCH: akiya-r13-static
-      CALLBACK_BRANCH: agent/cloudflare-one-shot-paid-live-20260818
+      SECRET_BRANCH: agent/cloudflare-one-shot-paid-live-20260818
     steps:
       - uses: actions/checkout@v4
 
-      - name: Prepare Wrangler OAuth and secure callback channel
+      - name: Start minimum-scope Cloudflare device authorization
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -35,61 +35,55 @@ jobs:
           WRANGLER="$RUNNER_TEMP/cfcli/node_modules/.bin/wrangler"
           "$WRANGLER" --version
           openssl req -x509 -newkey rsa:3072 -nodes -keyout "$RUNNER_TEMP/key.pem" -out "$RUNNER_TEMP/cert.pem" -subj "/CN=akiya-cloudflare-one-shot-${GITHUB_RUN_ID}" -days 1 >/dev/null 2>&1
-          "$WRANGLER" login --scopes "account:read user:read workers:write workers_scripts:write offline_access" --callback-host localhost --callback-port 8976 --no-use-keyring >"$RUNNER_TEMP/login.log" 2>&1 &
+          "$WRANGLER" login --device --scopes account:read --scopes user:read --scopes workers:write --scopes workers_scripts:write --no-use-keyring >"$RUNNER_TEMP/login.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/login.pid"
-          auth_url=''
+          device_url=''
           for _ in $(seq 1 90); do
-            auth_url=$(grep -Eo 'https://dash\.cloudflare\.com/oauth2/auth\?[^[:space:]]+' "$RUNNER_TEMP/login.log" | tail -1 || true)
-            [ -n "$auth_url" ] && break
+            device_url=$(grep -Eo 'https://dash\.cloudflare\.com/oauth2/device/verify\?user_code=[A-Za-z0-9]+' "$RUNNER_TEMP/login.log" | tail -1 || true)
+            [ -n "$device_url" ] && break
             sleep 1
           done
-          if [ -z "$auth_url" ]; then
-            sed -E 's#(code=|state=|code_challenge=)[^&[:space:]]+#\1[REDACTED]#g' "$RUNNER_TEMP/login.log" || true
-            exit 1
-          fi
+          if [ -z "$device_url" ]; then cat "$RUNNER_TEMP/login.log"; exit 1; fi
           cert=$(base64 -w0 "$RUNNER_TEMP/cert.pem")
-          file=".github/cloudflare-auth/callback-${GITHUB_RUN_ID}.cms.b64"
-          body=$(jq -n --arg run "$GITHUB_RUN_ID" --arg url "$auth_url" --arg cert "$cert" --arg file "$file" '{body:("CLOUDFLARE_ONE_SHOT_READY\nRUN_ID="+$run+"\nOWNER_ACTION=Open the Cloudflare authorization URL, approve it, then copy the full localhost redirect URL back to ChatGPT.\nCLOUDFLARE_AUTH_URL="+$url+"\nCALLBACK_CERT_B64="+$cert+"\nENCRYPTED_CALLBACK_FILE="+$file)}')
+          file=".github/cloudflare-auth/runtime-${GITHUB_RUN_ID}.cms.b64"
+          body=$(jq -n --arg run "$GITHUB_RUN_ID" --arg url "$device_url" --arg cert "$cert" --arg file "$file" '{body:("CLOUDFLARE_DEVICE_READY\nRUN_ID="+$run+"\nOWNER_ACTION=Open the device URL and approve the Worker-only request. No callback URL needs to be copied.\nCLOUDFLARE_DEVICE_URL="+$url+"\nRUNTIME_CERT_B64="+$cert+"\nENCRYPTED_RUNTIME_FILE="+$file)}')
           curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/$REPO/issues/$PR_NUMBER/comments" >/dev/null
-          printf '%s' "$file" > "$RUNNER_TEMP/callback-file.txt"
-          echo 'AUTH_CHANNEL_READY=PASS'
+          printf '%s' "$file" > "$RUNNER_TEMP/runtime-file.txt"
+          echo 'DEVICE_AUTH_READY=PASS'
 
-      - name: Receive encrypted owner callback and complete Cloudflare OAuth
+      - name: Receive encrypted runtime secrets and wait for owner approval
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
         shell: bash
         run: |
           set -euo pipefail
-          file=$(cat "$RUNNER_TEMP/callback-file.txt")
+          file=$(cat "$RUNNER_TEMP/runtime-file.txt")
           pid=$(cat "$RUNNER_TEMP/login.pid")
           enc=''
-          for i in $(seq 1 1500); do
-            ref=$(python3 -c 'import urllib.parse,os;print(urllib.parse.quote(os.environ["CALLBACK_BRANCH"],safe=""))')
+          for i in $(seq 1 420); do
+            ref=$(python3 -c 'import urllib.parse,os;print(urllib.parse.quote(os.environ["SECRET_BRANCH"],safe=""))')
             api="https://api.github.com/repos/$REPO/contents/$file?ref=$ref"
             if resp=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' "$api" 2>/dev/null); then
               enc=$(printf '%s' "$resp" | jq -r '.content // empty' | tr -d '\n' | base64 -d 2>/dev/null || true)
               [ -n "$enc" ] && break
             fi
-            if ! kill -0 "$pid" 2>/dev/null; then
-              sed -E 's#(code=|state=|code_challenge=)[^&[:space:]]+#\1[REDACTED]#g' "$RUNNER_TEMP/login.log" || true
-              exit 1
-            fi
             sleep 1
           done
           test -n "$enc"
-          printf '%s' "$enc" | base64 -d > "$RUNNER_TEMP/callback.cms"
-          openssl cms -decrypt -inform DER -in "$RUNNER_TEMP/callback.cms" -recip "$RUNNER_TEMP/cert.pem" -inkey "$RUNNER_TEMP/key.pem" -out "$RUNNER_TEMP/payload.json"
-          jq -e '.callback and .owner_ui_key and .entry_key and .owner_email and .owner_password' "$RUNNER_TEMP/payload.json" >/dev/null
-          callback=$(jq -r '.callback' "$RUNNER_TEMP/payload.json")
-          case "$callback" in http://localhost:8976/oauth/callback*|http://127.0.0.1:8976/oauth/callback*) :;; *) echo INVALID_CALLBACK; exit 1;; esac
-          callback=${callback/http:\/\/localhost:8976/http:\/\/127.0.0.1:8976}
-          curl -fsS --max-time 20 "$callback" -o "$RUNNER_TEMP/callback-response.html"
+          printf '%s' "$enc" | base64 -d > "$RUNNER_TEMP/runtime.cms"
+          openssl cms -decrypt -inform DER -in "$RUNNER_TEMP/runtime.cms" -recip "$RUNNER_TEMP/cert.pem" -inkey "$RUNNER_TEMP/key.pem" -out "$RUNNER_TEMP/payload.json"
+          jq -e '.owner_ui_key and .entry_key and .owner_email and .owner_password' "$RUNNER_TEMP/payload.json" >/dev/null
+          for _ in $(seq 1 360); do
+            if ! kill -0 "$pid" 2>/dev/null; then break; fi
+            sleep 1
+          done
           wait "$pid"
           WRANGLER="$RUNNER_TEMP/cfcli/node_modules/.bin/wrangler"
           "$WRANGLER" whoami > "$RUNNER_TEMP/whoami.txt"
           grep -Fq 'workers (write)' "$RUNNER_TEMP/whoami.txt"
-          echo 'CLOUDFLARE_OWNER_OAUTH=PASS'
+          if grep -Eq 'email_sending|email_routing|ai \(write\)|pages \(write\)' "$RUNNER_TEMP/whoami.txt"; then echo 'EXCESS_SCOPE_DETECTED'; exit 1; fi
+          echo 'MINIMUM_SCOPE_OWNER_OAUTH=PASS'
 
       - name: Identify exact Cloudflare account and existing Worker
         shell: bash
