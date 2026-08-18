@@ -8,6 +8,11 @@ on:
       - 'event-platform/**'
       - 'akiya-pocket/**'
       - '.github/workflows/deploy-public-pages.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'akiya-pocket/**'
+      - '.github/workflows/deploy-public-pages.yml'
   workflow_dispatch:
 
 permissions:
