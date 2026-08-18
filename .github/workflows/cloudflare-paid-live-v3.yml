@@ -1,4 +1,4 @@
-name: Cloudflare paid-live v3 resilient owner auth
+name: Cloudflare paid-live v3 API-token deploy
 
 on:
   pull_request:
@@ -15,14 +15,26 @@ permissions:
 jobs:
   deploy-customer:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 20
     env:
       TARGET_WORKER: rapid-hat-f45c
       CANDIDATE_BRANCH: akiya-r13-ready-20260818
       ROLLBACK_BRANCH: akiya-r13-static
       LIVE_ORIGIN: https://rapid-hat-f45c.jmdjdtdjdt.workers.dev
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Require Cloudflare CI token
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            echo 'CLOUDFLARE_API_TOKEN secret is not configured.'
+            echo 'Create a Cloudflare API token with Workers edit permission and save it as repository secret CLOUDFLARE_API_TOKEN.'
+            exit 1
+          fi
+          echo CLOUDFLARE_CI_TOKEN_PRESENT=PASS
 
       - name: Prepare and validate audited deployment payload
         shell: bash
@@ -40,69 +52,20 @@ jobs:
           grep -Fq '3,480円' "$RUNNER_TEMP/customer-deploy/site/request.html"
           grep -Fq '3,480円' "$RUNNER_TEMP/customer-deploy/site/checkout.html"
           ! grep -RIEq 'sk_(live|test)_[A-Za-z0-9]+' "$RUNNER_TEMP/customer-deploy/site"
-          echo PREAUTH_DEPLOYMENT_PAYLOAD_READY=PASS
-
-      - name: Keep issuing minimum-scope Cloudflare device authorization until owner approves
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          REPO: ${{ github.repository }}
-        shell: bash
-        run: |
-          set -u -o pipefail
-          W="$RUNNER_TEMP/cfcli/node_modules/.bin/wrangler"
-          auth_ok=0
-          for attempt in $(seq 1 6); do
-            rm -f "$RUNNER_TEMP/login.log" "$RUNNER_TEMP/whoami.txt"
-            echo "Starting owner authorization attempt $attempt/6"
-            "$W" login --device \
-              --scopes account:read --scopes user:read --scopes workers:write --scopes workers_scripts:write \
-              --no-use-keyring >"$RUNNER_TEMP/login.log" 2>&1 &
-            pid=$!
-            device_url=''
-            for _ in $(seq 1 60); do
-              device_url=$(grep -Eo 'https://dash\.cloudflare\.com/oauth2/device/verify\?user_code=[A-Za-z0-9]+' "$RUNNER_TEMP/login.log" | tail -1 || true)
-              [ -n "$device_url" ] && break
-              if ! kill -0 "$pid" 2>/dev/null; then break; fi
-              sleep 1
-            done
-            if [ -z "$device_url" ]; then
-              cat "$RUNNER_TEMP/login.log" || true
-              wait "$pid" || true
-              continue
-            fi
-            body=$(jq -n --arg run "$GITHUB_RUN_ID" --arg attempt "$attempt" --arg url "$device_url" '{body:("CLOUDFLARE_DEVICE_READY_V3\nRUN_ID="+$run+"\nATTEMPT="+$attempt+"/6\nCLOUDFLARE_DEVICE_URL="+$url+"\nSCOPES=account:read,user:read,workers:write,workers_scripts:write\nSTATUS=Audited customer deployment is ready. This is the only owner action required.")}')
-            curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/$REPO/issues/$PR_NUMBER/comments" >/dev/null || true
-            echo "DEVICE_READY_FOR_OWNER_ATTEMPT=$attempt"
-            if wait "$pid"; then
-              if "$W" whoami > "$RUNNER_TEMP/whoami.txt" 2>&1 && grep -Fq 'workers (write)' "$RUNNER_TEMP/whoami.txt"; then
-                if grep -Eq 'email_sending|email_routing|ai \(write\)|pages \(write\)' "$RUNNER_TEMP/whoami.txt"; then
-                  echo EXCESS_SCOPE_DETECTED
-                  exit 1
-                fi
-                auth_ok=1
-                echo "MINIMUM_SCOPE_OWNER_OAUTH=PASS attempt=$attempt"
-                break
-              fi
-            fi
-            echo "OWNER_AUTH_ATTEMPT_EXPIRED_OR_DENIED=$attempt"
-          done
-          test "$auth_ok" = 1
+          echo DEPLOYMENT_PAYLOAD_READY=PASS
 
       - name: Identify exact Cloudflare account and existing Worker
         shell: bash
         run: |
           set -euo pipefail
-          W="$RUNNER_TEMP/cfcli/node_modules/.bin/wrangler"
-          "$W" auth token --json > "$RUNNER_TEMP/token.json"
-          token=$(jq -r '.token // empty' "$RUNNER_TEMP/token.json")
-          test -n "$token"
-          curl -fsSL -H "Authorization: Bearer $token" 'https://api.cloudflare.com/client/v4/accounts?per_page=50' > "$RUNNER_TEMP/accounts.json"
+          curl -fsSL -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" 'https://api.cloudflare.com/client/v4/accounts?per_page=50' > "$RUNNER_TEMP/accounts.json"
           jq -e '.success==true' "$RUNNER_TEMP/accounts.json" >/dev/null
           : > "$RUNNER_TEMP/matches.txt"
           while read -r aid; do
-            code=$(curl -sS -o "$RUNNER_TEMP/worker-$aid.json" -w '%{http_code}' -H "Authorization: Bearer $token" "https://api.cloudflare.com/client/v4/accounts/$aid/workers/scripts/$TARGET_WORKER/settings")
-            if [ "$code" = 200 ] && jq -e '.success==true' "$RUNNER_TEMP/worker-$aid.json" >/dev/null 2>&1; then echo "$aid" >> "$RUNNER_TEMP/matches.txt"; fi
+            code=$(curl -sS -o "$RUNNER_TEMP/worker-$aid.json" -w '%{http_code}' -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$aid/workers/scripts/$TARGET_WORKER/settings")
+            if [ "$code" = 200 ] && jq -e '.success==true' "$RUNNER_TEMP/worker-$aid.json" >/dev/null 2>&1; then
+              echo "$aid" >> "$RUNNER_TEMP/matches.txt"
+            fi
           done < <(jq -r '.result[].id' "$RUNNER_TEMP/accounts.json")
           test "$(wc -l < "$RUNNER_TEMP/matches.txt")" -eq 1
           ACCOUNT_ID=$(cat "$RUNNER_TEMP/matches.txt")
@@ -143,7 +106,10 @@ jobs:
             ! grep -q '遨ｺ螳ｶ' "$RUNNER_TEMP/r"
           }
           ok=0
-          for _ in $(seq 1 15); do if verify_live; then ok=1; break; fi; sleep 4; done
+          for _ in $(seq 1 15); do
+            if verify_live; then ok=1; break; fi
+            sleep 4
+          done
           if [ "$ok" -ne 1 ]; then
             echo LIVE_VERIFY_FAILED_ROLLING_BACK
             ACCOUNT_ID=$(cat "$RUNNER_TEMP/account-id.txt")
@@ -167,15 +133,5 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          body=$(jq -n --arg run "$GITHUB_RUN_ID" '{body:("CLOUDFLARE_CUSTOMER_LIVE_V3=PASS\nRUN_ID="+$run+"\nVERSION=2026-08-18-paid-live-r1\nEXTERNAL_EMAIL=UNCHANGED_OFF\nSTATUS=Customer production deployment and external verification completed.")}')
+          body=$(jq -n --arg run "$GITHUB_RUN_ID" '{body:("CLOUDFLARE_CUSTOMER_LIVE_API_TOKEN=PASS\nRUN_ID="+$run+"\nVERSION=2026-08-18-paid-live-r1\nSTATUS=Customer production deployment and external verification completed.")}')
           curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/$REPO/issues/$PR_NUMBER/comments" >/dev/null
-
-      - name: Revoke one-shot Cloudflare OAuth
-        if: always()
-        shell: bash
-        run: |
-          set +e
-          W="$RUNNER_TEMP/cfcli/node_modules/.bin/wrangler"
-          "$W" logout >/dev/null 2>&1
-          rm -rf "$HOME/.wrangler" "$HOME/.config/.wrangler" "$RUNNER_TEMP/token.json"
-          echo ONE_SHOT_OAUTH_REVOKED=PASS
