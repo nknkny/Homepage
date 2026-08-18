@@ -1,22 +1,10 @@
 name: Cloudflare device auth capability probe
 on:
-  pull_request:
-    branches: [main]
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
     steps:
-      - name: Inspect current Wrangler device-auth options
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm install --no-audit --no-fund --prefix "$RUNNER_TEMP/cfcli" wrangler@latest >/dev/null 2>&1
-          W="$RUNNER_TEMP/cfcli/node_modules/.bin/wrangler"
-          "$W" --version
-          echo '=== WRANGLER LOGIN HELP ==='
-          "$W" login --help
-          echo '=== WRANGLER LOGIN DEVICE HELP ==='
-          "$W" login --device --help || true
+      - run: echo probe-disabled-on-pr
