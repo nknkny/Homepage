@@ -1,0 +1,53 @@
+name: Akiya Form Sales Browser Self Test
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  test:
+    if: github.event.issue.number == 42 && contains(github.event.comment.body, 'RUN_AKIYA_FORM_SALES_BROWSER_SELFTEST')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container:
+      image: mcr.microsoft.com/playwright:v1.55.0-noble
+    steps:
+      - name: Install Playwright package
+        shell: bash
+        run: npm install --no-save --no-package-lock playwright@1.55.0 >/dev/null
+      - name: Submit only to public echo test form
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const {chromium}=require('playwright');
+          const b=await chromium.launch({headless:true});
+          const p=await b.newPage();
+          await p.goto('https://httpbin.org/forms/post',{waitUntil:'domcontentloaded',timeout:30000});
+          await p.locator('input[name="custname"]').fill('Akiya Form Sales Self Test');
+          await p.locator('input[name="custtel"]').fill('0000000000');
+          await p.locator('input[name="custemail"]').fill('akiya-form-test@example.invalid');
+          await p.locator('textarea[name="comments"]').fill('Controlled browser automation test. No real recipient.');
+          await p.locator('button').click();
+          await p.waitForLoadState('domcontentloaded',{timeout:15000});
+          const text=await p.locator('body').innerText();
+          if(!text.includes('Akiya Form Sales Self Test')||!text.includes('akiya-form-test@example.invalid')) throw new Error('echo verification failed');
+          console.log('FORM_BROWSER_SELFTEST=PASS');
+          await b.close();
+          NODE
+      - name: Record result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATUS: ${{ job.status }}
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const body={body:`AKIYA_FORM_SALES_BROWSER_SELFTEST=${process.env.STATUS==='success'?'PASS':'FAIL'}`};
+          const r=await fetch(`https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/issues/42/comments`,{method:'POST',headers:{authorization:`Bearer ${process.env.GH_TOKEN}`,'content-type':'application/json','accept':'application/vnd.github+json'},body:JSON.stringify(body)});
+          if(!r.ok) throw new Error(`comment ${r.status}`);
+          NODE
