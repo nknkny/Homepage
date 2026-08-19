@@ -47,6 +47,10 @@ for(const job of claimed.jobs){
     const submit=page.locator(job.submitSelector).first();
     if(await submit.count()===0) throw new Error('submit button not found');
     if(!(await submit.isEnabled())) throw new Error('submit button disabled');
+
+    const live=await call({action:'validate',formId:job.formId,claimToken});
+    if(!live.allowed){console.log(`held ${job.formId} pre-submit=${live.reason}`);continue}
+
     const before=page.url();
     await submit.click({timeout:8000});
     await Promise.race([page.waitForLoadState('networkidle',{timeout:10000}).catch(()=>{}),page.waitForTimeout(3500)]);
