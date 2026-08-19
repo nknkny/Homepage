@@ -20,14 +20,18 @@ jobs:
         shell: bash
         run: npm install --no-save --no-package-lock playwright@1.55.0 >/dev/null
       - name: Submit only to public echo test form
+        id: browser
         shell: bash
         run: |
-          set -euo pipefail
-          node - <<'NODE'
+          set +e
+          node - <<'NODE' > /tmp/selftest.log 2>&1
           const {chromium}=require('playwright');
           const b=await chromium.launch({headless:true});
           const p=await b.newPage();
+          console.log('open');
           await p.goto('https://httpbin.org/forms/post',{waitUntil:'domcontentloaded',timeout:30000});
+          console.log('title',await p.title());
+          console.log('buttons',await p.locator('button').count());
           await p.locator('input[name="custname"]').fill('Akiya Form Sales Self Test');
           await p.locator('input[name="custtel"]').fill('0000000000');
           await p.locator('input[name="custemail"]').fill('akiya-form-test@example.invalid');
@@ -35,19 +39,31 @@ jobs:
           await p.locator('button').click();
           await p.waitForLoadState('domcontentloaded',{timeout:15000});
           const text=await p.locator('body').innerText();
+          console.log('url',p.url());
+          console.log('body',text.slice(0,1000));
           if(!text.includes('Akiya Form Sales Self Test')||!text.includes('akiya-form-test@example.invalid')) throw new Error('echo verification failed');
           console.log('FORM_BROWSER_SELFTEST=PASS');
           await b.close();
           NODE
+          code=$?
+          cat /tmp/selftest.log
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          echo "log<<EOF" >> "$GITHUB_OUTPUT"
+          tail -c 2500 /tmp/selftest.log >> "$GITHUB_OUTPUT"
+          echo >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          exit "$code"
       - name: Record result
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
           STATUS: ${{ job.status }}
+          LOG: ${{ steps.browser.outputs.log }}
         shell: bash
         run: |
           node - <<'NODE'
-          const body={body:`AKIYA_FORM_SALES_BROWSER_SELFTEST=${process.env.STATUS==='success'?'PASS':'FAIL'}`};
+          const log=(process.env.LOG||'').slice(-1800);
+          const body={body:`AKIYA_FORM_SALES_BROWSER_SELFTEST=${process.env.STATUS==='success'?'PASS':'FAIL'}\n${log}`};
           const r=await fetch(`https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/issues/42/comments`,{method:'POST',headers:{authorization:`Bearer ${process.env.GH_TOKEN}`,'content-type':'application/json','accept':'application/vnd.github+json'},body:JSON.stringify(body)});
           if(!r.ok) throw new Error(`comment ${r.status}`);
           NODE
