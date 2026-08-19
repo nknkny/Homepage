@@ -24,8 +24,8 @@ jobs:
         shell: bash
         run: |
           set +e
-          node - <<'NODE' > /tmp/selftest.log 2>&1
-          const {chromium}=require('playwright');
+          node --input-type=module - <<'NODE' > /tmp/selftest.log 2>&1
+          import {chromium} from 'playwright';
           const b=await chromium.launch({headless:true});
           const p=await b.newPage();
           console.log('open');
