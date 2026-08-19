@@ -38,9 +38,25 @@ jobs:
           npm install --no-save --no-package-lock playwright@1.55.0 >/dev/null
 
       - name: Process safe form outreach queue
+        id: process
         env:
           OIDC_TOKEN: ${{ steps.oidc.outputs.result }}
         shell: bash
         run: |
           set -euo pipefail
-          node .github/scripts/akiya-form-sales-runner.mjs
+          node .github/scripts/akiya-form-sales-runner.mjs | tee /tmp/akiya-form-sales.log
+          echo "log=$(tail -n 5 /tmp/akiya-form-sales.log | tr '\n' ' ' | cut -c1-1500)" >> "$GITHUB_OUTPUT"
+
+      - name: Record manual diagnostic result
+        if: always() && github.event_name == 'issue_comment'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OUTCOME: ${{ steps.process.outcome }}
+          LOG: ${{ steps.process.outputs.log }}
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const body={body:`AKIYA_FORM_SALES_RUNNER=${process.env.OUTCOME==='success'?'PASS':'FAIL'}\n${process.env.LOG||''}`};
+          const r=await fetch(`https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/issues/42/comments`,{method:'POST',headers:{authorization:`Bearer ${process.env.GH_TOKEN}`,'content-type':'application/json','accept':'application/vnd.github+json'},body:JSON.stringify(body)});
+          if(!r.ok) throw new Error(`comment ${r.status}`);
+          NODE
