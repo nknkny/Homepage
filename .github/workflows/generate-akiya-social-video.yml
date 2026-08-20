@@ -1,0 +1,44 @@
+name: Generate Akiya Pocket Social Video
+
+on:
+  push:
+    paths:
+      - '.github/workflows/generate-akiya-social-video.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Install ffmpeg and Japanese font
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-noto-cjk
+      - name: Generate vertical H.264 social video
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p akiya-pocket/assets/social
+          FONT=$(fc-match 'Noto Sans CJK JP' -f '%{file}' | head -1)
+          ffmpeg -y -f lavfi -i color=c=0xF4F7FB:s=720x1280:r=24:d=6 \
+            -vf "drawtext=fontfile='$FONT':text='青森市の空き家':fontcolor=0x082B58:fontsize=58:x=(w-text_w)/2:y=190,drawtext=fontfile='$FONT':text='遠方からでも 現況を確認':fontcolor=0x172033:fontsize=38:x=(w-text_w)/2:y=300,drawtext=fontfile='$FONT':text='空家ポケット':fontcolor=0x082B58:fontsize=66:x=(w-text_w)/2:y=460,drawtext=fontfile='$FONT':text='外観・敷地を写真で報告':fontcolor=0x172033:fontsize=34:x=(w-text_w)/2:y=590,drawtext=fontfile='$FONT':text='1回 3,480円（税込）':fontcolor=0x0F766E:fontsize=42:x=(w-text_w)/2:y=700,drawtext=fontfile='$FONT':text='室内立入り・修理・専門診断は行いません':fontcolor=0x65758B:fontsize=24:x=(w-text_w)/2:y=850,drawtext=fontfile='$FONT':text='説明用イメージ':fontcolor=0x65758B:fontsize=22:x=(w-text_w)/2:y=1050" \
+            -c:v libx264 -preset veryslow -tune stillimage -crf 34 -pix_fmt yuv420p -movflags +faststart -an \
+            akiya-pocket/assets/social/akiya-pocket-short.mp4
+          ffprobe -v error -show_entries format=duration,size:stream=codec_name,width,height,pix_fmt -of default=noprint_wrappers=1 akiya-pocket/assets/social/akiya-pocket-short.mp4
+      - name: Commit generated MP4
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add akiya-pocket/assets/social/akiya-pocket-short.mp4
+          if git diff --cached --quiet; then
+            echo 'No change'
+          else
+            git commit -m 'Generate Akiya Pocket social short video'
+            git push origin HEAD:main
+          fi
