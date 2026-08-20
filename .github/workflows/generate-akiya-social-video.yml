@@ -1,5 +1,6 @@
 name: Generate Akiya Pocket Social Video
 
+# This workflow is intentionally triggered by changes to this file so the generated binary is reproducible.
 on:
   push:
     paths:
