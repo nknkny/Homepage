@@ -1,0 +1,131 @@
+name: Akiya final exhaustive audit
+
+on:
+  pull_request:
+    branches: [main]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit:
+    if: github.event_name == 'pull_request' || (github.event.issue.number == 42 && contains(github.event.comment.body, 'RUN_AKIYA_FINAL_EXHAUSTIVE_AUDIT'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || 'main' }}
+
+      - name: Build customer artifact
+        env:
+          AKIYA_CANONICAL_ORIGIN: https://akiya-pocket-aomori.pages.dev
+          AKIYA_DEPLOYMENT_URL: https://akiya-pocket-aomori.pages.dev
+        run: |
+          set -euo pipefail
+          node scripts/build-akiya-cloudflare-pages.mjs
+          test ! -d dist/control-center
+          test -f dist/_redirects
+          grep -Fq '/control-center/* https://nknkny.github.io/Homepage/akiya-pocket/control-center/:splat 302' dist/_redirects
+          ! grep -Fq '/Homepage/akiya-pocket/' dist/robots.txt
+          grep -Fq 'Sitemap: https://akiya-pocket-aomori.pages.dev/sitemap.xml' dist/robots.txt
+
+      - name: Install Playwright
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install playwright@latest >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null 2>&1
+
+      - name: Start local artifact server
+        run: |
+          python3 -m http.server 4173 -d dist >/tmp/akiya-http.log 2>&1 &
+          echo $! > /tmp/akiya-http.pid
+          for n in $(seq 1 30); do curl -fsS http://127.0.0.1:4173/ >/dev/null && exit 0; sleep 1; done
+          exit 1
+
+      - name: Crawl and inspect every customer page
+        id: crawl
+        run: |
+          cat > /tmp/audit.mjs <<'EOF'
+          import { chromium, request as playwrightRequest } from 'playwright';
+          const local='http://127.0.0.1:4173';
+          const canonical='https://akiya-pocket-aomori.pages.dev';
+          const functional=['/register.html','/member-login.html','/member.html','/profile.html','/request.html','/checkout.html','/payment-success.html','/delete-account.html','/account-recovery.html','/reset-password.html','/unsubscribe.html','/newsletter-unsubscribe.html','/checklist.html','/member-survey.html'];
+          const sx=await fetch(local+'/sitemap.xml').then(r=>r.text());
+          const sitemapPaths=[...sx.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m=>new URL(m[1]).pathname);
+          const paths=[...new Set(['/',...sitemapPaths,...functional])];
+          const browser=await chromium.launch({headless:true});
+          const api=await playwrightRequest.newContext();
+          const errors=[]; const checked=[]; const links=new Set();
+          const vps=[{name:'desktop',width:1440,height:900},{name:'mobile',width:390,height:844}];
+          function clean(s){return String(s||'').replace(/\s+/g,' ').trim()}
+          for(const path of paths){
+            for(const vp of vps){
+              const page=await browser.newPage({viewport:{width:vp.width,height:vp.height}});
+              const pageErrors=[]; page.on('pageerror',e=>pageErrors.push(String(e.message||e)));
+              const badResponses=[]; page.on('response',r=>{try{const u=new URL(r.url());if(u.origin===local&&r.status()>=400)badResponses.push(`${r.status()} ${u.pathname}`)}catch{}});
+              const resp=await page.goto(local+path,{waitUntil:'networkidle',timeout:45000});
+              const data=await page.evaluate(()=>{
+                const de=document.documentElement;
+                const overflow=de.scrollWidth-de.clientWidth;
+                const headingLines=[];
+                for(const el of document.querySelectorAll('h1,h2')){
+                  const text=(el.textContent||'').trim(); if(!text) continue;
+                  const node=[...el.childNodes].find(n=>n.nodeType===Node.TEXT_NODE) || el;
+                  const lines=[];
+                  if(node.nodeType===Node.TEXT_NODE){
+                    let currentY=null,current='';
+                    for(let i=0;i<node.textContent.length;i++){
+                      const range=document.createRange();range.setStart(node,i);range.setEnd(node,i+1);const rs=[...range.getClientRects()];if(!rs.length)continue;const y=Math.round(rs[0].top);
+                      if(currentY===null||Math.abs(y-currentY)<=2){currentY=currentY??y;current+=node.textContent[i]}else{lines.push(current.trim());currentY=y;current=node.textContent[i]}
+                    } if(current.trim())lines.push(current.trim());
+                  }
+                  headingLines.push({tag:el.tagName,text,lines:lines.filter(Boolean)});
+                }
+                const hrefs=[...document.querySelectorAll('a[href]')].map(a=>a.href);
+                return {overflow,headingLines,hrefs,title:document.title,body:(document.body?.innerText||'').slice(0,300)};
+              });
+              if(!resp||resp.status()>=400) errors.push(`${vp.name} ${path}: HTTP ${resp?.status()||0}`);
+              if(data.overflow>2) errors.push(`${vp.name} ${path}: horizontal overflow ${data.overflow}px`);
+              for(const h of data.headingLines){for(const line of h.lines){const s=clean(line);if(h.text.length>=6 && /^[ぁ-んァ-ヶ一-龠。、・「」『』！？!?]$/.test(s)) errors.push(`${vp.name} ${path}: orphan heading line '${s}' in ${h.tag}`)}}
+              for(const e of pageErrors) errors.push(`${vp.name} ${path}: pageerror ${e}`);
+              for(const e of [...new Set(badResponses)]) errors.push(`${vp.name} ${path}: resource ${e}`);
+              if(vp.name==='desktop') for(const href of data.hrefs){try{const u=new URL(href);if(u.origin===local&&!u.hash)links.add(u.pathname+u.search)}catch{}}
+              checked.push(`${vp.name}:${path}`); await page.close();
+            }
+          }
+          for(const href of links){const r=await api.get(local+href,{maxRedirects:5});if(r.status()>=400)errors.push(`broken internal link ${href}: ${r.status()}`)}
+          const root=await api.get(local+'/'); const rootText=await root.text();
+          if(!rootText.includes(`<link rel="canonical" href="${canonical}/">`))errors.push('root canonical mismatch');
+          const robots=await (await api.get(local+'/robots.txt')).text();
+          if(robots.includes('/Homepage/akiya-pocket/'))errors.push('robots contains legacy path');
+          if(!robots.includes(`Sitemap: ${canonical}/sitemap.xml`))errors.push('robots sitemap mismatch');
+          if([...sx.matchAll(/<loc>([^<]+)<\/loc>/g)].some(m=>!m[1].startsWith(canonical+'/')))errors.push('sitemap contains noncanonical URL');
+          for(const [url,label] of [['https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-api','api'],['https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-payment-api','payment']]){
+            const r=await api.get(url,{headers:{Origin:canonical}}); const x=await r.json().catch(()=>({})); if(r.status()!==200||x.ok!==true||x.ready!==true)errors.push(`${label} readiness failed ${r.status()}`); if(label==='payment'&&(x.amountJpy!==3480||x.paymentLinkReady!==true))errors.push('payment config mismatch');
+          }
+          await api.dispose(); await browser.close();
+          const result={pass:errors.length===0,pages:paths.length,renderChecks:checked.length,links:links.size,errors};
+          console.log(JSON.stringify(result,null,2));
+          if(errors.length)process.exitCode=1;
+          EOF
+          node /tmp/audit.mjs | tee /tmp/audit-result.json
+
+      - name: Report audit
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ -s /tmp/audit-result.json ] && jq -e '.pass==true' /tmp/audit-result.json >/dev/null 2>&1; then overall=PASS; else overall=FAIL; fi
+          pages=$(jq -r '.pages//0' /tmp/audit-result.json 2>/dev/null || echo 0)
+          renders=$(jq -r '.renderChecks//0' /tmp/audit-result.json 2>/dev/null || echo 0)
+          links=$(jq -r '.links//0' /tmp/audit-result.json 2>/dev/null || echo 0)
+          errs=$(jq -r '(.errors//[])[:20]|join("\n")' /tmp/audit-result.json 2>/dev/null || echo no-result)
+          if [ "${{ github.event_name }}" = "issue_comment" ]; then
+            body=$(jq -n --arg o "$overall" --arg p "$pages" --arg r "$renders" --arg l "$links" --arg e "$errs" '{body:("AKIYA_FINAL_EXHAUSTIVE_AUDIT="+$o+"\npages="+$p+" render_checks="+$r+" internal_links="+$l+"\n"+$e)}')
+            curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
+          fi
