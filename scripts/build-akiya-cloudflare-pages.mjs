@@ -67,6 +67,12 @@ function walk(dir) {
 }
 walk(outDir);
 
+// Japanese headings should not leave a single character stranded on a final
+// line. Chromium/modern browsers balance only headings, leaving body copy and
+// the explicitly fixed homepage hero lines unchanged.
+const sharedStylePath = path.join(outDir, 'assets', 'style.css');
+fs.appendFileSync(sharedStylePath, '\n/* Final responsive typography guard */\nh1,h2{text-wrap:balance}\n');
+
 const configPath = path.join(outDir, 'assets', 'config.js');
 const config = `window.AKIYA_CONFIG = {\n` +
   `  FRONTEND_BUILD: "2026-08-21-cloudflare-pages-r1",\n` +
