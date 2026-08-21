@@ -1,0 +1,72 @@
+name: Akiya source canonical normalize
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  normalize:
+    if: github.event.issue.number == 42 && github.event.comment.user.id == 166302688 && contains(github.event.comment.body, 'RUN_AKIYA_SOURCE_CANONICAL_NORMALIZE')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Normalize customer source canonical and legacy host redirect
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('akiya-pocket')
+          old='https://nknkny.github.io/Homepage/akiya-pocket'
+          new='https://akiya-pocket-aomori.pages.dev'
+          changed=[]
+          for p in root.glob('*.html'):
+              s=p.read_text(encoding='utf-8')
+              z=s.replace(old,new)
+              if z!=s:
+                  p.write_text(z,encoding='utf-8'); changed.append(str(p))
+          for rel in ['robots.txt','sitemap.xml','assets/config.js']:
+              p=root/rel
+              s=p.read_text(encoding='utf-8')
+              z=s.replace(old,new)
+              if z!=s:
+                  p.write_text(z,encoding='utf-8'); changed.append(str(p))
+          p=root/'assets/site.js'
+          s=p.read_text(encoding='utf-8')
+          marker='AKIYA_LEGACY_GITHUB_REDIRECT_V1'
+          if marker not in s:
+              prefix="""/* AKIYA_LEGACY_GITHUB_REDIRECT_V1 */\n(function(){\n  if(location.hostname==='nknkny.github.io'&&location.pathname.startsWith('/Homepage/akiya-pocket/')&&!location.pathname.startsWith('/Homepage/akiya-pocket/control-center/')){\n    const tail=location.pathname.slice('/Homepage/akiya-pocket/'.length);\n    location.replace('https://akiya-pocket-aomori.pages.dev/'+tail+location.search+location.hash);\n  }\n})();\n"""
+              p.write_text(prefix+s,encoding='utf-8'); changed.append(str(p))
+          print('\n'.join(changed))
+          PY
+          grep -Fq 'Sitemap: https://akiya-pocket-aomori.pages.dev/sitemap.xml' akiya-pocket/robots.txt
+          ! grep -Fq 'https://nknkny.github.io/Homepage/akiya-pocket/' akiya-pocket/sitemap.xml
+          grep -Fq 'AKIYA_LEGACY_GITHUB_REDIRECT_V1' akiya-pocket/assets/site.js
+          grep -Fq 'https://akiya-pocket-aomori.pages.dev/' akiya-pocket/index.html
+          git diff --check
+      - name: Commit source normalization
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add akiya-pocket
+          git commit -m 'Normalize Akiya canonical source to Cloudflare'
+          git push origin HEAD:main
+      - name: Report
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          body=$(jq -n --arg s "${{ job.status }}" --arg r "$GITHUB_RUN_ID" '{body:("AKIYA_SOURCE_CANONICAL_NORMALIZE="+$s+"\nRUN_ID="+$r)}')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
