@@ -26,21 +26,35 @@ jobs:
           curl --fail --silent --show-error --max-time 30 -H "Origin: $SITE_ORIGIN" "$API_URL" -o evidence/health.json
           jq -e --arg b "$EXPECTED_API_BUILD" '.ok==true and .ready==true and .buildVersion==$b' evidence/health.json >/dev/null
 
-          # Exercise the current Supabase action endpoint with an intentionally
-          # invalid event. This verifies POST routing/validation without adding
-          # synthetic analytics rows to production.
-          code=$(curl --silent --show-error --max-time 30 -o evidence/invalid-event.json -w '%{http_code}' \
+          # Missing eventType must fail closed and must not create an analytics row.
+          code=$(curl --silent --show-error --max-time 30 -o evidence/missing-event-type.json -w '%{http_code}' \
             -H 'content-type: application/json' -H "Origin: $SITE_ORIGIN" \
             -X POST "$API_URL" \
             --data '{"action":"track_public_event","event_name":"__ci_invalid__","event_id":""}')
           test "$code" -ge 400 && test "$code" -lt 500
-          jq -e '.ok==false' evidence/invalid-event.json >/dev/null
+          jq -e '.ok==false and .code=="EVENT_TYPE_REQUIRED"' evidence/missing-event-type.json >/dev/null
+
+          # A syntactically complete but non-allowlisted event must also fail closed.
+          code2=$(curl --silent --show-error --max-time 30 -o evidence/invalid-event-type.json -w '%{http_code}' \
+            -H 'content-type: application/json' -H "Origin: $SITE_ORIGIN" \
+            -X POST "$API_URL" \
+            --data '{"action":"track_public_event","eventType":"__ci_invalid__","anonymousId":"ANON-CI","sessionId":"SES-CI","page":"/"}')
+          test "$code2" -ge 400 && test "$code2" -lt 500
+          jq -e '.ok==false and .code=="EVENT_TYPE_INVALID"' evidence/invalid-event-type.json >/dev/null
+
+          # Even an allowlisted event must provide the required public identifiers.
+          code3=$(curl --silent --show-error --max-time 30 -o evidence/missing-session.json -w '%{http_code}' \
+            -H 'content-type: application/json' -H "Origin: $SITE_ORIGIN" \
+            -X POST "$API_URL" \
+            --data '{"action":"track_public_event","eventType":"site_visit","anonymousId":"ANON-CI","page":"/"}')
+          test "$code3" -ge 400 && test "$code3" -lt 500
+          jq -e '.ok==false and .code=="SESSION_ID_INVALID"' evidence/missing-session.json >/dev/null
 
           # Unknown actions must also fail closed rather than return success.
-          code2=$(curl --silent --show-error --max-time 30 -o evidence/unknown-action.json -w '%{http_code}' \
+          code4=$(curl --silent --show-error --max-time 30 -o evidence/unknown-action.json -w '%{http_code}' \
             -H 'content-type: application/json' -H "Origin: $SITE_ORIGIN" \
             -X POST "$API_URL" --data '{"action":"__ci_unknown__"}')
-          test "$code2" -ge 400 && test "$code2" -lt 500
+          test "$code4" -ge 400 && test "$code4" -lt 500
           jq -e '.ok==false' evidence/unknown-action.json >/dev/null
 
       - name: Upload evidence
