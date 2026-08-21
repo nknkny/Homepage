@@ -1,3 +1,10 @@
+/* AKIYA_LEGACY_GITHUB_REDIRECT_V1 */
+(function(){
+  if(location.hostname==='nknkny.github.io'&&location.pathname.startsWith('/Homepage/akiya-pocket/')&&!location.pathname.startsWith('/Homepage/akiya-pocket/control-center/')){
+    const tail=location.pathname.slice('/Homepage/akiya-pocket/'.length);
+    location.replace('https://akiya-pocket-aomori.pages.dev/'+tail+location.search+location.hash);
+  }
+})();
 (function(){
  const $=(s,r=document)=>r.querySelector(s);const $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
  window.AkiyaUI={

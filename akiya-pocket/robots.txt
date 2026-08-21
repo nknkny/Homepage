@@ -7,4 +7,4 @@ Disallow: /checkout.html
 Disallow: /payment-success.html
 Disallow: /newsletter-unsubscribe.html
 Disallow: /control-center/
-Sitemap: https://nknkny.github.io/Homepage/akiya-pocket/sitemap.xml
+Sitemap: https://akiya-pocket-aomori.pages.dev/sitemap.xml
