@@ -49,24 +49,21 @@ jobs:
           curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
           wait "$pid"
 
-      - name: Select or create Pages project
+      - name: Resolve canonical Pages project
         id: project
         shell: bash
         run: |
           set -euo pipefail
-          npx --yes wrangler@4.119.0 pages project list --json > "$RUNNER_TEMP/projects.json"
-          project=''
-          for candidate in akiya-pocket akiya-pocket-aomori akiyapocket-aomori-2026; do
-            if jq -e --arg p "$candidate" '.[] | select(.name==$p)' "$RUNNER_TEMP/projects.json" >/dev/null 2>&1; then
-              project="$candidate"; break
-            fi
-            if npx --yes wrangler@4.119.0 pages project create "$candidate" --production-branch main >/dev/null 2>&1; then
-              project="$candidate"; break
-            fi
-          done
+          origin=$(tr -d '[:space:]' < akiya-pocket/CLOUDFLARE_CANONICAL.txt)
+          case "$origin" in https://*.pages.dev) ;; *) echo "Invalid canonical Pages origin: $origin" >&2; exit 1;; esac
+          project=$(node -e 'const u=new URL(process.argv[1]); console.log(u.hostname.replace(/\.pages\.dev$/,""))' "$origin")
           test -n "$project"
+          npx --yes wrangler@4.119.0 pages project list --json > "$RUNNER_TEMP/projects.json"
+          if ! jq -e --arg p "$project" '.[] | select(.name==$p)' "$RUNNER_TEMP/projects.json" >/dev/null 2>&1; then
+            npx --yes wrangler@4.119.0 pages project create "$project" --production-branch main >/dev/null
+          fi
           echo "name=$project" >> "$GITHUB_OUTPUT"
-          echo "origin=https://${project}.pages.dev" >> "$GITHUB_OUTPUT"
+          echo "origin=$origin" >> "$GITHUB_OUTPUT"
 
       - name: Build Cloudflare Pages artifact
         env:
@@ -85,12 +82,15 @@ jobs:
           ! grep -R -F 'https://nknkny.github.io/Homepage/akiya-pocket' dist --include='*.html' --include='*.js' --include='*.xml' --include='*.txt'
           ! grep -Fq '"telephone":' dist/index.html
           test -f dist/_headers
+          test -f dist/_redirects
           test -f dist/DEPLOYMENT.json
+          test ! -d dist/control-center
+          grep -Fq '/control-center/* https://nknkny.github.io/Homepage/akiya-pocket/control-center/:splat 302' dist/_redirects
 
       - name: Deploy Cloudflare Pages
         env:
           PROJECT: ${{ steps.project.outputs.name }}
-        run: npx --yes wrangler@4.119.0 pages deploy dist --project-name "$PROJECT" --branch main --commit-hash "$GITHUB_SHA" --commit-message 'Akiya Pocket hosting migration'
+        run: npx --yes wrangler@4.119.0 pages deploy dist --project-name "$PROJECT" --branch main --commit-hash "$GITHUB_SHA" --commit-message 'Akiya Pocket production deployment'
 
       - name: Verify live public site
         id: verify
@@ -113,6 +113,8 @@ jobs:
           jq -e '.ok==true and .ready==true and .buildVersion=="2026-08-14-legal-final-r10"' "$RUNNER_TEMP/api.json" >/dev/null
           curl -fsSL -H "Origin: $ORIGIN" "$PAY" -o "$RUNNER_TEMP/pay.json"
           jq -e '.ok==true and .ready==true and .amountJpy==3480 and .paymentLinkReady==true' "$RUNNER_TEMP/pay.json" >/dev/null
+          final=$(curl -fsSL -o /dev/null -w '%{url_effective}' -L "$ORIGIN/control-center/")
+          test "$final" = 'https://nknkny.github.io/Homepage/akiya-pocket/control-center/'
 
       - name: Report stage1 result
         if: always()

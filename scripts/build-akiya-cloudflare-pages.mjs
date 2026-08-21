@@ -8,6 +8,7 @@ const outDir = path.join(repoRoot, 'dist');
 const oldBase = 'https://nknkny.github.io/Homepage/akiya-pocket';
 const oldOrigin = 'https://nknkny.github.io';
 const oldWorker = 'https://rapid-hat-f45c.jmdjdtdjdt.workers.dev';
+const adminBase = 'https://nknkny.github.io/Homepage/akiya-pocket/control-center';
 
 function asOrigin(raw) {
   if (!raw) return '';
@@ -45,6 +46,11 @@ fs.cpSync(sourceDir, outDir, {
   filter: (src) => path.basename(src) !== '.github',
 });
 
+// The owner control center intentionally stays on GitHub Pages because its
+// authenticated APIs allow that origin. Do not publish a stale/broken copy on
+// the customer-facing Cloudflare site.
+fs.rmSync(path.join(outDir, 'control-center'), { recursive: true, force: true });
+
 const textExtensions = new Set(['.html', '.js', '.css', '.txt', '.xml', '.json', '.webmanifest', '.md']);
 function walk(dir) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -60,6 +66,12 @@ function walk(dir) {
   }
 }
 walk(outDir);
+
+// Japanese headings should not leave a single character stranded on a final
+// line. Chromium/modern browsers balance only headings, leaving body copy and
+// the explicitly fixed homepage hero lines unchanged.
+const sharedStylePath = path.join(outDir, 'assets', 'style.css');
+fs.appendFileSync(sharedStylePath, '\n/* Final responsive typography guard */\nh1,h2{text-wrap:balance}\n');
 
 const configPath = path.join(outDir, 'assets', 'config.js');
 const config = `window.AKIYA_CONFIG = {\n` +
@@ -77,8 +89,11 @@ const config = `window.AKIYA_CONFIG = {\n` +
   `};\n`;
 fs.writeFileSync(configPath, config);
 
-const headers = `/*\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: strict-origin-when-cross-origin\n  X-Frame-Options: DENY\n  Permissions-Policy: camera=(), microphone=(), geolocation=(), usb=()\n  Strict-Transport-Security: max-age=31536000; includeSubDomains\n  Content-Security-Policy: frame-ancestors 'none'; base-uri 'self'; object-src 'none'\n\n/VERSION.txt\n  Cache-Control: no-store, max-age=0\n/assets/config.js\n  Cache-Control: no-store, max-age=0\n/assets/api.js\n  Cache-Control: no-store, max-age=0\n/member.html\n  Cache-Control: no-store, max-age=0\n/member-login.html\n  Cache-Control: no-store, max-age=0\n/profile.html\n  Cache-Control: no-store, max-age=0\n/request.html\n  Cache-Control: no-store, max-age=0\n/checkout.html\n  Cache-Control: no-store, max-age=0\n/payment-success.html\n  Cache-Control: no-store, max-age=0\n/delete-account.html\n  Cache-Control: no-store, max-age=0\n/reset-password.html\n  Cache-Control: no-store, max-age=0\n/account-recovery.html\n  Cache-Control: no-store, max-age=0\n/unsubscribe.html\n  Cache-Control: no-store, max-age=0\n/newsletter-unsubscribe.html\n  Cache-Control: no-store, max-age=0\n/checklist.html\n  Cache-Control: no-store, max-age=0\n/member-survey.html\n  Cache-Control: no-store, max-age=0\n/control-center/*\n  Cache-Control: no-store, max-age=0\n  X-Robots-Tag: noindex, nofollow, noarchive\n`;
+const headers = `/*\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: strict-origin-when-cross-origin\n  X-Frame-Options: DENY\n  Permissions-Policy: camera=(), microphone=(), geolocation=(), usb=()\n  Strict-Transport-Security: max-age=31536000; includeSubDomains\n  Content-Security-Policy: frame-ancestors 'none'; base-uri 'self'; object-src 'none'\n\n/VERSION.txt\n  Cache-Control: no-store, max-age=0\n/assets/config.js\n  Cache-Control: no-store, max-age=0\n/assets/api.js\n  Cache-Control: no-store, max-age=0\n/member.html\n  Cache-Control: no-store, max-age=0\n/member-login.html\n  Cache-Control: no-store, max-age=0\n/profile.html\n  Cache-Control: no-store, max-age=0\n/request.html\n  Cache-Control: no-store, max-age=0\n/checkout.html\n  Cache-Control: no-store, max-age=0\n/payment-success.html\n  Cache-Control: no-store, max-age=0\n/delete-account.html\n  Cache-Control: no-store, max-age=0\n/reset-password.html\n  Cache-Control: no-store, max-age=0\n/account-recovery.html\n  Cache-Control: no-store, max-age=0\n/unsubscribe.html\n  Cache-Control: no-store, max-age=0\n/newsletter-unsubscribe.html\n  Cache-Control: no-store, max-age=0\n/checklist.html\n  Cache-Control: no-store, max-age=0\n/member-survey.html\n  Cache-Control: no-store, max-age=0\n`;
 fs.writeFileSync(path.join(outDir, '_headers'), headers);
+
+const redirects = `/control-center ${adminBase}/ 302\n/control-center/ ${adminBase}/ 302\n/control-center/* ${adminBase}/:splat 302\n`;
+fs.writeFileSync(path.join(outDir, '_redirects'), redirects);
 
 const marker = {
   build: '2026-08-21-cloudflare-pages-r1',
@@ -93,5 +108,7 @@ if (!home.includes(`<link rel="canonical" href="${canonicalOrigin}/">`)) throw n
 if (!home.includes('空家ポケット')) throw new Error('Homepage missing expected brand');
 if (!fs.readFileSync(configPath, 'utf8').includes(`SITE_ORIGIN: ${JSON.stringify(canonicalOrigin)}`)) throw new Error('Config origin replacement failed');
 if (home.includes(oldBase) || home.includes(oldWorker)) throw new Error('Legacy production URL remains in homepage');
+if (fs.existsSync(path.join(outDir, 'control-center'))) throw new Error('Control center leaked into customer artifact');
+if (!fs.existsSync(path.join(outDir, '_redirects'))) throw new Error('Admin redirect file missing');
 
 console.log(JSON.stringify({ ok: true, outDir, canonicalOrigin, deploymentOrigin, allowedOrigins }, null, 2));

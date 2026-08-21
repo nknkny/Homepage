@@ -10,58 +10,53 @@ permissions:
 
 env:
   EXPECTED_API_BUILD: 2026-08-14-legal-final-r10
-  SITE_ORIGIN: https://rapid-hat-f45c.jmdjdtdjdt.workers.dev
-  API_URL: https://script.google.com/macros/s/AKfycbzWYTf9K_XyEfo1CD4Pshg18ANH5_zhOsTnyiFhKTwbDgs17ZOXqLgAxKrvO7TA3wYr0w/exec
+  SITE_ORIGIN: https://akiya-pocket-aomori.pages.dev
+  API_URL: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-api
 
 jobs:
   strict-public-event:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Verify track_public_event with required fields and exact success
+      - name: Verify current API readiness and public-event validation transport
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p evidence
-          tag="CI-PUBLIC-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          h1=evidence/initial-headers.txt
-          b1=evidence/initial-body.txt
-          final=evidence/final-body.html
-          status=$(curl --silent --show-error --retry 3 --max-time 45 -D "$h1" -o "$b1" -w '%{http_code}' -X POST "$API_URL" \
-            --data-urlencode 'action=track_public_event' \
-            --data-urlencode "responseOrigin=$SITE_ORIGIN" \
-            --data-urlencode "clientRequestId=$tag" \
-            --data-urlencode 'eventType=site_visit' \
-            --data-urlencode 'page=/github-strict-public-event-check' \
-            --data-urlencode 'contentCategory=audit' \
-            --data-urlencode 'actionLabel=github_ci' \
-            --data-urlencode 'value=1' \
-            --data-urlencode "anonymousId=ANON-$tag" \
-            --data-urlencode "sessionId=SES-$tag")
-          if [ "$status" -ge 300 ] && [ "$status" -lt 400 ]; then
-            loc=$(tr -d '\r' < "$h1" | awk 'BEGIN{IGNORECASE=1}/^location:/{sub(/^location:[[:space:]]*/,""); print; exit}')
-            test -n "$loc"
-            final_status=$(curl --silent --show-error --retry 3 --max-time 45 -o "$final" -w '%{http_code}' "$loc")
-            test "$final_status" -ge 200 && test "$final_status" -lt 300
-          else
-            cp "$b1" "$final"
-            test "$status" -ge 200 && test "$status" -lt 300
-          fi
-          python - <<'PY'
-          import codecs, os
-          s=open('evidence/final-body.html', encoding='utf-8', errors='replace').read()
-          expected=os.environ['EXPECTED_API_BUILD']
-          tag=f"CI-PUBLIC-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}"
-          normalized=s
-          for _ in range(2):
-              normalized=codecs.decode(normalized, 'unicode_escape')
-          assert '"ok":true' in normalized, 'missing ok=true'
-          assert f'"buildVersion":"{expected}"' in normalized, 'wrong/missing buildVersion'
-          assert '"source":"akiya-rescue-api"' in normalized, 'missing source'
-          assert tag in normalized, 'missing clientRequestId'
-          assert '"code":"VALIDATION"' not in normalized, 'validation error returned'
-          print(f'STRICT_PUBLIC_EVENT_OK tag={tag}')
-          PY
+          curl --fail --silent --show-error --max-time 30 -H "Origin: $SITE_ORIGIN" "$API_URL" -o evidence/health.json
+          jq -e --arg b "$EXPECTED_API_BUILD" '.ok==true and .ready==true and .buildVersion==$b' evidence/health.json >/dev/null
+
+          # Missing eventType must fail closed and must not create an analytics row.
+          code=$(curl --silent --show-error --max-time 30 -o evidence/missing-event-type.json -w '%{http_code}' \
+            -H 'content-type: application/json' -H "Origin: $SITE_ORIGIN" \
+            -X POST "$API_URL" \
+            --data '{"action":"track_public_event","event_name":"__ci_invalid__","event_id":""}')
+          test "$code" -ge 400 && test "$code" -lt 500
+          jq -e '.ok==false and .code=="EVENT_TYPE_REQUIRED"' evidence/missing-event-type.json >/dev/null
+
+          # A syntactically complete but non-allowlisted event must also fail closed.
+          code2=$(curl --silent --show-error --max-time 30 -o evidence/invalid-event-type.json -w '%{http_code}' \
+            -H 'content-type: application/json' -H "Origin: $SITE_ORIGIN" \
+            -X POST "$API_URL" \
+            --data '{"action":"track_public_event","eventType":"__ci_invalid__","anonymousId":"ANON-CI","sessionId":"SES-CI","page":"/"}')
+          test "$code2" -ge 400 && test "$code2" -lt 500
+          jq -e '.ok==false and .code=="EVENT_TYPE_INVALID"' evidence/invalid-event-type.json >/dev/null
+
+          # Even an allowlisted event must provide the required public identifiers.
+          code3=$(curl --silent --show-error --max-time 30 -o evidence/missing-session.json -w '%{http_code}' \
+            -H 'content-type: application/json' -H "Origin: $SITE_ORIGIN" \
+            -X POST "$API_URL" \
+            --data '{"action":"track_public_event","eventType":"site_visit","anonymousId":"ANON-CI","page":"/"}')
+          test "$code3" -ge 400 && test "$code3" -lt 500
+          jq -e '.ok==false and .code=="SESSION_ID_INVALID"' evidence/missing-session.json >/dev/null
+
+          # Unknown actions must also fail closed rather than return success.
+          code4=$(curl --silent --show-error --max-time 30 -o evidence/unknown-action.json -w '%{http_code}' \
+            -H 'content-type: application/json' -H "Origin: $SITE_ORIGIN" \
+            -X POST "$API_URL" --data '{"action":"__ci_unknown__"}')
+          test "$code4" -ge 400 && test "$code4" -lt 500
+          jq -e '.ok==false' evidence/unknown-action.json >/dev/null
+
       - name: Upload evidence
         if: always()
         uses: actions/upload-artifact@v4
