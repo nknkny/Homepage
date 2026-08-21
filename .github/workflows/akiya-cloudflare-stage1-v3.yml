@@ -58,8 +58,6 @@ jobs:
           case "$origin" in https://*.pages.dev) ;; *) echo "Invalid canonical Pages origin: $origin" >&2; exit 1;; esac
           project=$(node -e 'const u=new URL(process.argv[1]); console.log(u.hostname.replace(/\.pages\.dev$/,""))' "$origin")
           test -n "$project"
-          # The canonical Pages project already exists. Do not attempt to recreate it;
-          # pages deploy below is the authoritative existence/access check.
           echo "name=$project" >> "$GITHUB_OUTPUT"
           echo "origin=$origin" >> "$GITHUB_OUTPUT"
 
@@ -90,7 +88,7 @@ jobs:
           PROJECT: ${{ steps.project.outputs.name }}
         run: npx --yes wrangler@4.119.0 pages deploy dist --project-name "$PROJECT" --branch main --commit-hash "$GITHUB_SHA" --commit-message 'Akiya Pocket production deployment'
 
-      - name: Verify live public site
+      - name: Verify live public site and exact artifact parity
         id: verify
         env:
           ORIGIN: ${{ steps.project.outputs.origin }}
@@ -105,16 +103,34 @@ jobs:
             sleep 3
           done
           test "$ok" = 1
+
           curl -fsSL "$ORIGIN/DEPLOYMENT.json?v=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/deployment.json"
           jq -e --arg o "$ORIGIN" '.canonicalOrigin==$o and .build=="2026-08-21-cloudflare-pages-r1"' "$RUNNER_TEMP/deployment.json" >/dev/null
           curl -fsSL -H "Origin: $ORIGIN" "$API" -o "$RUNNER_TEMP/api.json"
           jq -e '.ok==true and .ready==true and .buildVersion=="2026-08-14-legal-final-r10"' "$RUNNER_TEMP/api.json" >/dev/null
           curl -fsSL -H "Origin: $ORIGIN" "$PAY" -o "$RUNNER_TEMP/pay.json"
           jq -e '.ok==true and .ready==true and .amountJpy==3480 and .paymentLinkReady==true' "$RUNNER_TEMP/pay.json" >/dev/null
+
           curl -fsSI "$ORIGIN/control-center/" -o "$RUNNER_TEMP/admin-redirect-headers.txt"
           tr -d '\r' < "$RUNNER_TEMP/admin-redirect-headers.txt" > "$RUNNER_TEMP/admin-redirect-headers-normalized.txt"
           grep -Eiq '^HTTP/[0-9.]+ 30[12378]' "$RUNNER_TEMP/admin-redirect-headers-normalized.txt"
           grep -Eiq '^location:[[:space:]]*https://nknkny\.github\.io/Homepage/akiya-pocket/control-center/?[[:space:]]*$' "$RUNNER_TEMP/admin-redirect-headers-normalized.txt"
+
+          mismatches=0
+          while IFS= read -r -d '' file; do
+            rel=${file#dist/}
+            case "$rel" in _headers|_redirects) continue;; esac
+            tmp=$(mktemp)
+            if ! curl -fsSL --max-time 30 "$ORIGIN/$rel?parity=$GITHUB_RUN_ID" -o "$tmp"; then
+              echo "LIVE_MISSING $rel"
+              mismatches=$((mismatches+1))
+            elif ! cmp -s "$file" "$tmp"; then
+              echo "LIVE_MISMATCH $rel"
+              mismatches=$((mismatches+1))
+            fi
+            rm -f "$tmp"
+          done < <(find dist -type f -print0)
+          test "$mismatches" = 0
 
       - name: Report stage1 result
         if: always()
@@ -128,5 +144,5 @@ jobs:
         run: |
           set -euo pipefail
           if [ "$AUTH" = success ] && [ "$VERIFY" = success ]; then overall=PASS; else overall=FAIL; fi
-          body=$(jq -n --arg o "$overall" --arg u "$ORIGIN" --arg p "$PROJECT" --arg r "$GITHUB_RUN_ID" --arg a "$AUTH" --arg v "$VERIFY" '{body:("AKIYA_CF_STAGE1_DEPLOY="+$o+"\nRUN_ID="+$r+"\nPROJECT="+$p+"\nURL="+$u+"/\nAUTH="+$a+"\nPUBLIC_VERIFY="+$v)}')
+          body=$(jq -n --arg o "$overall" --arg u "$ORIGIN" --arg p "$PROJECT" --arg r "$GITHUB_RUN_ID" --arg a "$AUTH" --arg v "$VERIFY" --arg s "$GITHUB_SHA" '{body:("AKIYA_CF_STAGE1_DEPLOY="+$o+"\nRUN_ID="+$r+"\nSOURCE_SHA="+$s+"\nPROJECT="+$p+"\nURL="+$u+"/\nAUTH="+$a+"\nPUBLIC_VERIFY="+$v)}')
           curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
