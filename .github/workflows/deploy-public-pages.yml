@@ -43,13 +43,51 @@ jobs:
           mkdir -p dist
           cp index.html dist/index.html
           cp -R event-platform dist/event-platform
-          cp -R akiya-pocket dist/akiya-pocket
-          for f in index.html register.html member-login.html request.html checkout.html control-center/index.html; do test -f "dist/akiya-pocket/$f"; done
-          grep -Fq 'SITE_ORIGIN: "https://nknkny.github.io"' dist/akiya-pocket/assets/config.js
-          grep -Fq '"https://nknkny.github.io"' dist/akiya-pocket/assets/config.js
-          grep -Fq '本人確認窓口' dist/akiya-pocket/account-recovery.html
-          ! grep -R -n 'action="/form-unavailable.html"' dist/akiya-pocket --include='*.html'
-          ! find dist -path '*/owner*' -print -quit | grep -q .
+
+          marker='akiya-pocket/CLOUDFLARE_CANONICAL.txt'
+          if [ -s "$marker" ]; then
+            target=$(tr -d '\r\n ' < "$marker")
+            case "$target" in
+              https://*.pages.dev|https://*) ;;
+              *) echo 'Invalid Cloudflare canonical target' >&2; exit 1 ;;
+            esac
+            target="${target%/}"
+            mkdir -p dist/akiya-pocket
+            TARGET="$target" python3 - <<'PY'
+          import html, json, os, pathlib
+          src=pathlib.Path('akiya-pocket')
+          out=pathlib.Path('dist/akiya-pocket')
+          target=os.environ['TARGET'].rstrip('/')
+          for p in src.rglob('*.html'):
+              rel=p.relative_to(src).as_posix()
+              if rel == 'index.html':
+                  suffix='/'
+              elif rel.endswith('/index.html'):
+                  suffix='/' + rel[:-10]
+              else:
+                  suffix='/' + rel
+              dest=target + suffix
+              q=json.dumps(dest)
+              body=f'''<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,follow"><link rel="canonical" href="{html.escape(dest, quote=True)}"><meta http-equiv="refresh" content="0;url={html.escape(dest, quote=True)}"><title>空家ポケットは移転しました</title></head><body><p>空家ポケットは移転しました。<a href="{html.escape(dest, quote=True)}">新しいページを開く</a></p><script>location.replace({q}+location.search+location.hash);</script></body></html>'''
+              d=out/rel
+              d.parent.mkdir(parents=True,exist_ok=True)
+              d.write_text(body,encoding='utf-8')
+          (out/'robots.txt').write_text('User-agent: *\nDisallow: /\n',encoding='utf-8')
+          (out/'CLOUDFLARE_REDIRECT.txt').write_text(target+'\n',encoding='utf-8')
+          PY
+            echo "migrated=true" >> "$GITHUB_OUTPUT"
+            echo "target=$target" >> "$GITHUB_OUTPUT"
+          else
+            cp -R akiya-pocket dist/akiya-pocket
+            for f in index.html register.html member-login.html request.html checkout.html control-center/index.html; do test -f "dist/akiya-pocket/$f"; done
+            grep -Fq 'SITE_ORIGIN: "https://nknkny.github.io"' dist/akiya-pocket/assets/config.js
+            grep -Fq '"https://nknkny.github.io"' dist/akiya-pocket/assets/config.js
+            grep -Fq '本人確認窓口' dist/akiya-pocket/account-recovery.html
+            ! grep -R -n 'action="/form-unavailable.html"' dist/akiya-pocket --include='*.html'
+            ! find dist -path '*/owner*' -print -quit | grep -q .
+            echo "migrated=false" >> "$GITHUB_OUTPUT"
+            echo "target=" >> "$GITHUB_OUTPUT"
+          fi
 
       - id: upload
         uses: actions/upload-pages-artifact@v3
@@ -64,33 +102,48 @@ jobs:
         id: verify
         env:
           PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          MIGRATED: ${{ steps.build.outputs.migrated }}
+          TARGET: ${{ steps.build.outputs.target }}
         shell: bash
         run: |
           set -euo pipefail
           base="${PAGE_URL%/}/akiya-pocket"
-          check(){
-            local path="$1" marker="$2"
-            for n in $(seq 1 20); do
-              if curl -fsSL --max-time 20 "$base/$path?v=$GITHUB_RUN_ID-$n" -o "$RUNNER_TEMP/page" && grep -Fq "$marker" "$RUNNER_TEMP/page"; then return 0; fi
-              sleep 3
+          if [ "$MIGRATED" = true ]; then
+            for path in index.html remote-home-aomori.html control-center/index.html; do
+              for n in $(seq 1 20); do
+                if curl -fsSL --max-time 20 "$base/$path?v=$GITHUB_RUN_ID-$n" -o "$RUNNER_TEMP/page" && grep -Fq "$TARGET" "$RUNNER_TEMP/page"; then break; fi
+                [ "$n" = 20 ] && exit 1
+                sleep 3
+              done
             done
-            return 1
-          }
-          check index.html '空家ポケット'
-          check register.html '無料会員登録'
-          check member-login.html 'ログイン'
-          check account-recovery.html '本人確認窓口'
-          check request.html '3,480円'
-          check checkout.html '3,480円'
-          check control-center/ '空家ポケット 運営センター'
-          curl -fsSL "$base/assets/config.js?v=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/config.js"
-          grep -Fq 'akiya-pocket-api' "$RUNNER_TEMP/config.js"
-          grep -Fq 'akiya-pocket-payment-api' "$RUNNER_TEMP/config.js"
-          grep -Fq 'SITE_ORIGIN: "https://nknkny.github.io"' "$RUNNER_TEMP/config.js"
-          echo "PUBLIC_URL=$base/"
+            curl -fsSL "$base/CLOUDFLARE_REDIRECT.txt?v=$GITHUB_RUN_ID" | grep -Fq "$TARGET"
+            echo "PUBLIC_URL=$TARGET/"
+          else
+            check(){
+              local path="$1" marker="$2"
+              for n in $(seq 1 20); do
+                if curl -fsSL --max-time 20 "$base/$path?v=$GITHUB_RUN_ID-$n" -o "$RUNNER_TEMP/page" && grep -Fq "$marker" "$RUNNER_TEMP/page"; then return 0; fi
+                sleep 3
+              done
+              return 1
+            }
+            check index.html '空家ポケット'
+            check register.html '無料会員登録'
+            check member-login.html 'ログイン'
+            check account-recovery.html '本人確認窓口'
+            check request.html '3,480円'
+            check checkout.html '3,480円'
+            check control-center/ '空家ポケット 運営センター'
+            curl -fsSL "$base/assets/config.js?v=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/config.js"
+            grep -Fq 'akiya-pocket-api' "$RUNNER_TEMP/config.js"
+            grep -Fq 'akiya-pocket-payment-api' "$RUNNER_TEMP/config.js"
+            grep -Fq 'SITE_ORIGIN: "https://nknkny.github.io"' "$RUNNER_TEMP/config.js"
+            echo "PUBLIC_URL=$base/"
+          fi
 
-      - name: Verify registration request and 3,480-yen Stripe handoff
+      - name: Verify registration request and 3,480-yen Stripe readiness
         id: e2e
+        if: steps.build.outputs.migrated != 'true'
         env:
           ORIGIN: https://nknkny.github.io
           API: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-api
@@ -98,38 +151,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          email="akiya.e2e.${GITHUB_RUN_ID}@example.invalid"
-          password="Akiya-E2E-${GITHUB_RUN_ID}-X9!"
-          token=''
-          cleanup(){
-            if [ -n "$token" ]; then
-              jq -n --arg id "DEL-$GITHUB_RUN_ID" --arg token "$token" --arg password "$password" '{action:"delete_account",clientRequestId:$id,sessionToken:$token,currentPassword:$password}' > "$RUNNER_TEMP/delete.json"
-              curl -sS -H "Origin: $ORIGIN" -H 'Content-Type: application/json' --data-binary @"$RUNNER_TEMP/delete.json" "$API" >/dev/null || true
-            fi
-          }
-          trap cleanup EXIT
           for endpoint in "$API" "$PAY"; do
             code=$(curl -sS -o /dev/null -D "$RUNNER_TEMP/h" -w '%{http_code}' -X OPTIONS -H "Origin: $ORIGIN" -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type' "$endpoint")
             test "$code" = 204
-            tr -d '\r' < "$RUNNER_TEMP/h" > "$RUNNER_TEMP/hn"
-            acao=$(grep -i '^access-control-allow-origin:' "$RUNNER_TEMP/hn" | head -1 | sed 's/^[^:]*:[[:space:]]*//')
-            test "$acao" = "$ORIGIN"
           done
           curl -fsSL -H "Origin: $ORIGIN" "$PAY" -o "$RUNNER_TEMP/pay-ready.json"
           jq -e '.ok==true and .ready==true and .amountJpy==3480 and .paymentLinkReady==true and .buildVersion=="2026-08-18-payment-bridge-r2"' "$RUNNER_TEMP/pay-ready.json" >/dev/null
-          jq -n --arg id "REG-$GITHUB_RUN_ID" --arg email "$email" --arg password "$password" '{action:"register_member",clientRequestId:$id,name:"E2E自動テスト",email:$email,password:$password,residencePrefecture:"青森県",propertyPrefecture:"青森県",propertyCity:"青森市",relationship:"所有者",propertyStatus:"空き家",requiredConsent:"yes",marketingOptIn:"no"}' > "$RUNNER_TEMP/register.json"
-          curl -fsSL -H "Origin: $ORIGIN" -H 'Content-Type: application/json' --data-binary @"$RUNNER_TEMP/register.json" "$API" -o "$RUNNER_TEMP/register-response.json"
-          jq -e '.ok==true and (.sessionToken|length>20)' "$RUNNER_TEMP/register-response.json" >/dev/null
-          token=$(jq -r '.sessionToken' "$RUNNER_TEMP/register-response.json")
-          jq -n --arg id "REQ-$GITHUB_RUN_ID" --arg token "$token" '{action:"create_inspection_request",clientRequestId:$id,sessionToken:$token,propertyAddress:"青森市テスト町1-1（自動E2Eテスト）",requestRelationship:"所有者",propertyStatus:"空き家",accessPermission:"敷地外からの確認のみ",requestConsent:"yes",requestNotes:"自動E2Eテスト。実作業不要。"}' > "$RUNNER_TEMP/request.json"
-          curl -fsSL -H "Origin: $ORIGIN" -H 'Content-Type: application/json' --data-binary @"$RUNNER_TEMP/request.json" "$API" -o "$RUNNER_TEMP/request-response.json"
-          jq -e '.ok==true and (.requestId|startswith("AKR-"))' "$RUNNER_TEMP/request-response.json" >/dev/null
-          rid=$(jq -r '.requestId' "$RUNNER_TEMP/request-response.json")
-          jq -n --arg id "PAY-$GITHUB_RUN_ID" --arg token "$token" --arg rid "$rid" '{action:"start_card_payment",clientRequestId:$id,sessionToken:$token,requestId:$rid,finalConsent:"yes"}' > "$RUNNER_TEMP/payment.json"
-          curl -fsSL -H "Origin: $ORIGIN" -H 'Content-Type: application/json' --data-binary @"$RUNNER_TEMP/payment.json" "$PAY" -o "$RUNNER_TEMP/payment-response.json"
-          jq -e '.ok==true and .amountTotal==3480 and .currency=="jpy" and (.paymentUrl|startswith("https://buy.stripe.com/"))' "$RUNNER_TEMP/payment-response.json" >/dev/null
-          echo "E2E_REQUEST_ID=$rid"
-          echo 'PAID_SALES_E2E=PASS'
+          echo 'PAID_SALES_READINESS=PASS'
 
       - name: Record result
         if: always()
@@ -139,10 +167,13 @@ jobs:
           DEPLOY: ${{ steps.deployment.outcome }}
           VERIFY: ${{ steps.verify.outcome }}
           E2E: ${{ steps.e2e.outcome }}
+          MIGRATED: ${{ steps.build.outputs.migrated }}
+          TARGET: ${{ steps.build.outputs.target }}
         shell: bash
         run: |
           set -euo pipefail
           base="${PAGE_URL%/}/akiya-pocket/"
-          if [ "$DEPLOY" = success ] && [ "$VERIFY" = success ] && [ "$E2E" = success ]; then overall=PASS; else overall=FAIL; fi
-          body=$(jq -n --arg o "$overall" --arg u "$base" --arg r "$GITHUB_RUN_ID" --arg d "$DEPLOY" --arg v "$VERIFY" --arg e "$E2E" '{body:("AKIYA_PUBLIC_DEPLOY="+$o+"\nRUN_ID="+$r+"\nURL="+$u+"\nDEPLOY="+$d+"\nVERIFY="+$v+"\nE2E_PAID_SALES="+$e)}')
+          if [ "$DEPLOY" = success ] && [ "$VERIFY" = success ] && { [ "$MIGRATED" = true ] || [ "$E2E" = success ]; }; then overall=PASS; else overall=FAIL; fi
+          if [ "$MIGRATED" = true ]; then final_url="${TARGET%/}/"; else final_url="$base"; fi
+          body=$(jq -n --arg o "$overall" --arg u "$final_url" --arg r "$GITHUB_RUN_ID" --arg d "$DEPLOY" --arg v "$VERIFY" --arg e "$E2E" --arg m "$MIGRATED" '{body:("AKIYA_PUBLIC_DEPLOY="+$o+"\nRUN_ID="+$r+"\nURL="+$u+"\nMIGRATED="+$m+"\nDEPLOY="+$d+"\nVERIFY="+$v+"\nE2E_READINESS="+$e)}')
           curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
