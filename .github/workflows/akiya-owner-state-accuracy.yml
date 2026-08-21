@@ -12,6 +12,8 @@ permissions:
 
 env:
   OWNER_API: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-owner
+  CONTROL_API: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-automation-control
+  RUNNER_API: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-automation-runner
   CANONICAL_CUSTOMER: https://akiya-pocket-aomori.pages.dev/
 
 jobs:
@@ -21,22 +23,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify dashboard uses real state instead of hard-coded running labels
+      - name: Verify dashboard exposes real runtime controls
         shell: bash
         run: |
           set -euo pipefail
           file='akiya-pocket/control-center/index.html'
-          grep -Fq '運営機能の実状態' "$file"
-          grep -Fq 'const seoActive=!!settings.growth_enabled' "$file"
-          grep -Fq 'const monitorActive=!!settings.health_monitor_enabled' "$file"
-          grep -Fq 'const fullAutoActive=!!settings.full_auto_enabled' "$file"
-          grep -Fq 'const snsAutoPublish=!!s.global_publish_enabled' "$file"
-          grep -Fq "const CUSTOMER='https://akiya-pocket-aomori.pages.dev/'" "$file"
-          ! grep -Fq '<span class="status on">稼働</span>' "$file"
-          ! grep -Fq '毎日19:00にAIが原稿' "$file"
-          ! grep -Fq "const CUSTOMER='https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-live/'" "$file"
+          grep -Fq '主要運営スイッチ' "$file"
+          grep -Fq 'akiya-pocket-automation-control' "$file"
+          grep -Fq "'set_growth'" "$file"
+          grep -Fq "'set_monitor'" "$file"
+          grep -Fq "'set_metrics'" "$file"
+          grep -Fq "'set_full_auto'" "$file"
+          grep -Fq 'data-module=' "$file"
+          grep -Fq '今すぐ実行' "$file"
+          grep -Fq 'SNS公開・外部メール送信は所有者承認なしでは行いません' "$file"
+          ! grep -Fq '汎用ジョブ実行器が完成していない' "$file"
+          ! grep -Fq '毎日19:00にAIが1案だけ作成' 'akiya-pocket/control-center/social.html'
 
-      - name: Verify live owner API declares executor state accurately
+      - name: Verify live owner API reports executor ready
         shell: bash
         run: |
           set -euo pipefail
@@ -44,8 +48,18 @@ jobs:
           jq -e --arg u "$CANONICAL_CUSTOMER" '
             .ok==true and
             .ready==true and
-            .fullAutoButton==false and
-            .fullAutoExecutorReady==false and
+            .fullAutoButton==true and
+            .fullAutoExecutorReady==true and
             .socialPublishProtected==true and
-            .canonicalCustomer==$u
+            .canonicalCustomer==$u and
+            .build=="2026-08-21-owner-v11-runtime-controls"
           ' owner.json >/dev/null
+
+      - name: Verify automation control and runner are live
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 30 "$CONTROL_API" -o control.json
+          jq -e '.ok==true and .ready==true and .executorReady==true and .fullAutoAvailable==true and .socialApprovalRequired==true and .externalEmailAutoSend==false' control.json >/dev/null
+          curl --fail --silent --show-error --max-time 30 "$RUNNER_API" -o runner.json
+          jq -e '.ok==true and .ready==true and .externalEmail==false and .socialAutoPublish==false and (.supported|length)==8' runner.json >/dev/null
