@@ -1,0 +1,28 @@
+name: Akiya main push exhaustive trigger
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  trigger-exhaustive-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Trigger exhaustive audit for current main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          body=$(jq -n --arg sha "$GITHUB_SHA" '{body:("RUN_AKIYA_FINAL_EXHAUSTIVE_AUDIT\nSOURCE_SHA="+$sha)}')
+          curl -fsSL -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'Content-Type: application/json' \
+            -d "$body" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
