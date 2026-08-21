@@ -1,0 +1,189 @@
+name: Akiya Cloudflare Pages device deploy
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  deploy:
+    if: github.event.issue.number == 42 && contains(github.event.comment.body, 'RUN_AKIYA_CLOUDFLARE_PAGES_DEVICE_DEPLOY')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Authenticate Cloudflare with device OAuth
+        id: auth
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/wrangler-login.log"
+          clean="$RUNNER_TEMP/wrangler-login-clean.log"
+          : > "$log"
+          (CI='' npx --yes wrangler@4.119.0 login --device --browser=false >"$log" 2>&1) &
+          pid=$!
+          url=''
+          code=''
+          for n in $(seq 1 90); do
+            perl -pe 's/\e\[[0-9;]*[mK]//g' "$log" > "$clean" || true
+            url=$(grep -Eo 'https://dash\.cloudflare\.com/oauth2/device[^[:space:]]*' "$clean" | head -1 || true)
+            code=$(grep -Eo '[A-Z0-9]{4}-[A-Z0-9]{4}' "$clean" | head -1 || true)
+            if [ -n "$url" ]; then break; fi
+            if ! kill -0 "$pid" 2>/dev/null; then break; fi
+            sleep 2
+          done
+          if [ -z "$url" ]; then
+            cat "$clean" || true
+            wait "$pid" || true
+            echo 'Device authorization URL was not produced' >&2
+            exit 1
+          fi
+          body=$(jq -n --arg url "$url" --arg code "$code" --arg run "$GITHUB_RUN_ID" '{body:("AKIYA_CLOUDFLARE_DEVICE_AUTH_REQUIRED\nVERIFY_URL="+$url+"\nCODE="+$code+"\nRUN_ID="+$run+"\nCloudflareにログインして、この端末認証を承認してください。") }')
+          curl -fsSL -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'Content-Type: application/json' \
+            -d "$body" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
+          wait "$pid"
+          echo 'Cloudflare device OAuth approved.'
+
+      - name: Select or create Cloudflare Pages project
+        id: project
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4.119.0 pages project list --json > "$RUNNER_TEMP/projects.json"
+          project=''
+          for candidate in akiya-pocket akiya-pocket-aomori akiyapocket-aomori-2026; do
+            if jq -e --arg p "$candidate" '.[] | select(.name==$p)' "$RUNNER_TEMP/projects.json" >/dev/null 2>&1; then
+              project="$candidate"
+              break
+            fi
+            if npx --yes wrangler@4.119.0 pages project create "$candidate" --production-branch main >"$RUNNER_TEMP/create-project.log" 2>&1; then
+              project="$candidate"
+              break
+            fi
+          done
+          if [ -z "$project" ]; then
+            cat "$RUNNER_TEMP/create-project.log" || true
+            echo 'Unable to create a Pages project' >&2
+            exit 1
+          fi
+          echo "name=$project" >> "$GITHUB_OUTPUT"
+          echo "origin=https://${project}.pages.dev" >> "$GITHUB_OUTPUT"
+
+      - name: Build production artifact
+        env:
+          AKIYA_CANONICAL_ORIGIN: ${{ steps.project.outputs.origin }}
+          AKIYA_DEPLOYMENT_URL: ${{ steps.project.outputs.origin }}
+        run: node scripts/build-akiya-cloudflare-pages.mjs
+
+      - name: Validate production artifact before upload
+        env:
+          ORIGIN: ${{ steps.project.outputs.origin }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f dist/index.html
+          test -f dist/assets/config.js
+          test -f dist/sitemap.xml
+          test -f dist/robots.txt
+          test -f dist/_headers
+          test -f dist/DEPLOYMENT.json
+          grep -Fq "<link rel=\"canonical\" href=\"${ORIGIN}/\">" dist/index.html
+          grep -Fq "SITE_ORIGIN: \"${ORIGIN}\"" dist/assets/config.js
+          ! grep -R -F 'https://nknkny.github.io/Homepage/akiya-pocket' dist --include='*.html' --include='*.js' --include='*.xml' --include='*.txt'
+          ! grep -R -F 'https://rapid-hat-f45c.jmdjdtdjdt.workers.dev' dist --include='*.html' --include='*.js' --include='*.xml' --include='*.txt'
+          ! grep -Fq '"telephone":' dist/index.html
+
+      - name: Deploy to Cloudflare Pages
+        env:
+          PROJECT: ${{ steps.project.outputs.name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4.119.0 pages deploy dist \
+            --project-name "$PROJECT" \
+            --branch main \
+            --commit-hash "$GITHUB_SHA" \
+            --commit-message 'Akiya Pocket production migration'
+
+      - name: Verify live Cloudflare site and APIs
+        id: verify
+        env:
+          ORIGIN: ${{ steps.project.outputs.origin }}
+          API: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-api
+          PAY: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-payment-api
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=0
+          for n in $(seq 1 40); do
+            if curl -fsSL --max-time 20 "$ORIGIN/?v=$GITHUB_RUN_ID-$n" -o "$RUNNER_TEMP/home" \
+              && grep -Fq '空家ポケット' "$RUNNER_TEMP/home" \
+              && grep -Fq "<link rel=\"canonical\" href=\"${ORIGIN}/\">" "$RUNNER_TEMP/home"; then ok=1; break; fi
+            sleep 3
+          done
+          test "$ok" = 1
+          curl -fsSL "$ORIGIN/DEPLOYMENT.json?v=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/deployment.json"
+          jq -e --arg o "$ORIGIN" '.canonicalOrigin==$o and .build=="2026-08-21-cloudflare-pages-r1"' "$RUNNER_TEMP/deployment.json" >/dev/null
+          curl -fsSI "$ORIGIN/" -o "$RUNNER_TEMP/headers"
+          tr -d '\r' < "$RUNNER_TEMP/headers" > "$RUNNER_TEMP/headers-normalized"
+          grep -qi '^x-content-type-options: nosniff' "$RUNNER_TEMP/headers-normalized"
+          grep -qi '^x-frame-options: DENY' "$RUNNER_TEMP/headers-normalized"
+          curl -fsSL -H "Origin: $ORIGIN" "$API" -o "$RUNNER_TEMP/api.json"
+          jq -e '.ok==true and .ready==true and .buildVersion=="2026-08-14-legal-final-r10"' "$RUNNER_TEMP/api.json" >/dev/null
+          curl -fsSL -H "Origin: $ORIGIN" "$PAY" -o "$RUNNER_TEMP/pay.json"
+          jq -e '.ok==true and .ready==true and .amountJpy==3480 and .paymentLinkReady==true and .buildVersion=="2026-08-18-payment-bridge-r2"' "$RUNNER_TEMP/pay.json" >/dev/null
+          for endpoint in "$API" "$PAY"; do
+            code=$(curl -sS -o /dev/null -D "$RUNNER_TEMP/cors" -w '%{http_code}' -X OPTIONS -H "Origin: $ORIGIN" -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type' "$endpoint")
+            test "$code" = 204
+            tr -d '\r' < "$RUNNER_TEMP/cors" > "$RUNNER_TEMP/cors-normalized"
+            grep -qi "^access-control-allow-origin: ${ORIGIN}$" "$RUNNER_TEMP/cors-normalized"
+          done
+
+      - name: Mark Cloudflare as canonical host
+        id: marker
+        env:
+          ORIGIN: ${{ steps.project.outputs.origin }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$ORIGIN" > akiya-pocket/CLOUDFLARE_CANONICAL.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add akiya-pocket/CLOUDFLARE_CANONICAL.txt
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Switch Akiya Pocket canonical hosting to Cloudflare Pages'
+          git push origin HEAD:main
+
+      - name: Record final result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PROJECT: ${{ steps.project.outputs.name }}
+          ORIGIN: ${{ steps.project.outputs.origin }}
+          AUTH: ${{ steps.auth.outcome }}
+          VERIFY: ${{ steps.verify.outcome }}
+          MARKER: ${{ steps.marker.outcome }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$AUTH" = success ] && [ "$VERIFY" = success ] && [ "$MARKER" = success ]; then overall=PASS; else overall=FAIL; fi
+          body=$(jq -n --arg o "$overall" --arg p "$PROJECT" --arg u "$ORIGIN" --arg r "$GITHUB_RUN_ID" --arg a "$AUTH" --arg v "$VERIFY" --arg m "$MARKER" '{body:("AKIYA_CLOUDFLARE_PAGES_DEPLOY="+$o+"\nRUN_ID="+$r+"\nPROJECT="+$p+"\nURL="+$u+"/\nAUTH="+$a+"\nLIVE_VERIFY="+$v+"\nCANONICAL_SWITCH="+$m)}')
+          curl -fsSL -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'Content-Type: application/json' \
+            -d "$body" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
