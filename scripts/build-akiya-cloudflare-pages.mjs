@@ -38,6 +38,8 @@ const deploymentOrigin = asOrigin(
 );
 const canonicalOrigin = stablePagesOrigin(deploymentOrigin);
 const allowedOrigins = [...new Set([canonicalOrigin, deploymentOrigin])];
+const sourceSha = String(process.env.AKIYA_SOURCE_SHA || process.env.GITHUB_SHA || '').trim();
+if (sourceSha && !/^[0-9a-f]{40}$/i.test(sourceSha)) throw new Error(`Invalid source SHA: ${sourceSha}`);
 
 if (!fs.existsSync(sourceDir)) throw new Error(`Missing source directory: ${sourceDir}`);
 fs.rmSync(outDir, { recursive: true, force: true });
@@ -89,7 +91,7 @@ const config = `window.AKIYA_CONFIG = {\n` +
   `};\n`;
 fs.writeFileSync(configPath, config);
 
-const headers = `/*\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: strict-origin-when-cross-origin\n  X-Frame-Options: DENY\n  Permissions-Policy: camera=(), microphone=(), geolocation=(), usb=()\n  Strict-Transport-Security: max-age=31536000; includeSubDomains\n  Content-Security-Policy: frame-ancestors 'none'; base-uri 'self'; object-src 'none'\n\n/VERSION.txt\n  Cache-Control: no-store, max-age=0\n/assets/config.js\n  Cache-Control: no-store, max-age=0\n/assets/api.js\n  Cache-Control: no-store, max-age=0\n/member.html\n  Cache-Control: no-store, max-age=0\n/member-login.html\n  Cache-Control: no-store, max-age=0\n/profile.html\n  Cache-Control: no-store, max-age=0\n/request.html\n  Cache-Control: no-store, max-age=0\n/checkout.html\n  Cache-Control: no-store, max-age=0\n/payment-success.html\n  Cache-Control: no-store, max-age=0\n/delete-account.html\n  Cache-Control: no-store, max-age=0\n/reset-password.html\n  Cache-Control: no-store, max-age=0\n/account-recovery.html\n  Cache-Control: no-store, max-age=0\n/unsubscribe.html\n  Cache-Control: no-store, max-age=0\n/newsletter-unsubscribe.html\n  Cache-Control: no-store, max-age=0\n/checklist.html\n  Cache-Control: no-store, max-age=0\n/member-survey.html\n  Cache-Control: no-store, max-age=0\n`;
+const headers = `/*\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: strict-origin-when-cross-origin\n  X-Frame-Options: DENY\n  Permissions-Policy: camera=(), microphone=(), geolocation=(), usb=()\n  Strict-Transport-Security: max-age=31536000; includeSubDomains\n  Content-Security-Policy: frame-ancestors 'none'; base-uri 'self'; object-src 'none'\n\n/DEPLOYMENT.json\n  Cache-Control: no-store, max-age=0\n/VERSION.txt\n  Cache-Control: no-store, max-age=0\n/robots.txt\n  Cache-Control: no-store, max-age=0\n/sitemap.xml\n  Cache-Control: no-store, max-age=0\n/assets/config.js\n  Cache-Control: no-store, max-age=0\n/assets/api.js\n  Cache-Control: no-store, max-age=0\n/assets/site.js\n  Cache-Control: no-cache, max-age=0, must-revalidate\n/assets/style.css\n  Cache-Control: no-cache, max-age=0, must-revalidate\n/member.html\n  Cache-Control: no-store, max-age=0\n/member-login.html\n  Cache-Control: no-store, max-age=0\n/profile.html\n  Cache-Control: no-store, max-age=0\n/request.html\n  Cache-Control: no-store, max-age=0\n/checkout.html\n  Cache-Control: no-store, max-age=0\n/payment-success.html\n  Cache-Control: no-store, max-age=0\n/delete-account.html\n  Cache-Control: no-store, max-age=0\n/reset-password.html\n  Cache-Control: no-store, max-age=0\n/account-recovery.html\n  Cache-Control: no-store, max-age=0\n/unsubscribe.html\n  Cache-Control: no-store, max-age=0\n/newsletter-unsubscribe.html\n  Cache-Control: no-store, max-age=0\n/checklist.html\n  Cache-Control: no-store, max-age=0\n/member-survey.html\n  Cache-Control: no-store, max-age=0\n`;
 fs.writeFileSync(path.join(outDir, '_headers'), headers);
 
 const redirects = `/control-center ${adminBase}/ 302\n/control-center/ ${adminBase}/ 302\n/control-center/* ${adminBase}/:splat 302\n`;
@@ -97,6 +99,7 @@ fs.writeFileSync(path.join(outDir, '_redirects'), redirects);
 
 const marker = {
   build: '2026-08-21-cloudflare-pages-r1',
+  sourceSha,
   canonicalOrigin,
   deploymentOrigin,
   generatedAt: new Date().toISOString(),
@@ -111,4 +114,4 @@ if (home.includes(oldBase) || home.includes(oldWorker)) throw new Error('Legacy 
 if (fs.existsSync(path.join(outDir, 'control-center'))) throw new Error('Control center leaked into customer artifact');
 if (!fs.existsSync(path.join(outDir, '_redirects'))) throw new Error('Admin redirect file missing');
 
-console.log(JSON.stringify({ ok: true, outDir, canonicalOrigin, deploymentOrigin, allowedOrigins }, null, 2));
+console.log(JSON.stringify({ ok: true, outDir, canonicalOrigin, deploymentOrigin, allowedOrigins, sourceSha }, null, 2));
