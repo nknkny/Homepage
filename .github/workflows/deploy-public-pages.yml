@@ -54,12 +54,14 @@ jobs:
             target="${target%/}"
             mkdir -p dist/akiya-pocket
             TARGET="$target" python3 - <<'PY'
-          import html, json, os, pathlib
+          import html, json, os, pathlib, shutil
           src=pathlib.Path('akiya-pocket')
           out=pathlib.Path('dist/akiya-pocket')
           target=os.environ['TARGET'].rstrip('/')
           for p in src.rglob('*.html'):
               rel=p.relative_to(src).as_posix()
+              if rel.startswith('control-center/'):
+                  continue
               if rel == 'index.html':
                   suffix='/'
               elif rel.endswith('/index.html'):
@@ -72,6 +74,9 @@ jobs:
               d=out/rel
               d.parent.mkdir(parents=True,exist_ok=True)
               d.write_text(body,encoding='utf-8')
+          admin_src=src/'control-center'
+          if admin_src.exists():
+              shutil.copytree(admin_src,out/'control-center',dirs_exist_ok=True)
           (out/'robots.txt').write_text('User-agent: *\nDisallow: /\n',encoding='utf-8')
           (out/'CLOUDFLARE_REDIRECT.txt').write_text(target+'\n',encoding='utf-8')
           PY
@@ -109,15 +114,21 @@ jobs:
           set -euo pipefail
           base="${PAGE_URL%/}/akiya-pocket"
           if [ "$MIGRATED" = true ]; then
-            for path in index.html remote-home-aomori.html control-center/index.html; do
+            for path in index.html remote-home-aomori.html register.html; do
               for n in $(seq 1 20); do
                 if curl -fsSL --max-time 20 "$base/$path?v=$GITHUB_RUN_ID-$n" -o "$RUNNER_TEMP/page" && grep -Fq "$TARGET" "$RUNNER_TEMP/page"; then break; fi
                 [ "$n" = 20 ] && exit 1
                 sleep 3
               done
             done
+            for n in $(seq 1 20); do
+              if curl -fsSL --max-time 20 "$base/control-center/index.html?v=$GITHUB_RUN_ID-$n" -o "$RUNNER_TEMP/admin" && grep -Fq '空家ポケット 運営状況' "$RUNNER_TEMP/admin" && ! grep -Fq '空家ポケットは移転しました' "$RUNNER_TEMP/admin"; then break; fi
+              [ "$n" = 20 ] && exit 1
+              sleep 3
+            done
             curl -fsSL "$base/CLOUDFLARE_REDIRECT.txt?v=$GITHUB_RUN_ID" | grep -Fq "$TARGET"
             echo "PUBLIC_URL=$TARGET/"
+            echo "ADMIN_URL=$base/control-center/"
           else
             check(){
               local path="$1" marker="$2"
@@ -175,5 +186,5 @@ jobs:
           base="${PAGE_URL%/}/akiya-pocket/"
           if [ "$DEPLOY" = success ] && [ "$VERIFY" = success ] && { [ "$MIGRATED" = true ] || [ "$E2E" = success ]; }; then overall=PASS; else overall=FAIL; fi
           if [ "$MIGRATED" = true ]; then final_url="${TARGET%/}/"; else final_url="$base"; fi
-          body=$(jq -n --arg o "$overall" --arg u "$final_url" --arg r "$GITHUB_RUN_ID" --arg d "$DEPLOY" --arg v "$VERIFY" --arg e "$E2E" --arg m "$MIGRATED" '{body:("AKIYA_PUBLIC_DEPLOY="+$o+"\nRUN_ID="+$r+"\nURL="+$u+"\nMIGRATED="+$m+"\nDEPLOY="+$d+"\nVERIFY="+$v+"\nE2E_READINESS="+$e)}')
+          body=$(jq -n --arg o "$overall" --arg u "$final_url" --arg r "$GITHUB_RUN_ID" --arg d "$DEPLOY" --arg v "$VERIFY" --arg e "$E2E" --arg m "$MIGRATED" --arg admin "$base/control-center/" '{body:("AKIYA_PUBLIC_DEPLOY="+$o+"\nRUN_ID="+$r+"\nURL="+$u+"\nADMIN_URL="+$admin+"\nMIGRATED="+$m+"\nDEPLOY="+$d+"\nVERIFY="+$v+"\nE2E_READINESS="+$e)}')
           curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
