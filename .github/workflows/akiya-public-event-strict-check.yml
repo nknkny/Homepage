@@ -1,6 +1,8 @@
 name: Akiya Public Event Strict Check
 
 on:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -26,15 +28,12 @@ jobs:
           curl --fail --silent --show-error --max-time 30 -H "Origin: $SITE_ORIGIN" "$API_URL" -o evidence/health.json
           jq -e --arg b "$EXPECTED_API_BUILD" '.ok==true and .ready==true and .buildVersion==$b' evidence/health.json >/dev/null
 
-          # Missing eventType must fail closed and must not create an analytics row.
           code=$(curl --silent --show-error --max-time 30 -o evidence/missing-event-type.json -w '%{http_code}' \
             -H 'content-type: application/json' -H "Origin: $SITE_ORIGIN" \
-            -X POST "$API_URL" \
-            --data '{"action":"track_public_event","event_name":"__ci_invalid__","event_id":""}')
+            -X POST "$API_URL" --data '{"action":"track_public_event","event_name":"__ci_invalid__","event_id":""}')
           test "$code" -ge 400 && test "$code" -lt 500
           jq -e '.ok==false and .code=="EVENT_TYPE_REQUIRED"' evidence/missing-event-type.json >/dev/null
 
-          # A syntactically complete but non-allowlisted event must also fail closed.
           code2=$(curl --silent --show-error --max-time 30 -o evidence/invalid-event-type.json -w '%{http_code}' \
             -H 'content-type: application/json' -H "Origin: $SITE_ORIGIN" \
             -X POST "$API_URL" \
@@ -42,7 +41,6 @@ jobs:
           test "$code2" -ge 400 && test "$code2" -lt 500
           jq -e '.ok==false and .code=="EVENT_TYPE_INVALID"' evidence/invalid-event-type.json >/dev/null
 
-          # Even an allowlisted event must provide the required public identifiers.
           code3=$(curl --silent --show-error --max-time 30 -o evidence/missing-session.json -w '%{http_code}' \
             -H 'content-type: application/json' -H "Origin: $SITE_ORIGIN" \
             -X POST "$API_URL" \
@@ -50,7 +48,6 @@ jobs:
           test "$code3" -ge 400 && test "$code3" -lt 500
           jq -e '.ok==false and .code=="SESSION_ID_INVALID"' evidence/missing-session.json >/dev/null
 
-          # Unknown actions must also fail closed rather than return success.
           code4=$(curl --silent --show-error --max-time 30 -o evidence/unknown-action.json -w '%{http_code}' \
             -H 'content-type: application/json' -H "Origin: $SITE_ORIGIN" \
             -X POST "$API_URL" --data '{"action":"__ci_unknown__"}')
