@@ -49,7 +49,8 @@ jobs:
       - name: Crawl and inspect every customer page
         id: crawl
         run: |
-          cat > /tmp/audit.mjs <<'EOF'
+          set -euo pipefail
+          cat > audit.mjs <<'EOF'
           import { chromium, request as playwrightRequest } from 'playwright';
           const local='http://127.0.0.1:4173';
           const canonical='https://akiya-pocket-aomori.pages.dev';
@@ -74,16 +75,24 @@ jobs:
                 const headingLines=[];
                 for(const el of document.querySelectorAll('h1,h2')){
                   const text=(el.textContent||'').trim(); if(!text) continue;
-                  const node=[...el.childNodes].find(n=>n.nodeType===Node.TEXT_NODE) || el;
-                  const lines=[];
-                  if(node.nodeType===Node.TEXT_NODE){
-                    let currentY=null,current='';
-                    for(let i=0;i<node.textContent.length;i++){
-                      const range=document.createRange();range.setStart(node,i);range.setEnd(node,i+1);const rs=[...range.getClientRects()];if(!rs.length)continue;const y=Math.round(rs[0].top);
-                      if(currentY===null||Math.abs(y-currentY)<=2){currentY=currentY??y;current+=node.textContent[i]}else{lines.push(current.trim());currentY=y;current=node.textContent[i]}
-                    } if(current.trim())lines.push(current.trim());
+                  const segments=[];
+                  const walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);
+                  while(walker.nextNode()) segments.push(walker.currentNode);
+                  const chars=[];
+                  for(const node of segments){
+                    const value=node.textContent||'';
+                    for(let i=0;i<value.length;i++){
+                      if(/\s/.test(value[i])) continue;
+                      const range=document.createRange(); range.setStart(node,i); range.setEnd(node,i+1);
+                      const rect=range.getClientRects()[0]; if(rect) chars.push({c:value[i],y:Math.round(rect.top)});
+                    }
                   }
-                  headingLines.push({tag:el.tagName,text,lines:lines.filter(Boolean)});
+                  const lines=[]; let y=null,current='';
+                  for(const ch of chars){
+                    if(y===null||Math.abs(ch.y-y)<=2){y=y??ch.y;current+=ch.c}else{if(current)lines.push(current);y=ch.y;current=ch.c}
+                  }
+                  if(current)lines.push(current);
+                  headingLines.push({tag:el.tagName,text,lines});
                 }
                 const hrefs=[...document.querySelectorAll('a[href]')].map(a=>a.href);
                 return {overflow,headingLines,hrefs,title:document.title,body:(document.body?.innerText||'').slice(0,300)};
@@ -112,7 +121,7 @@ jobs:
           console.log(JSON.stringify(result,null,2));
           if(errors.length)process.exitCode=1;
           EOF
-          node /tmp/audit.mjs | tee /tmp/audit-result.json
+          node audit.mjs | tee /tmp/audit-result.json
 
       - name: Report audit
         if: always()
