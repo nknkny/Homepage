@@ -14,6 +14,8 @@ env:
   OWNER_API: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-owner
   CONTROL_API: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-automation-control
   RUNNER_API: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-automation-runner
+  SOCIAL_ANALYSIS_API: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-social-analysis
+  NEWSLETTER_API: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-newsletter-control
   CANONICAL_CUSTOMER: https://akiya-pocket-aomori.pages.dev/
 
 jobs:
@@ -36,9 +38,21 @@ jobs:
           grep -Fq "'set_full_auto'" "$file"
           grep -Fq 'data-module=' "$file"
           grep -Fq '今すぐ実行' "$file"
+          grep -Fq './newsletter.html' "$file"
+          grep -Fq 'SNS承認・分析' "$file"
           grep -Fq 'SNS公開・外部メール送信は所有者承認なしでは行いません' "$file"
           ! grep -Fq '汎用ジョブ実行器が完成していない' "$file"
-          ! grep -Fq '毎日19:00にAIが1案だけ作成' 'akiya-pocket/control-center/social.html'
+          social='akiya-pocket/control-center/social.html'
+          grep -Fq 'akiya-pocket-social-analysis' "$social"
+          grep -Fq '承認して推奨時間に予約' "$social"
+          grep -Fq '投稿効果の分析' "$social"
+          grep -Fq '補助金・助成金・資格/許認可' "$social"
+          ! grep -Fq '今すぐ公開' "$social"
+          newsletter='akiya-pocket/control-center/newsletter.html'
+          test -s "$newsletter"
+          grep -Fq 'akiya-pocket-newsletter-control' "$newsletter"
+          grep -Fq '内容を承認して配信待ちへ' "$newsletter"
+          grep -Fq 'marketing_opt_in=true' "$newsletter"
 
       - name: Verify live owner API reports executor ready
         shell: bash
@@ -63,3 +77,12 @@ jobs:
           jq -e '.ok==true and .ready==true and .executorReady==true and .fullAutoAvailable==true and .socialApprovalRequired==true and .externalEmailAutoSend==false' control.json >/dev/null
           curl --fail --silent --show-error --max-time 30 "$RUNNER_API" -o runner.json
           jq -e '.ok==true and .ready==true and .externalEmail==false and .socialAutoPublish==false and (.supported|length)==8' runner.json >/dev/null
+
+      - name: Verify social analysis and newsletter gates are live
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 30 "$SOCIAL_ANALYSIS_API" -o social-analysis.json
+          jq -e '.ok==true and .ready==true and .firstPartyAdaptive==true and .minimumPublishedForAdaptation==12' social-analysis.json >/dev/null
+          curl --fail --silent --show-error --max-time 30 "$NEWSLETTER_API" -o newsletter.json
+          jq -e '.ok==true and .ready==true and .approvalRequired==true and .optInOnly==true and .regulatedContentBlocked==true' newsletter.json >/dev/null
