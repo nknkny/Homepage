@@ -65,6 +65,7 @@ jobs:
         env:
           AKIYA_CANONICAL_ORIGIN: ${{ steps.project.outputs.origin }}
           AKIYA_DEPLOYMENT_URL: ${{ steps.project.outputs.origin }}
+          AKIYA_SOURCE_SHA: ${{ github.sha }}
         run: node scripts/build-akiya-cloudflare-pages.mjs
 
       - name: Validate artifact
@@ -80,6 +81,10 @@ jobs:
           test -f dist/_headers
           test -f dist/_redirects
           test -f dist/DEPLOYMENT.json
+          jq -e --arg o "$ORIGIN" --arg s "$GITHUB_SHA" '.canonicalOrigin==$o and .build=="2026-08-21-cloudflare-pages-r1" and .sourceSha==$s' dist/DEPLOYMENT.json >/dev/null
+          grep -Fq '/DEPLOYMENT.json' dist/_headers
+          grep -Fq '/assets/site.js' dist/_headers
+          grep -Fq '/assets/style.css' dist/_headers
           test ! -d dist/control-center
           grep -Fq '/control-center/* https://nknkny.github.io/Homepage/akiya-pocket/control-center/:splat 302' dist/_redirects
 
@@ -97,15 +102,31 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ok=0
+
+          # The production alias can briefly serve the previous deployment after
+          # Wrangler reports success. Wait for two changed sentinels to match the
+          # just-built artifact before doing the exhaustive parity pass.
+          ready=0
           for n in $(seq 1 40); do
-            if curl -fsSL --max-time 20 "$ORIGIN/?v=$GITHUB_RUN_ID-$n" -o "$RUNNER_TEMP/home" && grep -Fq '空家ポケット' "$RUNNER_TEMP/home" && grep -Fq "<link rel=\"canonical\" href=\"${ORIGIN}/\">" "$RUNNER_TEMP/home"; then ok=1; break; fi
+            live_deployment="$RUNNER_TEMP/live-deployment-$n.json"
+            live_site="$RUNNER_TEMP/live-site-$n.js"
+            if curl -fsSL --max-time 20 "$ORIGIN/DEPLOYMENT.json?rollout=$GITHUB_RUN_ID-$n" -o "$live_deployment" \
+              && curl -fsSL --max-time 20 "$ORIGIN/assets/site.js?rollout=$GITHUB_RUN_ID-$n" -o "$live_site" \
+              && cmp -s dist/DEPLOYMENT.json "$live_deployment" \
+              && cmp -s dist/assets/site.js "$live_site"; then
+              ready=1
+              break
+            fi
             sleep 3
           done
-          test "$ok" = 1
+          test "$ready" = 1
 
+          curl -fsSL --max-time 20 "$ORIGIN/?v=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/home"
+          grep -Fq '空家ポケット' "$RUNNER_TEMP/home"
+          grep -Fq "<link rel=\"canonical\" href=\"${ORIGIN}/\">" "$RUNNER_TEMP/home"
           curl -fsSL "$ORIGIN/DEPLOYMENT.json?v=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/deployment.json"
-          jq -e --arg o "$ORIGIN" '.canonicalOrigin==$o and .build=="2026-08-21-cloudflare-pages-r1"' "$RUNNER_TEMP/deployment.json" >/dev/null
+          jq -e --arg o "$ORIGIN" --arg s "$GITHUB_SHA" '.canonicalOrigin==$o and .build=="2026-08-21-cloudflare-pages-r1" and .sourceSha==$s' "$RUNNER_TEMP/deployment.json" >/dev/null
+
           curl -fsSL -H "Origin: $ORIGIN" "$API" -o "$RUNNER_TEMP/api.json"
           jq -e '.ok==true and .ready==true and .buildVersion=="2026-08-14-legal-final-r10"' "$RUNNER_TEMP/api.json" >/dev/null
           curl -fsSL -H "Origin: $ORIGIN" "$PAY" -o "$RUNNER_TEMP/pay.json"
