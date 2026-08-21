@@ -58,10 +58,8 @@ jobs:
           case "$origin" in https://*.pages.dev) ;; *) echo "Invalid canonical Pages origin: $origin" >&2; exit 1;; esac
           project=$(node -e 'const u=new URL(process.argv[1]); console.log(u.hostname.replace(/\.pages\.dev$/,""))' "$origin")
           test -n "$project"
-          npx --yes wrangler@4.119.0 pages project list --json > "$RUNNER_TEMP/projects.json"
-          if ! jq -e --arg p "$project" '.[] | select(.name==$p)' "$RUNNER_TEMP/projects.json" >/dev/null 2>&1; then
-            npx --yes wrangler@4.119.0 pages project create "$project" --production-branch main >/dev/null
-          fi
+          # The canonical Pages project already exists. Do not attempt to recreate it;
+          # pages deploy below is the authoritative existence/access check.
           echo "name=$project" >> "$GITHUB_OUTPUT"
           echo "origin=$origin" >> "$GITHUB_OUTPUT"
 
