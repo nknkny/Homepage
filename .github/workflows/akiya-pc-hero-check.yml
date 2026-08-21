@@ -1,0 +1,63 @@
+name: Akiya PC hero layout check
+on:
+  issue_comment:
+    types: [created]
+permissions:
+  contents: read
+  issues: write
+jobs:
+  check:
+    if: github.event.issue.number == 42 && contains(github.event.comment.body, 'RUN_AKIYA_PC_HERO_CHECK')
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Install Playwright
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm init -y >/dev/null 2>&1
+          npm install playwright@latest >/dev/null 2>&1
+          npx playwright install --with-deps chromium >/dev/null 2>&1
+      - name: Verify PC hero layout
+        id: verify
+        shell: bash
+        run: |
+          cat > check.mjs <<'EOF'
+          import { chromium } from 'playwright';
+          const url='https://akiya-pocket-aomori.pages.dev/';
+          const viewports=[{width:1440,height:900},{width:1280,height:800},{width:1024,height:768}];
+          const browser=await chromium.launch({headless:true});
+          const rows=[];
+          let pass=true;
+          for(const viewport of viewports){
+            const page=await browser.newPage({viewport});
+            const resp=await page.goto(url,{waitUntil:'networkidle',timeout:45000});
+            const data=await page.evaluate(()=>{
+              const h1=document.querySelector('.home-hero h1');
+              const lines=[...document.querySelectorAll('.home-hero h1 .hero-line')];
+              const rects=lines.map(el=>({text:el.textContent.trim(),rectCount:el.getClientRects().length,width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height,whiteSpace:getComputedStyle(el).whiteSpace}));
+              const hr=h1.getBoundingClientRect();
+              return {text:h1.innerText, h1Height:hr.height, h1Width:hr.width, lineHeight:parseFloat(getComputedStyle(h1).lineHeight), fontSize:parseFloat(getComputedStyle(h1).fontSize), rects};
+            });
+            const ok=resp?.status()===200 && data.rects.length===2 && data.rects.every(r=>r.rectCount===1 && r.whiteSpace==='nowrap' && r.width<=data.h1Width+1) && data.h1Height <= data.lineHeight*2.15;
+            if(!ok) pass=false;
+            rows.push({viewport:`${viewport.width}x${viewport.height}`,status:resp?.status()||0,ok,...data});
+            await page.screenshot({path:`hero-${viewport.width}.png`,fullPage:false});
+            await page.close();
+          }
+          await browser.close();
+          console.log(JSON.stringify({pass,rows},null,2));
+          if(!pass) process.exitCode=1;
+          EOF
+          node check.mjs | tee result.json
+      - name: Report result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -s result.json ] && jq -e '.pass==true' result.json >/dev/null 2>&1; then overall=PASS; else overall=FAIL; fi
+          summary=$(jq -r '[.rows[] | (.viewport+": ok="+(.ok|tostring)+", font="+(.fontSize|tostring)+", h1w="+(.h1Width|tostring)+", line1="+(.rects[0].width|tostring)+", line2="+(.rects[1].width|tostring))] | join("\n")' result.json 2>/dev/null || echo 'no-result')
+          body=$(jq -n --arg o "$overall" --arg s "$summary" '{body:("AKIYA_PC_HERO_CHECK="+$o+"\n"+$s)}')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
