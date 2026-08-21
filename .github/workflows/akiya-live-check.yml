@@ -1,6 +1,8 @@
 name: Akiya Live Production Check
 
 on:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -19,8 +21,10 @@ env:
 jobs:
   production-check:
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 10
     steps:
+      - uses: actions/checkout@v4
+
       - name: Verify current Supabase APIs
         shell: bash
         run: |
@@ -45,6 +49,31 @@ jobs:
             test "$code" = 200
           done
           ! grep -Eq 'sk_(live|test)_[A-Za-z0-9]+' evidence/home.html
+
+      - name: Verify pushed main matches live artifact byte-for-byte
+        if: github.event_name == 'push'
+        shell: bash
+        env:
+          AKIYA_CANONICAL_ORIGIN: https://akiya-pocket-aomori.pages.dev
+          AKIYA_DEPLOYMENT_URL: https://akiya-pocket-aomori.pages.dev
+        run: |
+          set -euo pipefail
+          node scripts/build-akiya-cloudflare-pages.mjs >/tmp/akiya-build.json
+          mismatches=0
+          while IFS= read -r -d '' file; do
+            rel=${file#dist/}
+            case "$rel" in _headers|_redirects|DEPLOYMENT.json) continue;; esac
+            tmp=$(mktemp)
+            if ! curl --fail --silent --show-error --max-time 30 "$SITE_ORIGIN/$rel?integrity=$GITHUB_SHA" -o "$tmp"; then
+              echo "LIVE_MISSING $rel"
+              mismatches=$((mismatches+1))
+            elif ! cmp -s "$file" "$tmp"; then
+              echo "LIVE_MISMATCH $rel"
+              mismatches=$((mismatches+1))
+            fi
+            rm -f "$tmp"
+          done < <(find dist -type f -print0)
+          test "$mismatches" = 0
 
       - name: Verify security headers and admin separation
         shell: bash
