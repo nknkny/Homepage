@@ -35,13 +35,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --max-time 30 "$SITE_ORIGIN/DEPLOYMENT.json?check=$GITHUB_SHA" -o evidence/deployment.json
+          curl --fail --location --silent --show-error --max-time 30 "$SITE_ORIGIN/DEPLOYMENT.json?check=$GITHUB_SHA" -o evidence/deployment.json
           jq -e --arg b "$EXPECTED_FRONTEND_BUILD" --arg o "$SITE_ORIGIN" '.build==$b and .canonicalOrigin==$o' evidence/deployment.json >/dev/null
-          curl --fail --silent --show-error --max-time 30 "$SITE_ORIGIN/?check=$GITHUB_SHA" -o evidence/home.html
+          curl --fail --location --silent --show-error --max-time 30 "$SITE_ORIGIN/?check=$GITHUB_SHA" -o evidence/home.html
           grep -Fq '空家ポケット' evidence/home.html
           grep -Fq "<link rel=\"canonical\" href=\"$SITE_ORIGIN/\">" evidence/home.html
           for page in register.html member-login.html request.html checkout.html payment-success.html commercial.html privacy.html service-terms.html; do
-            code=$(curl --silent --show-error --max-time 30 -o "evidence/$page" -w '%{http_code}' "$SITE_ORIGIN/$page?check=$GITHUB_SHA")
+            code=$(curl --location --silent --show-error --max-time 30 -o "evidence/$page" -w '%{http_code}' "$SITE_ORIGIN/$page?check=$GITHUB_SHA")
             test "$code" = 200
           done
           ! grep -Eq 'sk_(live|test)_[A-Za-z0-9]+' evidence/home.html
@@ -50,13 +50,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl --silent --show-error --max-time 30 -D evidence/headers.txt -o /dev/null "$SITE_ORIGIN/?headers=$GITHUB_SHA"
+          curl --location --silent --show-error --max-time 30 -D evidence/headers.txt -o /dev/null "$SITE_ORIGIN/?headers=$GITHUB_SHA"
           tr -d '\r' < evidence/headers.txt > evidence/headers-normalized.txt
           grep -Eiq '^strict-transport-security:.*max-age=' evidence/headers-normalized.txt
           grep -Eiq '^x-content-type-options:[[:space:]]*nosniff' evidence/headers-normalized.txt
           grep -Eiq '^x-frame-options:[[:space:]]*DENY' evidence/headers-normalized.txt
           grep -Eiq '^content-security-policy:' evidence/headers-normalized.txt
-          admin_code=$(curl --silent --show-error --max-time 30 -o evidence/admin.html -w '%{http_code}' "$ADMIN_URL")
+          admin_code=$(curl --location --silent --show-error --max-time 30 -o evidence/admin.html -w '%{http_code}' "$ADMIN_URL")
           test "$admin_code" = 200
           grep -Fq '空家ポケット' evidence/admin.html
 
