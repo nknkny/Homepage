@@ -1,0 +1,49 @@
+name: Akiya owner state accuracy
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  OWNER_API: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-owner
+  CANONICAL_CUSTOMER: https://akiya-pocket-aomori.pages.dev/
+
+jobs:
+  state-accuracy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify dashboard uses real state instead of hard-coded running labels
+        shell: bash
+        run: |
+          set -euo pipefail
+          file='akiya-pocket/control-center/index.html'
+          grep -Fq '運営機能の実状態' "$file"
+          grep -Fq 'const seoActive=!!settings.growth_enabled' "$file"
+          grep -Fq 'const monitorActive=!!settings.health_monitor_enabled' "$file"
+          grep -Fq 'const fullAutoActive=!!settings.full_auto_enabled' "$file"
+          grep -Fq 'const snsAutoPublish=!!s.global_publish_enabled' "$file"
+          grep -Fq "const CUSTOMER='https://akiya-pocket-aomori.pages.dev/'" "$file"
+          ! grep -Fq '<span class="status on">稼働</span>' "$file"
+          ! grep -Fq '毎日19:00にAIが原稿' "$file"
+          ! grep -Fq "const CUSTOMER='https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-live/'" "$file"
+
+      - name: Verify live owner API declares executor state accurately
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 30 "$OWNER_API" -o owner.json
+          jq -e --arg u "$CANONICAL_CUSTOMER" '
+            .ok==true and
+            .ready==true and
+            .fullAutoButton==false and
+            .fullAutoExecutorReady==false and
+            .socialPublishProtected==true and
+            .canonicalCustomer==$u
+          ' owner.json >/dev/null
