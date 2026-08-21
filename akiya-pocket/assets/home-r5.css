@@ -18,6 +18,7 @@
 .home-hero-copy{width:min(670px,57%);padding:55px 0 48px}
 .home-kicker{margin:0 0 10px;color:#eb5b1b;font-size:.78rem;font-weight:900;letter-spacing:.13em;text-transform:uppercase}
 .home-hero h1{margin:0;color:#101828;font-size:clamp(2.4rem,4.3vw,4.05rem);line-height:1.25;letter-spacing:.02em;font-weight:950}
+.home-hero h1 .hero-line{display:block}
 .home-hero-lead{font-size:1.05rem;line-height:1.9;font-weight:650;color:#344054;margin:20px 0 28px}
 .home-benefits{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px;margin:0 0 26px;max-width:650px}
 .home-benefit{display:flex;gap:10px;align-items:flex-start;padding:12px 11px 12px 0}
@@ -48,6 +49,11 @@
 .home-trust{padding:72px 0;background:#fff}
 .home-v5 .footer{margin-top:0}
 .home-v5 .mobile-bar{display:none!important}
+@media(min-width:961px){
+ .home-hero-copy{width:min(760px,64%)}
+ .home-hero h1{font-size:clamp(2.75rem,3.45vw,3.45rem);line-height:1.22;letter-spacing:0}
+ .home-hero h1 .hero-line{white-space:nowrap}
+}
 @media(max-width:960px){
  .home-v5 .home-nav{display:none} .home-v5 .home-header .head{gap:12px} .home-v5 .home-header .header-actions{margin-left:auto}
  .home-hero{min-height:650px} .home-hero-photo{background-position:70% 50%} .home-hero-shade{background:linear-gradient(90deg,rgba(239,248,255,.98) 0%,rgba(239,248,255,.91) 57%,rgba(239,248,255,.28) 100%)}
