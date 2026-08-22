@@ -1,0 +1,80 @@
+name: Akiya IndexNow submission
+
+on:
+  workflow_run:
+    workflows: ["Akiya Cloudflare stage1 v3"]
+    types: [completed]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  submit:
+    if: >-
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+      (github.event_name == 'issue_comment' && github.event.issue.number == 42 && contains(github.event.comment.body, 'RUN_AKIYA_INDEXNOW'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ORIGIN: https://akiya-pocket-aomori.pages.dev
+      INDEXNOW_KEY: de7a5176c39c5b905eb3bf655d103054
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Verify live ownership key and sitemap
+        id: verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          key_body=$(curl -fsSL --max-time 20 "$ORIGIN/${INDEXNOW_KEY}.txt?run=$GITHUB_RUN_ID" | tr -d '\r\n')
+          test "$key_body" = "$INDEXNOW_KEY"
+          curl -fsSL --max-time 20 "$ORIGIN/sitemap.xml?run=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/sitemap.xml"
+          grep -Fq "$ORIGIN/" "$RUNNER_TEMP/sitemap.xml"
+
+      - name: Submit canonical URLs to IndexNow
+        id: submit
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE' > "$RUNNER_TEMP/indexnow.json"
+          const fs = require('fs');
+          const origin = process.env.ORIGIN;
+          const key = process.env.INDEXNOW_KEY;
+          const xml = fs.readFileSync(process.env.RUNNER_TEMP + '/sitemap.xml', 'utf8');
+          const urls = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m => m[1]).filter(u => u.startsWith(origin + '/'));
+          if (!urls.length) throw new Error('No canonical URLs found in sitemap');
+          process.stderr.write(`INDEXNOW_URL_COUNT=${urls.length}\n`);
+          fs.writeFileSync(process.env.RUNNER_TEMP + '/indexnow-count.txt', String(urls.length));
+          process.stdout.write(JSON.stringify({host:new URL(origin).host,key,keyLocation:`${origin}/${key}.txt`,urlList:urls}));
+          NODE
+          code=$(curl -sS --max-time 30 -o "$RUNNER_TEMP/indexnow-response.txt" -w '%{http_code}' \
+            -X POST 'https://api.indexnow.org/indexnow' \
+            -H 'Content-Type: application/json; charset=utf-8' \
+            --data-binary @"$RUNNER_TEMP/indexnow.json")
+          echo "http_code=$code" >> "$GITHUB_OUTPUT"
+          test "$code" = 200 -o "$code" = 202
+
+      - name: Report IndexNow result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERIFY: ${{ steps.verify.outcome }}
+          SUBMIT: ${{ steps.submit.outcome }}
+          HTTP_CODE: ${{ steps.submit.outputs.http_code }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          count=$(cat "$RUNNER_TEMP/indexnow-count.txt" 2>/dev/null || echo 0)
+          if [ "$VERIFY" = success ] && [ "$SUBMIT" = success ]; then overall=PASS; else overall=FAIL; fi
+          body=$(jq -n --arg o "$overall" --arg c "$count" --arg h "${HTTP_CODE:-}" --arg r "$GITHUB_RUN_ID" '{body:("AKIYA_INDEXNOW="+$o+"\nRUN_ID="+$r+"\nURL_COUNT="+$c+"\nHTTP_CODE="+$h)}')
+          curl -fsSL -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'Content-Type: application/json' \
+            -d "$body" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
