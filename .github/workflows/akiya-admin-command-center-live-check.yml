@@ -1,0 +1,59 @@
+name: Akiya Admin Command Center Live Check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'akiya-pocket/control-center/**'
+      - '.github/workflows/akiya-admin-command-center-live-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      BASE: https://nknkny.github.io/Homepage/akiya-pocket/control-center
+      COMMAND_API: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-command-center
+    steps:
+      - name: Verify command API public health
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 20 "$COMMAND_API" -o command.json
+          jq -e '.ok==true and .ready==true and .build=="2026-08-22-command-center-v1"' command.json >/dev/null
+
+      - name: Verify GitHub Pages command center surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          check() {
+            local path="$1" marker="$2" file="$3"
+            local ok=0
+            for n in $(seq 1 30); do
+              code=$(curl -sS -L --max-time 20 -o "$file" -w '%{http_code}' "$BASE/$path?live=$GITHUB_RUN_ID-$n" || true)
+              if [ "$code" = 200 ] && grep -Fq "$marker" "$file"; then ok=1; break; fi
+              sleep 5
+            done
+            if [ "$ok" != 1 ]; then
+              echo "LIVE_CHECK_FAILED path=$path marker=$marker"
+              head -c 1000 "$file" 2>/dev/null || true
+              exit 1
+            fi
+          }
+          check '' '空家ポケット 運営司令塔' index.html
+          check 'acquisition.html' '集客ファネル' acquisition.html
+          check 'business.html' '顧客・依頼・売上' business.html
+          check 'system.html' 'システム・自動運営監視' system.html
+          check 'automation.html' '自動運営コントロール' automation.html
+
+      - name: Verify admin pages remain non-indexable
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in index.html acquisition.html business.html system.html automation.html; do
+            grep -Fq 'noindex' "$f"
+          done
