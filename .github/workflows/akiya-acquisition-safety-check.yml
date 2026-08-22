@@ -24,6 +24,8 @@ jobs:
 
           test ! -e akiya-pocket/aomori-vacant-house-demolition-subsidy-2026.html
           ! grep -R -Fq 'aomori-vacant-house-demolition-subsidy-2026' akiya-pocket --include='*.html' --include='*.xml'
+          test ! -e akiya-pocket/inherited-home-aomori.html
+          ! grep -R -Fq 'inherited-home-aomori' akiya-pocket --include='*.html' --include='*.xml'
 
           register='akiya-pocket/register.html'
           register_js='akiya-pocket/assets/pages/register-inline-1.js'
@@ -49,4 +51,4 @@ jobs:
           grep -Fq '継続管理や次の対応を決める前に' "$home"
           grep -Fq '会員登録→依頼→カード支払いまでオンライン' "$home"
 
-          ! grep -R -Eiq '補助金|助成金|給付金|申請代行' akiya-pocket/index.html akiya-pocket/remote-home-aomori.html akiya-pocket/inherited-home-aomori.html akiya-pocket/parent-facility-home-aomori.html akiya-pocket/snow-vacant-home-aomori.html
+          ! grep -R -Eiq '補助金|助成金|給付金|申請代行' akiya-pocket/index.html akiya-pocket/remote-home-aomori.html akiya-pocket/parent-facility-home-aomori.html akiya-pocket/snow-vacant-home-aomori.html
