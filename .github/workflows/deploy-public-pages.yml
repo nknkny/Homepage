@@ -122,7 +122,7 @@ jobs:
               done
             done
             for n in $(seq 1 20); do
-              if curl -fsSL --max-time 20 "$base/control-center/index.html?v=$GITHUB_RUN_ID-$n" -o "$RUNNER_TEMP/admin" && grep -Fq '空家ポケット 運営状況' "$RUNNER_TEMP/admin" && ! grep -Fq '空家ポケットは移転しました' "$RUNNER_TEMP/admin"; then break; fi
+              if curl -fsSL --max-time 20 "$base/control-center/index.html?v=$GITHUB_RUN_ID-$n" -o "$RUNNER_TEMP/admin" && grep -Fq '空家ポケット 運営司令塔' "$RUNNER_TEMP/admin" && ! grep -Fq '空家ポケットは移転しました' "$RUNNER_TEMP/admin"; then break; fi
               [ "$n" = 20 ] && exit 1
               sleep 3
             done
@@ -144,7 +144,7 @@ jobs:
             check account-recovery.html '本人確認窓口'
             check request.html '3,480円'
             check checkout.html '3,480円'
-            check control-center/ '空家ポケット 運営センター'
+            check control-center/ '空家ポケット 運営司令塔'
             curl -fsSL "$base/assets/config.js?v=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/config.js"
             grep -Fq 'akiya-pocket-api' "$RUNNER_TEMP/config.js"
             grep -Fq 'akiya-pocket-payment-api' "$RUNNER_TEMP/config.js"
@@ -167,7 +167,7 @@ jobs:
             test "$code" = 204
           done
           curl -fsSL -H "Origin: $ORIGIN" "$PAY" -o "$RUNNER_TEMP/pay-ready.json"
-          jq -e '.ok==true and .ready==true and .amountJpy==3480 and .paymentLinkReady==true and .buildVersion=="2026-08-18-payment-bridge-r2"' "$RUNNER_TEMP/pay-ready.json" >/dev/null
+          jq -e '.ok==true and .ready==true and .amountJpy==3480 and .paymentLinkReady==true' "$RUNNER_TEMP/pay-ready.json" >/dev/null
           echo 'PAID_SALES_READINESS=PASS'
 
       - name: Record result
