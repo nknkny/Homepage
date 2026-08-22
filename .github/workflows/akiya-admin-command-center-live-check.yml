@@ -24,7 +24,7 @@ jobs:
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --max-time 20 "$COMMAND_API" -o command.json
-          jq -e '.ok==true and .ready==true and .build=="2026-08-22-command-center-v1"' command.json >/dev/null
+          jq -e '.ok==true and .ready==true and .realOnlyMetrics==true' command.json >/dev/null
 
       - name: Verify GitHub Pages command center surfaces
         shell: bash
