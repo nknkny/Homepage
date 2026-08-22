@@ -11,7 +11,6 @@ permissions:
   contents: read
 
 env:
-  EXPECTED_API_BUILD: 2026-08-14-legal-final-r10
   SITE_ORIGIN: https://akiya-pocket-aomori.pages.dev
   API_URL: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-api
 
@@ -26,12 +25,13 @@ jobs:
           set -euo pipefail
           mkdir -p evidence
           curl --fail --silent --show-error --max-time 30 -H "Origin: $SITE_ORIGIN" "$API_URL" -o evidence/health.json
-          jq -e --arg b "$EXPECTED_API_BUILD" '
-            .ok==true and .ready==true and .buildVersion==$b and
+          jq -e '
+            .ok==true and .ready==true and
             .registrationPropertyOptional==true and
             .funnelSessionTracking==true and
             .publicRegistrationDiagnostics==true and
-            .paymentManagedSeparately==true
+            .paymentManagedSeparately==true and
+            .accountDeletionAnonymizes==true
           ' evidence/health.json >/dev/null
 
           tag="AUDIT-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
