@@ -189,7 +189,7 @@ jobs:
           grep -Fq "<link rel=\"canonical\" href=\"${ORIGIN}/\">" "$RUNNER_TEMP/home"
 
           curl -fsSL -H "Origin: $ORIGIN" "$API" -o "$RUNNER_TEMP/api.json"
-          jq -e '.ok==true and .ready==true and .buildVersion=="2026-08-14-legal-final-r10"' "$RUNNER_TEMP/api.json" >/dev/null
+          jq -e '.ok==true and .ready==true and .accountDeletionAnonymizes==true' "$RUNNER_TEMP/api.json" >/dev/null
           curl -fsSL -H "Origin: $ORIGIN" "$PAY" -o "$RUNNER_TEMP/pay.json"
           jq -e '.ok==true and .ready==true and .amountJpy==3480 and .paymentLinkReady==true' "$RUNNER_TEMP/pay.json" >/dev/null
 
