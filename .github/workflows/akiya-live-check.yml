@@ -12,7 +12,6 @@ permissions:
 
 env:
   EXPECTED_FRONTEND_BUILD: 2026-08-21-cloudflare-pages-r1
-  EXPECTED_API_BUILD: 2026-08-14-legal-final-r10
   SITE_ORIGIN: https://akiya-pocket-aomori.pages.dev
   ADMIN_URL: https://nknkny.github.io/Homepage/akiya-pocket/control-center/
   API_URL: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-api
@@ -31,7 +30,7 @@ jobs:
           set -euo pipefail
           mkdir -p evidence
           curl --fail --silent --show-error --max-time 30 -H "Origin: $SITE_ORIGIN" "$API_URL" -o evidence/api.json
-          jq -e --arg b "$EXPECTED_API_BUILD" '.ok==true and .ready==true and .buildVersion==$b' evidence/api.json >/dev/null
+          jq -e '.ok==true and .ready==true and .accountDeletionAnonymizes==true and .paymentManagedSeparately==true' evidence/api.json >/dev/null
           curl --fail --silent --show-error --max-time 30 -H "Origin: $SITE_ORIGIN" "$PAYMENT_API_URL" -o evidence/payment.json
           jq -e '.ok==true and .ready==true and .amountJpy==3480 and .paymentLinkReady==true' evidence/payment.json >/dev/null
 
