@@ -20,13 +20,36 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Verify current API readiness and public-event validation transport
+      - name: Verify acquisition event contract and automation filtering
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p evidence
           curl --fail --silent --show-error --max-time 30 -H "Origin: $SITE_ORIGIN" "$API_URL" -o evidence/health.json
-          jq -e --arg b "$EXPECTED_API_BUILD" '.ok==true and .ready==true and .buildVersion==$b' evidence/health.json >/dev/null
+          jq -e --arg b "$EXPECTED_API_BUILD" '
+            .ok==true and .ready==true and .buildVersion==$b and
+            .registrationPropertyOptional==true and
+            .funnelSessionTracking==true and
+            .publicRegistrationDiagnostics==true and
+            .paymentManagedSeparately==true
+          ' evidence/health.json >/dev/null
+
+          tag="AUDIT-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          for event in register_start register_submit_attempt; do
+            code=$(curl --silent --show-error --max-time 30 -o "evidence/${event}.json" -w '%{http_code}' \
+              -H 'content-type: application/json' -H "Origin: $SITE_ORIGIN" -H 'User-Agent: Mozilla/5.0 Akiya-CI' \
+              -X POST "$API_URL" \
+              --data "{\"action\":\"track_public_event\",\"eventType\":\"${event}\",\"anonymousId\":\"ANON-${tag}\",\"sessionId\":\"SES-${tag}\",\"page\":\"/register.html\",\"analyticsSource\":\"audit\",\"analyticsMedium\":\"ci\",\"analyticsCampaign\":\"AUDIT-${tag}\"}")
+            test "$code" = 200
+            jq -e '.ok==true' "evidence/${event}.json" >/dev/null
+          done
+
+          botcode=$(curl --silent --show-error --max-time 30 -o evidence/bot-skip.json -w '%{http_code}' \
+            -H 'content-type: application/json' -H "Origin: $SITE_ORIGIN" -H 'User-Agent: Mozilla/5.0 HeadlessChrome/123.0' \
+            -X POST "$API_URL" \
+            --data "{\"action\":\"track_public_event\",\"eventType\":\"site_visit\",\"anonymousId\":\"ANON-BOT-${tag}\",\"sessionId\":\"SES-BOT-${tag}\",\"page\":\"/\",\"analyticsSource\":\"audit\",\"analyticsCampaign\":\"AUDIT-${tag}\"}")
+          test "$botcode" = 200
+          jq -e '.ok==true and .skipped==true and .reason=="AUTOMATED_AGENT"' evidence/bot-skip.json >/dev/null
 
           code=$(curl --silent --show-error --max-time 30 -o evidence/missing-event-type.json -w '%{http_code}' \
             -H 'content-type: application/json' -H "Origin: $SITE_ORIGIN" \
