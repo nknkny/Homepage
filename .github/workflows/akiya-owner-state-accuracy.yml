@@ -12,6 +12,7 @@ permissions:
 
 env:
   OWNER_API: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-owner
+  COMMAND_API: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-command-center
   CONTROL_API: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-automation-control
   AUTOMATION_RUNNER_API: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-automation-runner
   SOCIAL_RUNNER_API: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-social-runner
@@ -26,25 +27,51 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify dashboard exposes current automated runtime controls
+      - name: Verify command center and runtime control surfaces
         shell: bash
         run: |
           set -euo pipefail
-          file='akiya-pocket/control-center/index.html'
-          grep -Fq '主要運営スイッチ' "$file"
-          grep -Fq 'akiya-pocket-automation-control' "$file"
-          grep -Fq "'set_growth'" "$file"
-          grep -Fq "'set_monitor'" "$file"
-          grep -Fq "'set_metrics'" "$file"
-          grep -Fq "'set_full_auto'" "$file"
-          grep -Fq 'data-module=' "$file"
-          grep -Fq '今すぐ実行' "$file"
-          grep -Fq './newsletter.html' "$file"
-          grep -Fq 'SNSは承認なしで、安全審査済み投稿だけ自動予約・公開します' "$file"
-          grep -Fq '同意済み無料会員の育成配信も自動です' "$file"
-          grep -Fq 'B2B営業メール・DM・企業への集客営業はOFFです' "$file"
-          ! grep -Fq 'SNS公開・外部メール送信は所有者承認なしでは行いません' "$file"
-          ! grep -Fq '汎用ジョブ実行器が完成していない' "$file"
+          dashboard='akiya-pocket/control-center/index.html'
+          grep -Fq '運営司令塔' "$dashboard"
+          grep -Fq 'akiya-pocket-command-center' "$dashboard"
+          grep -Fq './acquisition.html' "$dashboard"
+          grep -Fq './business.html' "$dashboard"
+          grep -Fq './system.html' "$dashboard"
+          grep -Fq './social.html' "$dashboard"
+          grep -Fq './newsletter.html' "$dashboard"
+          grep -Fq '現在あなたが今すぐやること' "$dashboard"
+
+          acquisition='akiya-pocket/control-center/acquisition.html'
+          test -s "$acquisition"
+          grep -Fq '外部流入→登録→依頼→支払→売上' "$acquisition"
+          grep -Fq 'direct・内部・E2Eテスト' "$acquisition"
+
+          business='akiya-pocket/control-center/business.html'
+          test -s "$business"
+          grep -Fq 'Stripe実ライブイベント' "$business"
+          grep -Fq '実売上' "$business"
+
+          system='akiya-pocket/control-center/system.html'
+          test -s "$system"
+          grep -Fq 'Cloudflare / GitHub / 検索通知' "$system"
+          grep -Fq 'DBセキュリティ基礎監査' "$system"
+
+          controls='akiya-pocket/control-center/automation.html'
+          test -s "$controls"
+          grep -Fq '主要運営スイッチ' "$controls"
+          grep -Fq 'akiya-pocket-automation-control' "$controls"
+          grep -Fq "action:'set_growth'" "$controls"
+          grep -Fq "action:'set_monitor'" "$controls"
+          grep -Fq "action:'set_metrics'" "$controls"
+          grep -Fq "action:'set_full_auto'" "$controls"
+          grep -Fq 'data-module=' "$controls"
+          grep -Fq '今すぐ実行' "$controls"
+          grep -Fq './newsletter.html' "$controls"
+          grep -Fq 'SNSは承認なしで、安全審査済み投稿だけ自動予約・公開します' "$controls"
+          grep -Fq '同意済み無料会員の育成配信も自動です' "$controls"
+          grep -Fq 'B2B営業メール・DM・企業への集客営業はOFFです' "$controls"
+          ! grep -Fq 'SNS公開・外部メール送信は所有者承認なしでは行いません' "$controls"
+          ! grep -Fq '汎用ジョブ実行器が完成していない' "$controls"
 
           social='akiya-pocket/control-center/social.html'
           grep -Fq 'akiya-pocket-social-analysis' "$social"
@@ -62,7 +89,7 @@ jobs:
           grep -Fq '手動キャンペーンを配信待ちへ' "$newsletter"
           grep -Fq 'marketing_opt_in=true' "$newsletter"
 
-      - name: Verify live owner API reports executor ready
+      - name: Verify live owner and command APIs
         shell: bash
         run: |
           set -euo pipefail
@@ -76,6 +103,8 @@ jobs:
             .canonicalCustomer==$u and
             .build=="2026-08-21-owner-v11-runtime-controls"
           ' owner.json >/dev/null
+          curl --fail --silent --show-error --max-time 30 "$COMMAND_API" -o command.json
+          jq -e '.ok==true and .ready==true and .build=="2026-08-22-command-center-v1"' command.json >/dev/null
 
       - name: Verify automation control and runners are live
         shell: bash
@@ -93,27 +122,10 @@ jobs:
             .externalEmailAutoSend==false and
             .build=="2026-08-22-control-v2-social-autopilot"
           ' control.json >/dev/null
-
           curl --fail --silent --show-error --max-time 30 "$AUTOMATION_RUNNER_API" -o automation-runner.json
-          jq -e '
-            .ok==true and
-            .ready==true and
-            .externalSalesEmail==false and
-            .memberNurtureManagedSeparately==true and
-            .socialAutoPublishPipeline==true and
-            (.supported|length)==8
-          ' automation-runner.json >/dev/null
-
+          jq -e '.ok==true and .ready==true and .externalSalesEmail==false and .memberNurtureManagedSeparately==true and .socialAutoPublishPipeline==true and (.supported|length)==8' automation-runner.json >/dev/null
           curl --fail --silent --show-error --max-time 30 "$SOCIAL_RUNNER_API" -o social-runner.json
-          jq -e '
-            .ok==true and
-            .ready==true and
-            .transport=="buffer" and
-            .ownerApprovalRequired==false and
-            .autoPublishSafeVerified==true and
-            .regulatedTopicsBlocked==true and
-            .firstPartyScheduleAdaptation==true
-          ' social-runner.json >/dev/null
+          jq -e '.ok==true and .ready==true and .transport=="buffer" and .ownerApprovalRequired==false and .autoPublishSafeVerified==true and .regulatedTopicsBlocked==true and .firstPartyScheduleAdaptation==true' social-runner.json >/dev/null
 
       - name: Verify social analysis and newsletter gates are live
         shell: bash
@@ -121,13 +133,5 @@ jobs:
           set -euo pipefail
           curl --fail --silent --show-error --max-time 30 "$SOCIAL_ANALYSIS_API" -o social-analysis.json
           jq -e '.ok==true and .ready==true and .firstPartyAdaptive==true and .minimumPublishedForAdaptation==12' social-analysis.json >/dev/null
-
           curl --fail --silent --show-error --max-time 30 "$NEWSLETTER_API" -o newsletter.json
-          jq -e '
-            .ok==true and
-            .ready==true and
-            .approvalRequired==false and
-            .manualCampaignApprovalRequired==true and
-            .optInOnly==true and
-            .regulatedContentBlocked==true
-          ' newsletter.json >/dev/null
+          jq -e '.ok==true and .ready==true and .approvalRequired==false and .manualCampaignApprovalRequired==true and .optInOnly==true and .regulatedContentBlocked==true' newsletter.json >/dev/null
