@@ -101,10 +101,10 @@ jobs:
             .fullAutoExecutorReady==true and
             .socialPublishProtected==true and
             .canonicalCustomer==$u and
-            .build=="2026-08-21-owner-v11-runtime-controls"
+            .realOnlyMetrics==true
           ' owner.json >/dev/null
           curl --fail --silent --show-error --max-time 30 "$COMMAND_API" -o command.json
-          jq -e '.ok==true and .ready==true and .build=="2026-08-22-command-center-v1"' command.json >/dev/null
+          jq -e '.ok==true and .ready==true and .realOnlyMetrics==true' command.json >/dev/null
 
       - name: Verify automation control and runners are live
         shell: bash
@@ -119,11 +119,10 @@ jobs:
             .socialApprovalRequired==false and
             .socialAutopublishEnabled==true and
             .socialTransport=="buffer" and
-            .externalEmailAutoSend==false and
-            .build=="2026-08-22-control-v2-social-autopilot"
+            .externalEmailAutoSend==false
           ' control.json >/dev/null
           curl --fail --silent --show-error --max-time 30 "$AUTOMATION_RUNNER_API" -o automation-runner.json
-          jq -e '.ok==true and .ready==true and .externalSalesEmail==false and .memberNurtureManagedSeparately==true and .socialAutoPublishPipeline==true and (.supported|length)==8' automation-runner.json >/dev/null
+          jq -e '.ok==true and .ready==true and .externalSalesEmail==false and .memberNurtureManagedSeparately==true and .socialAutoPublishPipeline==true and .testAuditDrillExcluded==true and (.supported|length)==8' automation-runner.json >/dev/null
           curl --fail --silent --show-error --max-time 30 "$SOCIAL_RUNNER_API" -o social-runner.json
           jq -e '.ok==true and .ready==true and .transport=="buffer" and .ownerApprovalRequired==false and .autoPublishSafeVerified==true and .regulatedTopicsBlocked==true and .firstPartyScheduleAdaptation==true' social-runner.json >/dev/null
 

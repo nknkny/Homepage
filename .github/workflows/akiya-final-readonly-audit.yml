@@ -1,79 +1,13 @@
-name: Akiya final read-only audit
+name: Retired - Akiya legacy read-only audit
 
 on:
-  issue_comment:
-    types: [created]
+  workflow_dispatch:
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
-  audit:
-    if: github.event.issue.number == 42 && contains(github.event.comment.body, 'RUN_AKIYA_FINAL_READONLY_AUDIT')
+  retired:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
-    env:
-      CUSTOMER_URL: https://rapid-hat-f45c.jmdjdtdjdt.workers.dev
-      ADMIN_URL: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-owner-ui
-      API_URL: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-api
-      PAY_URL: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-payment-api
     steps:
-      - name: Inspect live endpoints
-        id: audit
-        shell: bash
-        run: |
-          set -u
-          mkdir -p "$RUNNER_TEMP/audit"
-          admin_http=$(curl -sS -L --max-time 20 -o "$RUNNER_TEMP/audit/admin.html" -D "$RUNNER_TEMP/audit/admin.h" -w '%{http_code}' "$ADMIN_URL" || true)
-          admin_health_http=$(curl -sS -L --max-time 20 -o "$RUNNER_TEMP/audit/admin-health.json" -w '%{http_code}' "$ADMIN_URL?health=1" || true)
-          admin_title=false; admin_health=false; admin_csp=false
-          grep -Fq '空家ポケット 運営センター' "$RUNNER_TEMP/audit/admin.html" 2>/dev/null && admin_title=true
-          jq -e '.ok==true and .ready==true and .private==true and .security=="server-side-ui-key"' "$RUNNER_TEMP/audit/admin-health.json" >/dev/null 2>&1 && admin_health=true
-          tr -d '\r' < "$RUNNER_TEMP/audit/admin.h" > "$RUNNER_TEMP/audit/admin-h.txt" 2>/dev/null || true
-          grep -Eiq '^content-security-policy:' "$RUNNER_TEMP/audit/admin-h.txt" 2>/dev/null && admin_csp=true
-
-          cf_http=$(curl -sS -L --max-time 20 -o "$RUNNER_TEMP/audit/cf.html" -w '%{http_code}' "$CUSTOMER_URL/" || true)
-          cf_cfg_http=$(curl -sS -L --max-time 20 -o "$RUNNER_TEMP/audit/cf-config.js" -w '%{http_code}' "$CUSTOMER_URL/assets/config.js?audit=$GITHUB_RUN_ID" || true)
-          cf_build=$(grep -oE 'FRONTEND_BUILD: "[^"]+' "$RUNNER_TEMP/audit/cf-config.js" 2>/dev/null | head -1 | sed 's/.*"//' || true)
-          cf_api=$(grep -oE 'API_URL: "[^"]+' "$RUNNER_TEMP/audit/cf-config.js" 2>/dev/null | head -1 | sed 's/.*"//' || true)
-          cf_pay=$(grep -oE 'PAYMENT_API_URL: "[^"]+' "$RUNNER_TEMP/audit/cf-config.js" 2>/dev/null | head -1 | sed 's/.*"//' || true)
-
-          api_http=$(curl -sS -L --max-time 20 -o "$RUNNER_TEMP/audit/api.json" -w '%{http_code}' "$API_URL" || true)
-          pay_http=$(curl -sS -L --max-time 20 -o "$RUNNER_TEMP/audit/pay.json" -w '%{http_code}' "$PAY_URL" || true)
-          api_ready=$(jq -r '.ready // false' "$RUNNER_TEMP/audit/api.json" 2>/dev/null || echo false)
-          api_build=$(jq -r '.buildVersion // ""' "$RUNNER_TEMP/audit/api.json" 2>/dev/null || true)
-          pay_ready=$(jq -r '.ready // false' "$RUNNER_TEMP/audit/pay.json" 2>/dev/null || echo false)
-          pay_amount=$(jq -r '.amountJpy // ""' "$RUNNER_TEMP/audit/pay.json" 2>/dev/null || true)
-          pay_build=$(jq -r '.buildVersion // ""' "$RUNNER_TEMP/audit/pay.json" 2>/dev/null || true)
-
-          {
-            echo "admin_http=$admin_http"; echo "admin_health_http=$admin_health_http"; echo "admin_title=$admin_title"; echo "admin_health=$admin_health"; echo "admin_csp=$admin_csp"
-            echo "cf_http=$cf_http"; echo "cf_cfg_http=$cf_cfg_http"; echo "cf_build=$cf_build"; echo "cf_api=$cf_api"; echo "cf_pay=$cf_pay"
-            echo "api_http=$api_http"; echo "api_ready=$api_ready"; echo "api_build=$api_build"; echo "pay_http=$pay_http"; echo "pay_ready=$pay_ready"; echo "pay_amount=$pay_amount"; echo "pay_build=$pay_build"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Record audit
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ADMIN_HTTP: ${{ steps.audit.outputs.admin_http }}
-          ADMIN_HEALTH_HTTP: ${{ steps.audit.outputs.admin_health_http }}
-          ADMIN_TITLE: ${{ steps.audit.outputs.admin_title }}
-          ADMIN_HEALTH: ${{ steps.audit.outputs.admin_health }}
-          ADMIN_CSP: ${{ steps.audit.outputs.admin_csp }}
-          CF_HTTP: ${{ steps.audit.outputs.cf_http }}
-          CF_CFG_HTTP: ${{ steps.audit.outputs.cf_cfg_http }}
-          CF_BUILD: ${{ steps.audit.outputs.cf_build }}
-          CF_API: ${{ steps.audit.outputs.cf_api }}
-          CF_PAY: ${{ steps.audit.outputs.cf_pay }}
-          API_HTTP: ${{ steps.audit.outputs.api_http }}
-          API_READY: ${{ steps.audit.outputs.api_ready }}
-          API_BUILD: ${{ steps.audit.outputs.api_build }}
-          PAY_HTTP: ${{ steps.audit.outputs.pay_http }}
-          PAY_READY: ${{ steps.audit.outputs.pay_ready }}
-          PAY_AMOUNT: ${{ steps.audit.outputs.pay_amount }}
-          PAY_BUILD: ${{ steps.audit.outputs.pay_build }}
-        shell: bash
-        run: |
-          body=$(jq -n --arg ah "$ADMIN_HTTP" --arg a2 "$ADMIN_HEALTH_HTTP" --arg at "$ADMIN_TITLE" --arg ar "$ADMIN_HEALTH" --arg ac "$ADMIN_CSP" --arg ch "$CF_HTTP" --arg cc "$CF_CFG_HTTP" --arg cb "$CF_BUILD" --arg ca "$CF_API" --arg cp "$CF_PAY" --arg ih "$API_HTTP" --arg ir "$API_READY" --arg ib "$API_BUILD" --arg ph "$PAY_HTTP" --arg pr "$PAY_READY" --arg pa "$PAY_AMOUNT" --arg pb "$PAY_BUILD" '{body:("AKIYA_FINAL_READONLY_AUDIT\nADMIN_HTTP="+$ah+" HEALTH_HTTP="+$a2+" TITLE="+$at+" HEALTH="+$ar+" CSP="+$ac+"\nCLOUDFLARE_HTTP="+$ch+" CONFIG_HTTP="+$cc+" BUILD="+$cb+"\nCLOUDFLARE_API="+$ca+"\nCLOUDFLARE_PAYMENT_API="+$cp+"\nSUPABASE_API="+$ih+" READY="+$ir+" BUILD="+$ib+"\nPAYMENT_API="+$ph+" READY="+$pr+" AMOUNT="+$pa+" BUILD="+$pb)}')
-          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
+      - run: echo 'RETIRED - this audit targeted the obsolete rapid-hat Worker. Canonical production is akiya-pocket-aomori.pages.dev.'

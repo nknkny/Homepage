@@ -1,59 +1,13 @@
-name: Akiya registration diagnostic
+name: Retired - Akiya registration diagnostic
 
 on:
-  issue_comment:
-    types: [created]
+  workflow_dispatch:
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
-  diag:
-    if: github.event.issue.number == 42 && contains(github.event.comment.body, 'RUN_AKIYA_REGISTER_DIAG')
+  retired:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    env:
-      ORIGIN: https://nknkny.github.io
-      API: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-api
     steps:
-      - name: Test registration safely
-        id: reg
-        shell: bash
-        run: |
-          set -u
-          email="akiya.regdiag.${GITHUB_RUN_ID}@example.invalid"
-          password="Akiya-RegDiag-${GITHUB_RUN_ID}-X9!"
-          jq -n --arg id "REGDIAG-$GITHUB_RUN_ID" --arg email "$email" --arg password "$password" \
-            '{action:"register_member",clientRequestId:$id,name:"E2E自動テスト",email:$email,password:$password,residencePrefecture:"青森県",propertyPrefecture:"青森県",propertyCity:"青森市",relationship:"所有者",propertyStatus:"空き家",requiredConsent:"yes",marketingOptIn:"no"}' > "$RUNNER_TEMP/request.json"
-          http=$(curl -sS -o "$RUNNER_TEMP/response.json" -w '%{http_code}' -H "Origin: $ORIGIN" -H 'Content-Type: application/json' --data-binary @"$RUNNER_TEMP/request.json" "$API" || true)
-          ok=$(jq -r '.ok // false' "$RUNNER_TEMP/response.json" 2>/dev/null || echo invalid)
-          code=$(jq -r '.code // ""' "$RUNNER_TEMP/response.json" 2>/dev/null || echo invalid)
-          msg=$(jq -r '.message // ""' "$RUNNER_TEMP/response.json" 2>/dev/null || echo invalid)
-          build=$(jq -r '.buildVersion // ""' "$RUNNER_TEMP/response.json" 2>/dev/null || echo invalid)
-          token=$(jq -r '.sessionToken // ""' "$RUNNER_TEMP/response.json" 2>/dev/null || true)
-          if [ -n "$token" ]; then
-            jq -n --arg id "DELREGDIAG-$GITHUB_RUN_ID" --arg token "$token" --arg password "$password" '{action:"delete_account",clientRequestId:$id,sessionToken:$token,currentPassword:$password}' > "$RUNNER_TEMP/delete.json"
-            curl -sS -H "Origin: $ORIGIN" -H 'Content-Type: application/json' --data-binary @"$RUNNER_TEMP/delete.json" "$API" >/dev/null || true
-          fi
-          {
-            echo "http=$http"
-            echo "ok=$ok"
-            echo "code=$code"
-            echo "msg<<EOF"
-            echo "$msg"
-            echo "EOF"
-            echo "build=$build"
-          } >> "$GITHUB_OUTPUT"
-      - name: Record diagnostic
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HTTP: ${{ steps.reg.outputs.http }}
-          OK: ${{ steps.reg.outputs.ok }}
-          CODE: ${{ steps.reg.outputs.code }}
-          MSG: ${{ steps.reg.outputs.msg }}
-          BUILD: ${{ steps.reg.outputs.build }}
-        shell: bash
-        run: |
-          body=$(jq -n --arg h "$HTTP" --arg o "$OK" --arg c "$CODE" --arg m "$MSG" --arg b "$BUILD" '{body:("AKIYA_REGISTER_DIAG\nHTTP="+$h+"\nOK="+$o+"\nCODE="+$c+"\nMESSAGE="+$m+"\nBUILD="+$b)}')
-          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
+      - run: echo 'RETIRED - legacy diagnostic created synthetic member state. Current production checks are non-mutating.'

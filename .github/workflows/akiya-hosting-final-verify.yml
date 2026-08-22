@@ -1,59 +1,13 @@
-name: Akiya hosting final verify
+name: Retired - Akiya legacy hosting final verify
 
 on:
-  issue_comment:
-    types: [created]
+  workflow_dispatch:
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
-  verify:
-    if: github.event.issue.number == 42 && contains(github.event.comment.body, 'RUN_AKIYA_HOSTING_FINAL_VERIFY')
+  retired:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
     steps:
-      - name: Verify Cloudflare canonical, legacy redirects, and preserved admin
-        id: verify
-        shell: bash
-        run: |
-          set -euo pipefail
-          NEW='https://akiya-pocket.pages.dev'
-          OLD='https://nknkny.github.io/Homepage/akiya-pocket'
-          ok=0
-          for n in $(seq 1 60); do
-            cloud=0; redir=0; admin=0
-            if curl -fsSL --max-time 20 "$NEW/?v=$GITHUB_RUN_ID-$n" -o "$RUNNER_TEMP/new" \
-              && grep -Fq '空家ポケット' "$RUNNER_TEMP/new" \
-              && grep -Fq '<link rel="canonical" href="https://akiya-pocket.pages.dev/">' "$RUNNER_TEMP/new"; then cloud=1; fi
-            if curl -fsSL --max-time 20 "$OLD/index.html?v=$GITHUB_RUN_ID-$n" -o "$RUNNER_TEMP/old" \
-              && grep -Fq 'https://akiya-pocket.pages.dev/' "$RUNNER_TEMP/old" \
-              && grep -Fq '空家ポケットは移転しました' "$RUNNER_TEMP/old"; then redir=1; fi
-            if curl -fsSL --max-time 20 "$OLD/control-center/index.html?v=$GITHUB_RUN_ID-$n" -o "$RUNNER_TEMP/admin" \
-              && grep -Fq '空家ポケット 運営状況' "$RUNNER_TEMP/admin" \
-              && ! grep -Fq '空家ポケットは移転しました' "$RUNNER_TEMP/admin"; then admin=1; fi
-            if [ "$cloud" = 1 ] && [ "$redir" = 1 ] && [ "$admin" = 1 ]; then ok=1; break; fi
-            sleep 4
-          done
-          test "$ok" = 1
-          curl -fsSL "$NEW/DEPLOYMENT.json?v=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/deploy.json"
-          jq -e '.canonicalOrigin=="https://akiya-pocket.pages.dev" and .build=="2026-08-21-cloudflare-pages-r1"' "$RUNNER_TEMP/deploy.json" >/dev/null
-          curl -fsSL "$NEW/sitemap.xml?v=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/sitemap.xml"
-          grep -Fq 'https://akiya-pocket.pages.dev/' "$RUNNER_TEMP/sitemap.xml"
-          ! grep -Fq 'https://nknkny.github.io/Homepage/akiya-pocket' "$RUNNER_TEMP/sitemap.xml"
-          curl -fsSL "$NEW/assets/config.js?v=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/config.js"
-          grep -Fq 'SITE_ORIGIN: "https://akiya-pocket.pages.dev"' "$RUNNER_TEMP/config.js"
-          ! grep -Fq 'https://nknkny.github.io' "$RUNNER_TEMP/config.js"
-
-      - name: Report result
-        if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERIFY: ${{ steps.verify.outcome }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ "$VERIFY" = success ]; then overall=PASS; else overall=FAIL; fi
-          body=$(jq -n --arg o "$overall" --arg r "$GITHUB_RUN_ID" '{body:("AKIYA_HOSTING_FINAL_VERIFY="+$o+"\nRUN_ID="+$r+"\nPUBLIC_URL=https://akiya-pocket.pages.dev/\nLEGACY_REDIRECT=https://nknkny.github.io/Homepage/akiya-pocket/\nADMIN_URL=https://nknkny.github.io/Homepage/akiya-pocket/control-center/") }')
-          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
+      - run: echo 'RETIRED - obsolete project hostname and admin markers. Canonical verification is Cloudflare stage1 v3.'

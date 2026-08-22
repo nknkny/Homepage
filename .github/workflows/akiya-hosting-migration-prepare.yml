@@ -1,92 +1,13 @@
-name: Akiya hosting migration prepare
+name: Retired - Akiya legacy hosting migration prepare
 
 on:
-  issue_comment:
-    types: [created]
+  workflow_dispatch:
 
 permissions:
-  contents: write
-  issues: write
+  contents: read
 
 jobs:
-  prepare:
-    if: github.event.issue.number == 42 && contains(github.event.comment.body, 'RUN_AKIYA_HOSTING_MIGRATION_PREPARE')
+  retired:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: main
-
-      - name: Remove public personal phone from homepage structured data
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import pathlib, re
-          p=pathlib.Path('akiya-pocket/index.html')
-          s=p.read_text(encoding='utf-8')
-          s2=re.sub(r',"telephone":"[^"]+"', '', s)
-          if s2 == s and '"telephone":' in s:
-              raise SystemExit('telephone field remained')
-          p.write_text(s2, encoding='utf-8')
-          PY
-          ! grep -Fq '"telephone":' akiya-pocket/index.html
-
-      - name: Build Cloudflare Pages output
-        env:
-          AKIYA_DEPLOYMENT_URL: https://migration-check.akiya-pocket.pages.dev
-        run: node scripts/build-akiya-cloudflare-pages.mjs
-
-      - name: Validate migration output
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -f dist/index.html
-          test -f dist/assets/config.js
-          test -f dist/robots.txt
-          test -f dist/sitemap.xml
-          test -f dist/_headers
-          test -f dist/DEPLOYMENT.json
-          grep -Fq '<link rel="canonical" href="https://akiya-pocket.pages.dev/">' dist/index.html
-          grep -Fq 'SITE_ORIGIN: "https://akiya-pocket.pages.dev"' dist/assets/config.js
-          grep -Fq '"https://migration-check.akiya-pocket.pages.dev"' dist/assets/config.js
-          ! grep -R -F 'https://nknkny.github.io/Homepage/akiya-pocket' dist --include='*.html' --include='*.js' --include='*.xml' --include='*.txt'
-          ! grep -R -F 'https://rapid-hat-f45c.jmdjdtdjdt.workers.dev' dist --include='*.html' --include='*.js' --include='*.xml' --include='*.txt'
-          ! grep -Fq '"telephone":' dist/index.html
-          grep -Fq 'X-Robots-Tag: noindex, nofollow, noarchive' dist/_headers
-
-      - name: Commit source privacy fix
-        id: commit
-        shell: bash
-        run: |
-          set -euo pipefail
-          if git diff --quiet -- akiya-pocket/index.html; then
-            echo 'changed=false' >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add akiya-pocket/index.html
-          git commit -m 'Remove public personal phone from Akiya Pocket metadata'
-          git push origin HEAD:main
-          echo 'changed=true' >> "$GITHUB_OUTPUT"
-
-      - name: Record migration readiness
-        if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
-          JOB_STATUS: ${{ job.status }}
-          PHONE_CHANGED: ${{ steps.commit.outputs.changed }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          status=FAIL
-          [ "$JOB_STATUS" = success ] && status=PASS
-          body=$(jq -n --arg status "$status" --arg run "$GITHUB_RUN_ID" --arg changed "${PHONE_CHANGED:-unknown}" '{body:("AKIYA_HOSTING_MIGRATION_PREPARE="+$status+"\nRUN_ID="+$run+"\nPHONE_METADATA_REMOVED="+$changed+"\nBUILD_TARGET=https://akiya-pocket.pages.dev/")}')
-          curl -fsSL -X POST \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H 'Accept: application/vnd.github+json' \
-            -H 'Content-Type: application/json' \
-            -d "$body" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
+      - run: echo 'RETIRED - canonical hosting migration is complete; this legacy workflow must not write directly to main.'
