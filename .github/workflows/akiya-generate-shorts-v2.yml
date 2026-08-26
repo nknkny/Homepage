@@ -18,7 +18,6 @@ jobs:
         with:
           ref: main
           fetch-depth: 20
-
       - name: Generate four distinct vertical videos
         shell: bash
         run: |
@@ -30,7 +29,6 @@ jobs:
           FONT=$(fc-match -f '%{file}\n' 'Noto Sans CJK JP' | head -1)
           test -f "$FONT"
           mkdir -p akiya-pocket/assets/social/generated-v2
-
           cat > /tmp/report-1.txt <<'EOF'
           3,480円で
           何が届く？
@@ -43,7 +41,6 @@ jobs:
           依頼前に
           報告見本を確認できます
           EOF
-
           cat > /tmp/monthly-1.txt <<'EOF'
           毎月の管理を頼む前に
           EOF
@@ -55,7 +52,6 @@ jobs:
           青森市 1回3,480円
           月額契約なし
           EOF
-
           cat > /tmp/facility-1.txt <<'EOF'
           親が施設へ。
           実家へすぐ戻れない
@@ -68,7 +64,6 @@ jobs:
           次を決める前の
           「まず一度」
           EOF
-
           cat > /tmp/travel-1.txt <<'EOF'
           確認だけのために
           青森市まで行く？
@@ -81,21 +76,17 @@ jobs:
           必要なときに1回だけ
           3,480円（税込）
           EOF
-
           make_video() {
             local out="$1" a="$2" b="$3" c="$4"
             ffmpeg -y -loglevel error -f lavfi -i 'color=c=0x082b58:s=720x1280:d=9:r=24' \
               -vf "drawtext=fontfile='$FONT':text='空家ポケット':fontsize=30:fontcolor=white@0.92:x=(w-text_w)/2:y=85,drawbox=x=310:y=145:w=100:h=7:color=0xeb5b1b:t=fill,drawtext=fontfile='$FONT':textfile='$a':fontsize=58:fontcolor=white:line_spacing=22:x=(w-text_w)/2:y=(h-text_h)/2:enable='between(t,0,2.99)',drawtext=fontfile='$FONT':textfile='$b':fontsize=54:fontcolor=white:line_spacing=22:x=(w-text_w)/2:y=(h-text_h)/2:enable='between(t,3,5.99)',drawtext=fontfile='$FONT':textfile='$c':fontsize=54:fontcolor=white:line_spacing=22:x=(w-text_w)/2:y=(h-text_h)/2:enable='between(t,6,8.99)',drawtext=fontfile='$FONT':text='akiya-pocket-aomori.pages.dev':fontsize=22:fontcolor=white@0.65:x=(w-text_w)/2:y=h-85" \
               -c:v libx264 -profile:v high -level 4.0 -pix_fmt yuv420p -preset medium -crf 29 -movflags +faststart -an "$out"
             test "$(stat -c%s "$out")" -gt 10000
-            ffprobe -v error -select_streams v:0 -show_entries stream=width,height,duration -of default=nw=1 "$out"
           }
-
           make_video akiya-pocket/assets/social/generated-v2/report-proof.mp4 /tmp/report-1.txt /tmp/report-2.txt /tmp/report-3.txt
           make_video akiya-pocket/assets/social/generated-v2/before-monthly.mp4 /tmp/monthly-1.txt /tmp/monthly-2.txt /tmp/monthly-3.txt
           make_video akiya-pocket/assets/social/generated-v2/parent-facility.mp4 /tmp/facility-1.txt /tmp/facility-2.txt /tmp/facility-3.txt
           make_video akiya-pocket/assets/social/generated-v2/before-travel.mp4 /tmp/travel-1.txt /tmp/travel-2.txt /tmp/travel-3.txt
-
       - name: Commit generated videos
         id: commit
         shell: bash
@@ -104,14 +95,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add akiya-pocket/assets/social/generated-v2/*.mp4
-          if git diff --cached --quiet; then
-            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          else
-            git commit -m 'Akiya Pocket: generate distinct acquisition Shorts'
-            git push origin HEAD:main
-            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          fi
-
+          if git diff --cached --quiet; then echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"; else git commit -m 'Akiya Pocket: generate distinct acquisition Shorts'; git push origin HEAD:main; echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"; fi
       - name: Report result
         if: always()
         env:
@@ -123,3 +107,72 @@ jobs:
           if [ "${{ job.status }}" = success ]; then state=PASS; else state=FAIL; fi
           body=$(jq -n --arg s "$state" --arg sha "${SHA:-}" --arg run "$GITHUB_RUN_ID" '{body:("AKIYA_SHORTS_V2="+$s+"\nRUN_ID="+$run+"\nSHA="+$sha)}')
           curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
+
+  generate_instagram_proof:
+    if: github.event.issue.number == 42 && contains(github.event.comment.body, 'START_AKIYA_IG_PROOF_V3')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 20
+      - name: Install image tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq fonts-noto-cjk >/dev/null
+          python -m pip install -q --upgrade pillow
+      - name: Generate four proof-process creatives
+        run: |
+          set -euo pipefail
+          mkdir -p akiya-pocket/assets/social/generated-v3
+          cat > /tmp/gen_ig.py <<'PY'
+          from PIL import Image, ImageDraw, ImageFont
+          from pathlib import Path
+          W,H=1080,1350
+          BG=(247,249,252); NAVY=(8,43,88); INK=(25,38,54); MUTED=(91,105,120); ORANGE=(235,91,27); WHITE=(255,255,255); LINE=(219,226,235); PALE=(232,239,248)
+          font='/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc'; bold='/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc'
+          F=lambda s,b=False: ImageFont.truetype(bold if b else font,s)
+          out=Path('akiya-pocket/assets/social/generated-v3')
+          def rr(d,box,r,fill,outline=None,w=1): d.rounded_rectangle(box,radius=r,fill=fill,outline=outline,width=w)
+          def lines(d,text,xy,font,fill,width,spacing=12):
+              x,y=xy; cur=''; arr=[]
+              for ch in text:
+                  test=cur+ch
+                  if d.textbbox((0,0),test,font=font)[2]>width and cur: arr.append(cur); cur=ch
+                  else: cur=test
+              if cur: arr.append(cur)
+              for s in arr: d.text((x,y),s,font=font,fill=fill); y+=font.size+spacing
+              return y
+          def brand(d): d.text((70,62),'空家ポケット',font=F(35,True),fill=NAVY); d.ellipse((934,69,954,89),fill=ORANGE)
+          def footer(d,cta='プロフィールから報告見本へ'):
+              d.line((70,1190,1010,1190),fill=LINE,width=2); d.text((70,1226),'青森市｜1回 3,480円（税込）｜月額契約なし',font=F(27,True),fill=NAVY); d.text((70,1276),cta,font=F(24),fill=MUTED)
+          im=Image.new('RGB',(W,H),BG); d=ImageDraw.Draw(im); brand(d); d.text((70,165),'3,480円で',font=F(55,True),fill=INK); d.text((70,235),'何が届く？',font=F(80,True),fill=NAVY); y=380
+          for num,title,body in [('01','現地で確認','道路側外観・玄関周辺・敷地など、安全に外から見える範囲'),('02','写真で記録','その場で見えた状態を写真で残します'),('03','観察事実を報告','原因・修理要否・緊急度を勝手に判断せず、見えた事実を記載')]:
+              rr(d,(70,y,1010,y+190),28,WHITE,LINE,2); d.ellipse((98,y+56,162,y+120),fill=NAVY); d.text((116,y+67),num,font=F(24,True),fill=WHITE); d.text((190,y+36),title,font=F(34,True),fill=INK); lines(d,body,(190,y+93),F(25),MUTED,760,8); y+=215
+          rr(d,(70,1035,1010,1145),28,PALE); d.text((105,1069),'依頼前に「報告見本」を公開しています',font=F(31,True),fill=NAVY); footer(d); im.save(out/'report-proof-ig.png')
+          im=Image.new('RGB',(W,H),WHITE); d=ImageDraw.Draw(im); brand(d); d.text((70,170),'毎月の管理を',font=F(55,True),fill=INK); d.text((70,245),'決める前に。',font=F(78,True),fill=NAVY); rr(d,(70,385,1010,760),34,BG,LINE,2); d.text((120,435),'まず1回だけ',font=F(62,True),fill=NAVY); d.text((120,535),'今の外観・敷地を確認',font=F(39,True),fill=INK); d.line((120,620,960,620),fill=LINE,width=2); d.text((120,660),'✓ 月額契約なし',font=F(31,True),fill=INK); d.text((520,660),'✓ 自動更新なし',font=F(31,True),fill=INK); d.text((70,855),'「管理を頼むか」より先に、',font=F(38),fill=MUTED); d.text((70,915),'いま何が見えるかを知る。',font=F(49,True),fill=INK); rr(d,(70,1015,510,1125),28,NAVY); d.text((122,1049),'1回 3,480円',font=F(33,True),fill=WHITE); footer(d,'プロフィールからサービス内容へ'); im.save(out/'before-monthly-ig.png')
+          im=Image.new('RGB',(W,H),BG); d=ImageDraw.Draw(im); brand(d); d.text((70,165),'見えなかった場所は、',font=F(47,True),fill=INK); d.text((70,235),'「未確認」と書きます。',font=F(65,True),fill=NAVY); rr(d,(70,385,1010,830),34,WHITE,LINE,2); d.text((120,435),'現地確認報告（見本）',font=F(35,True),fill=NAVY); items=[('確認範囲','道路側外観、玄関周辺、敷地、郵便受け周辺'),('確認事実','外壁の一部に表面の変色が見られました'),('未確認','屋根の反対側は地上から見えず、確認していません')]; yy=520
+          for lab,val in items: d.text((120,yy),lab,font=F(27,True),fill=ORANGE if lab=='未確認' else INK); yy=lines(d,val,(300,yy),F(25),MUTED,630,7)+27
+          d.text((70,910),'「分からない」を、',font=F(40),fill=MUTED); d.text((70,970),'分かったふりにしない。',font=F(55,True),fill=INK); footer(d); im.save(out/'unconfirmed-ig.png')
+          im=Image.new('RGB',(W,H),WHITE); d=ImageDraw.Draw(im); brand(d); d.text((70,165),'写真は撮る。',font=F(58,True),fill=INK); d.text((70,240),'でも、診断はしない。',font=F(68,True),fill=NAVY); rr(d,(70,390,1010,850),34,BG,LINE,2); d.text((120,440),'空家ポケットが報告するのは',font=F(31,True),fill=INK); d.text((120,500),'「その場で見えた事実」',font=F(45,True),fill=NAVY); d.line((120,585,960,585),fill=LINE,width=2); d.text((120,635),'判断しないこと',font=F(29,True),fill=MUTED)
+          for i,s in enumerate(['原因の特定','修理が必要か','緊急度の判定']): yy=700+i*70; d.ellipse((122,yy+7,146,yy+31),fill=ORANGE); d.text((170,yy),s,font=F(31,True),fill=INK)
+          d.text((70,930),'できること／できないことを',font=F(38),fill=MUTED); d.text((70,990),'最初から明確に。',font=F(54,True),fill=INK); footer(d,'プロフィールから確認範囲へ'); im.save(out/'scope-proof-ig.png')
+          PY
+          python /tmp/gen_ig.py
+          for f in akiya-pocket/assets/social/generated-v3/*.png; do test "$(stat -c%s "$f")" -gt 10000; done
+      - name: Commit Instagram creatives
+        id: commit_ig
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'; git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add akiya-pocket/assets/social/generated-v3/*.png
+          if git diff --cached --quiet; then echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"; else git commit -m 'Akiya Pocket: generate proof-process Instagram creatives'; git push origin HEAD:main; echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"; fi
+      - name: Report Instagram result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.commit_ig.outputs.sha }}
+        run: |
+          if [ "${{ job.status }}" = success ]; then state=PASS; else state=FAIL; fi
+          gh issue comment 42 --body "AKIYA_IG_PROOF_V3=$state\nRUN_ID=$GITHUB_RUN_ID\nSHA=${SHA:-}"
