@@ -60,34 +60,24 @@ jobs:
           : > "$log"
           (CI='' npx --yes wrangler@4.119.0 login --device --browser=false >"$log" 2>&1) &
           pid=$!
-          plain_url='https://dash.cloudflare.com/oauth2/device'
-          complete_url=''
+          url=''
           code=''
-          for n in $(seq 1 60); do
+          for n in $(seq 1 30); do
             perl -pe 's/\e\[[0-9;]*[mK]//g' "$log" > "$clean" || true
-            complete_url=$(grep -Eo 'https://dash\.cloudflare\.com/oauth2/device\?user_code=[A-Za-z0-9-]+' "$clean" | tail -1 || true)
-            code=$(grep -Eo '[A-Za-z0-9]{4}-[A-Za-z0-9]{4}' "$clean" | tail -1 || true)
-            if [ -n "$complete_url" ] && [ -n "$code" ]; then break; fi
+            url=$(grep -Eo 'https://dash\.cloudflare\.com/oauth2/device(/verify)?' "$clean" | tail -1 || true)
+            code=$(grep -Eo '([A-Za-z0-9]{4}-[A-Za-z0-9]{4}|[A-Za-z0-9]{8})' "$clean" | tail -1 || true)
+            if [ -n "$url" ] && [ -n "$code" ]; then break; fi
             if ! kill -0 "$pid" 2>/dev/null; then break; fi
             sleep 1
           done
-          if [ -z "$code" ]; then
+          if [ -z "$url" ] || [ -z "$code" ]; then
             cat "$clean" || true
             kill "$pid" 2>/dev/null || true
             wait "$pid" 2>/dev/null || true
             exit 1
           fi
-          if [ -z "$complete_url" ]; then
-            complete_url="${plain_url}?user_code=${code}"
-          fi
-          url_code=${complete_url##*user_code=}
-          if [ "$url_code" != "$code" ]; then
-            echo "Device code mismatch: url=$url_code parsed=$code" >&2
-            kill "$pid" 2>/dev/null || true
-            wait "$pid" 2>/dev/null || true
-            exit 1
-          fi
-          body=$(jq -n --arg url "$plain_url" --arg complete "$complete_url" --arg code "$code" --arg run "$GITHUB_RUN_ID" '{body:("AKIYA_CF_AUTH_NOW\nVERIFY_URL="+$url+"\nVERIFY_URL_COMPLETE="+$complete+"\nCODE="+$code+"\nRUN_ID="+$run)}')
+          complete_url="${url}?user_code=${code}"
+          body=$(jq -n --arg url "$url" --arg complete "$complete_url" --arg code "$code" --arg run "$GITHUB_RUN_ID" '{body:("AKIYA_CF_AUTH_NOW\nVERIFY_URL="+$url+"\nVERIFY_URL_COMPLETE="+$complete+"\nCODE="+$code+"\nRUN_ID="+$run)}')
           curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
           wait "$pid"
 
