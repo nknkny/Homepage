@@ -63,7 +63,10 @@ jobs:
             rel=${file#dist/}
             case "$rel" in _headers|_redirects|DEPLOYMENT.json) continue;; esac
             tmp=$(mktemp)
-            if ! curl --fail --silent --show-error --max-time 30 "$SITE_ORIGIN/$rel?integrity=$GITHUB_SHA" -o "$tmp"; then
+            # Cloudflare Pages Pretty URLs redirect *.html requests to their
+            # canonical route. Follow redirects before byte comparison so the
+            # check compares the deployed resource rather than a 3xx body.
+            if ! curl --fail --location --silent --show-error --max-time 30 "$SITE_ORIGIN/$rel?integrity=$GITHUB_SHA" -o "$tmp"; then
               echo "LIVE_MISSING $rel"
               mismatches=$((mismatches+1))
             elif ! cmp -s "$file" "$tmp"; then
