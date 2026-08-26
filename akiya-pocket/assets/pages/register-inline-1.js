@@ -4,6 +4,7 @@ const publicTrack=(type,label,value)=>{
   if(!window.AkiyaAnalytics||!AkiyaAnalytics.publicTrack)return;
   AkiyaAnalytics.publicTrack(type,{contentCategory:'registration',contentId:'member_registration',actionLabel:label||'',value:value===undefined?'':value});
 };
+const paidIntentCampaign=()=>/^aomori_paid_intent_/.test(new URLSearchParams(location.search).get('utm_campaign')||'');
 registerForm.addEventListener('input',()=>{
   if(!registrationStarted){registrationStarted=true;publicTrack('register_start','first_input')}
 });
@@ -27,7 +28,12 @@ registerForm.addEventListener('submit',async e=>{
     if(!r.ok){publicTrack('register_server_error',String(r.code||'server_rejected'));return AkiyaUI.show(box,r.message||'登録できませんでした。')}
     AkiyaAPI.setToken(r.sessionToken);
     sessionStorage.setItem('akiya_registered_name',d.name);
-    location.href='register-complete.html';
+    if(paidIntentCampaign()){
+      publicTrack('paid_intent_registration_complete','continue_to_request','3480');
+      location.href='request.html?from=paid_intent_registration';
+    }else{
+      location.href='register-complete.html';
+    }
   }catch(err){
     publicTrack('register_server_error','network_or_exception');
     AkiyaUI.show(box,err.message);
