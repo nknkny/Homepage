@@ -34,7 +34,7 @@ AkiyaUI.initTurnstile=function(form){
 AkiyaUI.resetTurnstile=function(form){if(!form)return;const hidden=form.querySelector('input[name="turnstileToken"]');if(hidden)hidden.value='';const id=form._akiyaTurnstileWidgetId;if(window.turnstile&&id!==undefined&&id!==null){try{window.turnstile.reset(id)}catch(e){}}};
 AkiyaUI.turnstileForms=function(){return ['registerForm','loginForm'].map(id=>document.getElementById(id)).filter(Boolean)};
 if(window.AkiyaAPI&&typeof AkiyaAPI.submit==='function'){const rawSubmit=AkiyaAPI.submit.bind(AkiyaAPI);AkiyaAPI.submit=async function(){try{return await rawSubmit(...arguments)}finally{AkiyaUI.turnstileForms().forEach(AkiyaUI.resetTurnstile)}}}
-document.addEventListener('DOMContentLoaded',()=>AkiyaUI.turnstileForms().forEach(AkiyaUI.initTurnstile));
+document.addEventListener('DOMContentLoaded',()=>AkiyaUI.turnstileForms().forEach(f=>AkiyaUI.initTurnstile(f)));
 
 (function(){
   'use strict';
@@ -55,4 +55,38 @@ document.addEventListener('DOMContentLoaded',()=>AkiyaUI.turnstileForms().forEac
   async function publicTrack(eventType,details){try{return await AkiyaAPI.submit('track_public_event',eventPayload(eventType,details),20000)}catch(e){return{ok:false,skipped:true}}}
   window.AkiyaAnalytics={acquisitionPayload,track,publicTrack,anonymousId,sessionId};
   document.addEventListener('DOMContentLoaded',()=>{publicTrack('site_visit',{contentCategory:'funnel',contentId:'site',actionLabel:'page_view'});if(location.pathname.endsWith('register.html'))publicTrack('register_view',{contentCategory:'registration',contentId:'member_registration',actionLabel:'view'})});
+})();
+
+/* AKIYA_PAID_INTENT_HOME_CTA_V1 */
+(function(){
+  'use strict';
+  document.addEventListener('DOMContentLoaded',()=>{
+    const path=location.pathname.replace(/\/+$/,'');
+    const isHome=path===''||path==='/'||path.endsWith('/index.html');
+    if(!isHome)return;
+    const track=(label)=>{try{if(window.AkiyaAnalytics&&AkiyaAnalytics.publicTrack)AkiyaAnalytics.publicTrack('paid_intent_cta_click',{contentCategory:'conversion',contentId:'inspection_3480',actionLabel:label,value:'3480'})}catch(e){}};
+    const retarget=(el,label,text,campaign)=>{
+      if(!el)return;
+      el.textContent=text;
+      el.href='register.html?utm_source=homepage&utm_medium=owned&utm_campaign='+campaign;
+      el.dataset.paidIntent='1';
+      el.addEventListener('click',()=>track(label),{passive:true});
+    };
+    retarget(document.querySelector('.home-main-btn'),'hero_paid_intent','3,480円で現地確認を依頼する','aomori_paid_intent_hero');
+    retarget(document.querySelector('.home-cta'),'header_paid_intent','現地確認を依頼','aomori_paid_intent_header');
+    const priceBtn=document.querySelector('.home-price-card .btn-primary');
+    retarget(priceBtn,'price_paid_intent','現地確認を依頼する','aomori_paid_intent_price');
+    const secure=document.querySelector('.home-secure');
+    if(secure)secure.textContent='依頼には無料会員登録が必要です。登録だけでは料金は発生しません。支払い前に条件と3,480円（税込）を確認できます。';
+    const heroBtn=document.querySelector('.home-main-btn');
+    if(heroBtn&&!document.querySelector('.home-proof-btn')){
+      const proof=document.createElement('a');
+      proof.className='btn btn-ghost home-proof-btn';
+      proof.href='report-sample.html?utm_source=homepage&utm_medium=owned&utm_campaign=aomori_paid_intent_proof';
+      proof.textContent='報告見本を先に見る';
+      proof.style.marginLeft='8px';
+      proof.addEventListener('click',()=>track('hero_report_sample'),{passive:true});
+      heroBtn.insertAdjacentElement('afterend',proof);
+    }
+  });
 })();
