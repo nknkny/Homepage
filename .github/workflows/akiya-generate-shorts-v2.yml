@@ -24,7 +24,9 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y -qq fonts-noto-cjk >/dev/null
+          sudo apt-get install -y -qq ffmpeg fonts-noto-cjk >/dev/null
+          command -v ffmpeg >/dev/null
+          command -v ffprobe >/dev/null
           FONT=$(fc-match -f '%{file}\n' 'Noto Sans CJK JP' | head -1)
           test -f "$FONT"
           mkdir -p akiya-pocket/assets/social/generated-v2
@@ -85,7 +87,7 @@ jobs:
             ffmpeg -y -loglevel error -f lavfi -i 'color=c=0x082b58:s=720x1280:d=9:r=24' \
               -vf "drawtext=fontfile='$FONT':text='空家ポケット':fontsize=30:fontcolor=white@0.92:x=(w-text_w)/2:y=85,drawbox=x=310:y=145:w=100:h=7:color=0xeb5b1b:t=fill,drawtext=fontfile='$FONT':textfile='$a':fontsize=58:fontcolor=white:line_spacing=22:x=(w-text_w)/2:y=(h-text_h)/2:enable='between(t,0,2.99)',drawtext=fontfile='$FONT':textfile='$b':fontsize=54:fontcolor=white:line_spacing=22:x=(w-text_w)/2:y=(h-text_h)/2:enable='between(t,3,5.99)',drawtext=fontfile='$FONT':textfile='$c':fontsize=54:fontcolor=white:line_spacing=22:x=(w-text_w)/2:y=(h-text_h)/2:enable='between(t,6,8.99)',drawtext=fontfile='$FONT':text='akiya-pocket-aomori.pages.dev':fontsize=22:fontcolor=white@0.65:x=(w-text_w)/2:y=h-85" \
               -c:v libx264 -profile:v high -level 4.0 -pix_fmt yuv420p -preset medium -crf 29 -movflags +faststart -an "$out"
-            test $(stat -c%s "$out") -gt 10000
+            test "$(stat -c%s "$out")" -gt 10000
             ffprobe -v error -select_streams v:0 -show_entries stream=width,height,duration -of default=nw=1 "$out"
           }
 
