@@ -1,4 +1,4 @@
-name: Event Platform Production Check
+name: Event Platform Legal-Safe Check
 
 on:
   push:
@@ -14,13 +14,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: event-platform-production-check
+  group: event-platform-legal-safe-check
   cancel-in-progress: true
 
 env:
-  SITE_URL: https://nknkny.github.io/Homepage/event-platform/
+  PREVIEW_URL: https://nknkny.github.io/Homepage/event-platform/
   API_URL: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/event-platform-api
-  WEBHOOK_URL: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/event-platform-stripe-webhook
 
 jobs:
   verify:
@@ -29,38 +28,47 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Static security and syntax checks
+      - name: Static legal-scope and security checks
         shell: bash
         run: |
           set -euo pipefail
           node --check event-platform/app.js
-          node --check event-platform/billing.js
-          grep -Fq '2026-08-15-supabase-v2' event-platform/app.js
-          grep -Fq '2026-08-15-paid-ui-v2' event-platform/billing.js
-          grep -Fq 'Content-Security-Policy' event-platform/index.html
-          grep -Fq 'Pro 30日パス' event-platform/index.html
-          grep -Fq '1,980円' event-platform/index.html
-          grep -Fq '自動更新なし' event-platform/index.html
+          grep -Fq '2026-08-26-zero-license-ui-v1' event-platform/app.js
+          grep -Fq 'noindex,nofollow,noarchive' event-platform/index.html
+          grep -Fq '開発プレビュー' event-platform/index.html
+          grep -Fq '正式公開前・有料販売停止中' event-platform/index.html
+          grep -Fq '雇用求人・求職・職業紹介・労働者派遣' event-platform/index.html
+          grep -Fq '会場・施設情報' event-platform/index.html
+          grep -Fq '業務委託' event-platform/index.html
+          grep -Fq '取扱範囲・禁止事項' event-platform/legal-boundaries.html
+          grep -Fq '非公開メッセージ' event-platform/legal-boundaries.html
           grep -Fq '利用規約' event-platform/terms.html
           grep -Fq 'プライバシーポリシー' event-platform/privacy.html
-          grep -Fq '特定商取引法に基づく表記' event-platform/tokusho.html
-          grep -Fq '1,980円（税込）' event-platform/tokusho.html
-          grep -Fq '自動更新' event-platform/tokusho.html
+          test ! -e event-platform/billing.js
+          test ! -e event-platform/billing.css
+          test ! -e event-platform/tokusho.html
+          ! grep -R -E 'buy\.stripe\.com|Pro 30日パス|1,980円' event-platform
+          ! grep -Fq 'create_interest' event-platform/app.js
+          ! grep -Fq 'request_action' event-platform/app.js
+          ! grep -Fq 'data-interest' event-platform/index.html
           ! grep -R -E 'sk_(live|test)_[A-Za-z0-9]+' event-platform .github/workflows/event-platform-autopilot.yml
           ! grep -R -E 'sb_secret_[A-Za-z0-9_-]+' event-platform .github/workflows/event-platform-autopilot.yml
           ! grep -R -E 'whsec_[A-Za-z0-9]+' event-platform .github/workflows/event-platform-autopilot.yml
-          ! grep -R -E 'token=[A-Za-z0-9_-]{32,}' event-platform .github/workflows/event-platform-autopilot.yml
           ! grep -Fq 'firebase' event-platform/index.html
           ! grep -Fq 'firebase' event-platform/app.js
 
-      - name: Verify paid API and public read
+      - name: Verify zero-license API scope
         shell: bash
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --max-time 30 "$API_URL?action=health" -o /tmp/api-health.json
           grep -Fq '"ok":true' /tmp/api-health.json
-          grep -Fq '2026-08-15-paid-v1' /tmp/api-health.json
-          grep -Fq 'pro_30d' /tmp/api-health.json
+          grep -Fq '2026-08-26-zero-license-v1' /tmp/api-health.json
+          grep -Fq '"commercialPayments":false' /tmp/api-health.json
+          grep -Fq '"privateMessaging":false' /tmp/api-health.json
+          grep -Fq '"employmentMatching":false' /tmp/api-health.json
+          grep -Fq '"venueBrokerage":false' /tmp/api-health.json
+          grep -Fq '"underlyingPayments":false' /tmp/api-health.json
           curl --fail --silent --show-error --max-time 30 "$API_URL?action=public_listings" -o /tmp/public-listings.json
           grep -Fq '"ok":true' /tmp/public-listings.json
           curl --fail --silent --show-error --max-time 30 -X OPTIONS \
@@ -68,47 +76,40 @@ jobs:
             -H 'Access-Control-Request-Method: POST' \
             "$API_URL?action=bootstrap" -D /tmp/cors-headers.txt -o /tmp/cors-body.txt
           grep -Fiq 'access-control-allow-origin: https://nknkny.github.io' /tmp/cors-headers.txt
-          code=$(curl --silent --show-error --max-time 30 -o /tmp/webhook-denied.json -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{}' "$WEBHOOK_URL")
-          test "$code" = "403"
 
-      - name: Verify published paid site
+      - name: Verify development preview is non-commercial
         shell: bash
         run: |
           set -euo pipefail
           ok=0
           for i in $(seq 1 18); do
-            code=$(curl --silent --show-error --location --max-time 30 -o /tmp/site.html -w '%{http_code}' "$SITE_URL?run=$GITHUB_RUN_ID-$i" || true)
-            if [ "$code" = "200" ] && grep -Fq 'Pro 30日パス' /tmp/site.html && grep -Fq '1,980円' /tmp/site.html; then
-              curl --fail --silent --show-error --location --max-time 30 "${SITE_URL}billing.js?run=$GITHUB_RUN_ID-$i" -o /tmp/billing.js || true
-              if grep -Fq '2026-08-15-paid-ui-v2' /tmp/billing.js 2>/dev/null; then ok=1; break; fi
-            fi
+            code=$(curl --silent --show-error --location --max-time 30 -o /tmp/site.html -w '%{http_code}' "$PREVIEW_URL?run=$GITHUB_RUN_ID-$i" || true)
+            if [ "$code" = "200" ] && grep -Fq '開発プレビュー' /tmp/site.html && grep -Fq '有料販売停止中' /tmp/site.html && grep -Fq 'noindex,nofollow,noarchive' /tmp/site.html; then ok=1; break; fi
             sleep 10
           done
           test "$ok" = "1"
-          for file in app.js styles.css billing.css terms.html privacy.html tokusho.html; do
-            curl --fail --silent --show-error --location --max-time 30 "${SITE_URL}${file}?run=$GITHUB_RUN_ID" -o "/tmp/${file//\//_}"
+          for file in app.js styles.css legal-safe.css terms.html privacy.html legal-boundaries.html; do
+            curl --fail --silent --show-error --location --max-time 30 "${PREVIEW_URL}${file}?run=$GITHUB_RUN_ID" -o "/tmp/${file//\//_}"
           done
-          grep -Fq '2026-08-15-supabase-v2' /tmp/app.js
-          grep -Fq '利用規約' /tmp/terms.html
+          grep -Fq '2026-08-26-zero-license-ui-v1' /tmp/app.js
+          grep -Fq '職業紹介' /tmp/terms.html
           grep -Fq '利用目的' /tmp/privacy.html
-          grep -Fq '1,980円（税込）' /tmp/tokusho.html
-          ! grep -E 'whsec_|sk_live_|sb_secret_|token=[A-Za-z0-9_-]{32,}' /tmp/billing.js /tmp/site.html
+          grep -Fq '利用者間代金' /tmp/legal-boundaries.html
+          ! grep -E 'buy\.stripe\.com|Pro 30日パス|1,980円' /tmp/site.html /tmp/app.js
 
       - name: Upload evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: event-platform-production-evidence-${{ github.run_id }}
+          name: event-platform-legal-safe-evidence-${{ github.run_id }}
           path: |
             /tmp/api-health.json
             /tmp/public-listings.json
             /tmp/cors-headers.txt
-            /tmp/webhook-denied.json
             /tmp/site.html
             /tmp/app.js
-            /tmp/billing.js
             /tmp/terms.html
             /tmp/privacy.html
-            /tmp/tokusho.html
+            /tmp/legal-boundaries.html
           if-no-files-found: ignore
           retention-days: 14
