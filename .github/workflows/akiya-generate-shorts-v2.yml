@@ -1,0 +1,123 @@
+name: Akiya Pocket generate distinct Shorts v2
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  generate:
+    if: github.event.issue.number == 42 && contains(github.event.comment.body, 'GENERATE_AKIYA_SHORTS_V2')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 20
+
+      - name: Generate four distinct vertical videos
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq fonts-noto-cjk >/dev/null
+          FONT=$(fc-match -f '%{file}\n' 'Noto Sans CJK JP' | head -1)
+          test -f "$FONT"
+          mkdir -p akiya-pocket/assets/social/generated-v2
+
+          cat > /tmp/report-1.txt <<'EOF'
+          3,480円で
+          何が届く？
+          EOF
+          cat > /tmp/report-2.txt <<'EOF'
+          外観・敷地を確認
+          写真＋観察事実を報告
+          EOF
+          cat > /tmp/report-3.txt <<'EOF'
+          依頼前に
+          報告見本を確認できます
+          EOF
+
+          cat > /tmp/monthly-1.txt <<'EOF'
+          毎月の管理を頼む前に
+          EOF
+          cat > /tmp/monthly-2.txt <<'EOF'
+          まず1回だけ
+          今の状態を確認
+          EOF
+          cat > /tmp/monthly-3.txt <<'EOF'
+          青森市 1回3,480円
+          月額契約なし
+          EOF
+
+          cat > /tmp/facility-1.txt <<'EOF'
+          親が施設へ。
+          実家へすぐ戻れない
+          EOF
+          cat > /tmp/facility-2.txt <<'EOF'
+          外から見える今を
+          写真で確認
+          EOF
+          cat > /tmp/facility-3.txt <<'EOF'
+          次を決める前の
+          「まず一度」
+          EOF
+
+          cat > /tmp/travel-1.txt <<'EOF'
+          確認だけのために
+          青森市まで行く？
+          EOF
+          cat > /tmp/travel-2.txt <<'EOF'
+          その前に
+          今の外観・敷地を写真で
+          EOF
+          cat > /tmp/travel-3.txt <<'EOF'
+          必要なときに1回だけ
+          3,480円（税込）
+          EOF
+
+          make_video() {
+            local out="$1" a="$2" b="$3" c="$4"
+            ffmpeg -y -loglevel error -f lavfi -i 'color=c=0x082b58:s=720x1280:d=9:r=24' \
+              -vf "drawtext=fontfile='$FONT':text='空家ポケット':fontsize=30:fontcolor=white@0.92:x=(w-text_w)/2:y=85,drawbox=x=310:y=145:w=100:h=7:color=0xeb5b1b:t=fill,drawtext=fontfile='$FONT':textfile='$a':fontsize=58:fontcolor=white:line_spacing=22:x=(w-text_w)/2:y=(h-text_h)/2:enable='between(t,0,2.99)',drawtext=fontfile='$FONT':textfile='$b':fontsize=54:fontcolor=white:line_spacing=22:x=(w-text_w)/2:y=(h-text_h)/2:enable='between(t,3,5.99)',drawtext=fontfile='$FONT':textfile='$c':fontsize=54:fontcolor=white:line_spacing=22:x=(w-text_w)/2:y=(h-text_h)/2:enable='between(t,6,8.99)',drawtext=fontfile='$FONT':text='akiya-pocket-aomori.pages.dev':fontsize=22:fontcolor=white@0.65:x=(w-text_w)/2:y=h-85" \
+              -c:v libx264 -profile:v high -level 4.0 -pix_fmt yuv420p -preset medium -crf 29 -movflags +faststart -an "$out"
+            test $(stat -c%s "$out") -gt 10000
+            ffprobe -v error -select_streams v:0 -show_entries stream=width,height,duration -of default=nw=1 "$out"
+          }
+
+          make_video akiya-pocket/assets/social/generated-v2/report-proof.mp4 /tmp/report-1.txt /tmp/report-2.txt /tmp/report-3.txt
+          make_video akiya-pocket/assets/social/generated-v2/before-monthly.mp4 /tmp/monthly-1.txt /tmp/monthly-2.txt /tmp/monthly-3.txt
+          make_video akiya-pocket/assets/social/generated-v2/parent-facility.mp4 /tmp/facility-1.txt /tmp/facility-2.txt /tmp/facility-3.txt
+          make_video akiya-pocket/assets/social/generated-v2/before-travel.mp4 /tmp/travel-1.txt /tmp/travel-2.txt /tmp/travel-3.txt
+
+      - name: Commit generated videos
+        id: commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add akiya-pocket/assets/social/generated-v2/*.mp4
+          if git diff --cached --quiet; then
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          else
+            git commit -m 'Akiya Pocket: generate distinct acquisition Shorts'
+            git push origin HEAD:main
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Report result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.commit.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ job.status }}" = success ]; then state=PASS; else state=FAIL; fi
+          body=$(jq -n --arg s "$state" --arg sha "${SHA:-}" --arg run "$GITHUB_RUN_ID" '{body:("AKIYA_SHORTS_V2="+$s+"\nRUN_ID="+$run+"\nSHA="+$sha)}')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
