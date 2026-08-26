@@ -1,6 +1,10 @@
 name: Akiya Pocket generate Instagram proof v3
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/akiya-generate-instagram-proof-v3.yml'
   issue_comment:
     types: [created]
 
@@ -10,7 +14,7 @@ permissions:
 
 jobs:
   generate:
-    if: github.event.issue.number == 42 && contains(github.event.comment.body, 'START_AKIYA_IG_PROOF_V3')
+    if: github.event_name == 'push' || (github.event.issue.number == 42 && contains(github.event.comment.body, 'START_AKIYA_IG_PROOF_V3'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,7 +29,6 @@ jobs:
           cat > /tmp/gen.py <<'PY'
           from PIL import Image, ImageDraw, ImageFont
           from pathlib import Path
-          import textwrap
 
           W,H=1080,1350
           BG=(247,249,252); NAVY=(8,43,88); INK=(25,38,54); MUTED=(91,105,120); ORANGE=(235,91,27); WHITE=(255,255,255); LINE=(219,226,235); PALE=(232,239,248)
@@ -36,27 +39,21 @@ jobs:
 
           def rr(d,box,r,fill,outline=None,w=1): d.rounded_rectangle(box,radius=r,fill=fill,outline=outline,width=w)
           def lines(d,text,xy,font,fill,width,spacing=12):
-              x,y=xy
-              cur=''
-              arr=[]
+              x,y=xy; cur=''; arr=[]
               for ch in text:
                   test=cur+ch
-                  if d.textbbox((0,0),test,font=font)[2] > width and cur:
-                      arr.append(cur); cur=ch
+                  if d.textbbox((0,0),test,font=font)[2] > width and cur: arr.append(cur); cur=ch
                   else: cur=test
               if cur: arr.append(cur)
-              for s in arr:
-                  d.text((x,y),s,font=font,fill=fill); y += font.size+spacing
+              for s in arr: d.text((x,y),s,font=font,fill=fill); y += font.size+spacing
               return y
           def brand(d):
-              d.text((70,62),'空家ポケット',font=F(35,True),fill=NAVY)
-              d.ellipse((934,69,954,89),fill=ORANGE)
+              d.text((70,62),'空家ポケット',font=F(35,True),fill=NAVY); d.ellipse((934,69,954,89),fill=ORANGE)
           def footer(d,cta='プロフィールから報告見本へ'):
               d.line((70,1190,1010,1190),fill=LINE,width=2)
               d.text((70,1226),'青森市｜1回 3,480円（税込）｜月額契約なし',font=F(27,True),fill=NAVY)
               d.text((70,1276),cta,font=F(24),fill=MUTED)
 
-          # 1 report proof
           im=Image.new('RGB',(W,H),BG); d=ImageDraw.Draw(im); brand(d)
           d.text((70,165),'3,480円で',font=F(55,True),fill=INK); d.text((70,235),'何が届く？',font=F(80,True),fill=NAVY)
           y=380
@@ -64,43 +61,35 @@ jobs:
               rr(d,(70,y,1010,y+190),28,WHITE,LINE,2); d.ellipse((98,y+56,162,y+120),fill=NAVY); d.text((116,y+67),num,font=F(24,True),fill=WHITE)
               d.text((190,y+36),title,font=F(34,True),fill=INK); lines(d,body,(190,y+93),F(25),MUTED,760,8); y+=215
           rr(d,(70,1035,1010,1145),28,PALE,None); d.text((105,1069),'依頼前に「報告見本」を公開しています',font=F(31,True),fill=NAVY)
-          footer(d); im.save(out/'report-proof-ig.png',quality=95)
+          footer(d); im.save(out/'report-proof-ig.png')
 
-          # 2 before monthly
           im=Image.new('RGB',(W,H),WHITE); d=ImageDraw.Draw(im); brand(d)
           d.text((70,170),'毎月の管理を',font=F(55,True),fill=INK); d.text((70,245),'決める前に。',font=F(78,True),fill=NAVY)
           rr(d,(70,385,1010,760),34,BG,LINE,2)
           d.text((120,435),'まず1回だけ',font=F(62,True),fill=NAVY); d.text((120,535),'今の外観・敷地を確認',font=F(39,True),fill=INK)
-          d.line((120,620,960,620),fill=LINE,width=2)
-          d.text((120,660),'✓ 月額契約なし',font=F(31,True),fill=INK); d.text((520,660),'✓ 自動更新なし',font=F(31,True),fill=INK)
+          d.line((120,620,960,620),fill=LINE,width=2); d.text((120,660),'✓ 月額契約なし',font=F(31,True),fill=INK); d.text((520,660),'✓ 自動更新なし',font=F(31,True),fill=INK)
           d.text((70,855),'「管理を頼むか」より先に、',font=F(38),fill=MUTED); d.text((70,915),'いま何が見えるかを知る。',font=F(49,True),fill=INK)
           rr(d,(70,1015,510,1125),28,NAVY,None); d.text((122,1049),'1回 3,480円',font=F(33,True),fill=WHITE)
-          footer(d,'プロフィールからサービス内容へ'); im.save(out/'before-monthly-ig.png',quality=95)
+          footer(d,'プロフィールからサービス内容へ'); im.save(out/'before-monthly-ig.png')
 
-          # 3 unconfirmed = trust
           im=Image.new('RGB',(W,H),BG); d=ImageDraw.Draw(im); brand(d)
           d.text((70,165),'見えなかった場所は、',font=F(47,True),fill=INK); d.text((70,235),'「未確認」と書きます。',font=F(65,True),fill=NAVY)
-          rr(d,(70,385,1010,830),34,WHITE,LINE,2)
-          d.text((120,435),'現地確認報告（見本）',font=F(35,True),fill=NAVY)
+          rr(d,(70,385,1010,830),34,WHITE,LINE,2); d.text((120,435),'現地確認報告（見本）',font=F(35,True),fill=NAVY)
           items=[('確認範囲','道路側外観、玄関周辺、敷地、郵便受け周辺'),('確認事実','外壁の一部に表面の変色が見られました'),('未確認','屋根の反対側は地上から見えず、確認していません')]
           yy=520
           for lab,val in items:
               d.text((120,yy),lab,font=F(27,True),fill=ORANGE if lab=='未確認' else INK); yy=lines(d,val,(300,yy),F(25),MUTED,630,7)+27
           d.text((70,910),'「分からない」を、',font=F(40),fill=MUTED); d.text((70,970),'分かったふりにしない。',font=F(55,True),fill=INK)
-          footer(d); im.save(out/'unconfirmed-ig.png',quality=95)
+          footer(d); im.save(out/'unconfirmed-ig.png')
 
-          # 4 what we don't judge
           im=Image.new('RGB',(W,H),WHITE); d=ImageDraw.Draw(im); brand(d)
           d.text((70,165),'写真は撮る。',font=F(58,True),fill=INK); d.text((70,240),'でも、診断はしない。',font=F(68,True),fill=NAVY)
-          rr(d,(70,390,1010,850),34,BG,LINE,2)
-          d.text((120,440),'空家ポケットが報告するのは',font=F(31,True),fill=INK)
-          d.text((120,500),'「その場で見えた事実」',font=F(45,True),fill=NAVY)
-          d.line((120,585,960,585),fill=LINE,width=2)
-          d.text((120,635),'判断しないこと',font=F(29,True),fill=MUTED)
+          rr(d,(70,390,1010,850),34,BG,LINE,2); d.text((120,440),'空家ポケットが報告するのは',font=F(31,True),fill=INK); d.text((120,500),'「その場で見えた事実」',font=F(45,True),fill=NAVY)
+          d.line((120,585,960,585),fill=LINE,width=2); d.text((120,635),'判断しないこと',font=F(29,True),fill=MUTED)
           for i,s in enumerate(['原因の特定','修理が必要か','緊急度の判定']):
               yy=700+i*70; d.ellipse((122,yy+7,146,yy+31),fill=ORANGE); d.text((170,yy),s,font=F(31,True),fill=INK)
           d.text((70,930),'できること／できないことを',font=F(38),fill=MUTED); d.text((70,990),'最初から明確に。',font=F(54,True),fill=INK)
-          footer(d,'プロフィールから確認範囲へ'); im.save(out/'scope-proof-ig.png',quality=95)
+          footer(d,'プロフィールから確認範囲へ'); im.save(out/'scope-proof-ig.png')
           PY
           python /tmp/gen.py
           file akiya-pocket/assets/social/generated-v3/*.png
