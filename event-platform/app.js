@@ -1,7 +1,7 @@
 'use strict';
 
 const CONFIG = {
-  build: '2026-08-27-ui-v4',
+  build: '2026-08-28-ui-v5',
   api: 'https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/localspace-api',
   pageSize: 60,
   matchThreshold: 65,
@@ -9,7 +9,7 @@ const CONFIG = {
   defaultMunicipality: '青森市',
 };
 
-const TYPES = { space: '使える場所', want: '場所を探している企画', event: 'イベント' };
+const TYPES = { space: '使える場所', want: '開催場所を探す企画', event: 'イベント' };
 const PREFECTURES = ['北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県','茨城県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県','新潟県','富山県','石川県','福井県','山梨県','長野県','岐阜県','静岡県','愛知県','三重県','滋賀県','京都府','大阪府','兵庫県','奈良県','和歌山県','鳥取県','島根県','岡山県','広島県','山口県','徳島県','香川県','愛媛県','高知県','福岡県','佐賀県','長崎県','熊本県','大分県','宮崎県','鹿児島県','沖縄県'];
 
 const $ = (id) => document.getElementById(id);
@@ -23,8 +23,20 @@ const dateLabel = (v) => {
   return Number.isNaN(d.getTime()) ? v : new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' }).format(d);
 };
 const key = (x) => `localspace_${x}`;
-const read = (x, fallback) => { try { const v = localStorage.getItem(key(x)); return v == null ? fallback : JSON.parse(v); } catch { return fallback; } };
-const write = (x, v) => localStorage.setItem(key(x), JSON.stringify(v));
+const memoryStore = new Map();
+const read = (x, fallback) => {
+  const k = key(x);
+  try {
+    const v = localStorage.getItem(k);
+    if (v != null) { memoryStore.set(k, v); return JSON.parse(v); }
+  } catch {}
+  try { const v = memoryStore.get(k); return v == null ? fallback : JSON.parse(v); } catch { return fallback; }
+};
+const write = (x, v) => {
+  const k = key(x); const raw = JSON.stringify(v); memoryStore.set(k, raw);
+  try { localStorage.setItem(k, raw); return true; } catch { return false; }
+};
+const removeStored = (x) => { const k = key(x); memoryStore.delete(k); try { localStorage.removeItem(k); } catch {} };
 
 let state = {
   online: false,
@@ -40,15 +52,19 @@ let state = {
   discoverType: 'space',
   dashboard: { listings: [], notifications: [] },
   selectedFiles: [],
+  calendarDatePreset: '',
+  postType: 'space',
 };
 
 function randomSecret() {
   const a = crypto.getRandomValues(new Uint8Array(32));
   return [...a].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SECRET_RE = /^[0-9a-f]{64}$/i;
 function identity() {
   let v = read('identity', null);
-  if (!v || !/^[0-9a-f-]{36}$/i.test(v.ownerId || '') || text(v.ownerKey).length < 32) {
+  if (!v || !UUID_RE.test(v.ownerId || '') || !SECRET_RE.test(v.ownerKey || '')) {
     v = { ownerId: crypto.randomUUID(), ownerKey: randomSecret(), createdAt: new Date().toISOString() };
     write('identity', v);
   }
@@ -64,7 +80,7 @@ function authHeaders() {
   return { 'x-owner-id': i.ownerId, 'x-owner-key': i.ownerKey };
 }
 function safeHttps(v) {
-  try { const u = new URL(text(v)); return u.protocol === 'https:' ? u.href : ''; } catch { return ''; }
+  try { const u = new URL(text(v)); return u.protocol === 'https:' && !u.username && !u.password ? u.href : ''; } catch { return ''; }
 }
 function toast(message) {
   const e = $('toast');
@@ -82,7 +98,8 @@ function setConnection(ok, note = '') {
   document.querySelectorAll('[data-write-action]').forEach((b) => { b.disabled = !ok; });
 }
 async function api(action, options = {}) {
-  const headers = { 'Content-Type': 'application/json' };
+  const headers = {};
+  if (options.body !== undefined) headers['Content-Type'] = 'application/json';
   if (options.auth) Object.assign(headers, authHeaders());
   const qs = options.query ? `&${new URLSearchParams(options.query).toString()}` : '';
   const r = await fetch(`${CONFIG.api}?action=${encodeURIComponent(action)}${qs}`, {

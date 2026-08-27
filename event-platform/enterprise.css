@@ -60,3 +60,16 @@ footer{background:#101828;color:#d0d5dd;border-top:0}.footer-row a{color:#fff}.f
   .hero{padding:38px 0 48px}.hero h1{font-size:38px}.hero-copy>p:not(.hero-note){font-size:13px}.enterprise-search{padding:8px;border-radius:13px}.enterprise-quick{gap:6px}.enterprise-quick button{font-size:9px}
   .journey-section,.upcoming-section,.matching-section,.how-section{padding:52px 0}.event-preview-grid,.grid{grid-template-columns:1fr}.section-heading.split{display:block}.section-heading.split>.btn{margin-top:12px}.toolbar,.calendar-filter{grid-template-columns:1fr}.filter-actions{width:100%}.filter-actions .btn{flex:1}.kpis{grid-template-columns:1fr 1fr}.how-grid{grid-template-columns:1fr}.boundary-card{display:block}.boundary-card .btn{margin-top:14px}.page-hero{padding:38px 0}.page-body{padding-top:24px}
 }
+
+/* Final accessibility and mobile hardening — 2026-08-28 */
+:where(a,button,input,select,textarea,[tabindex]):focus-visible{outline:3px solid #84adff;outline-offset:3px}
+.hero h1,.page-hero h1,.section-heading h2{text-wrap:balance}
+@media(max-width:560px){
+  .nav nav{width:100%;max-width:none;justify-content:center;overflow-x:auto;padding-inline:0}
+  .nav nav button{padding:8px 7px;font-size:10px}
+  .page-hero h1{font-size:clamp(32px,10vw,39px);line-height:1.14}
+}
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}

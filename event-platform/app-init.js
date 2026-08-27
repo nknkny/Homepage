@@ -1,11 +1,17 @@
-function route(id) {
+const ROUTES = new Set(['discover','calendar','post','dashboard','favorites']);
+function route(id, historyMode = 'push') {
+  if (!ROUTES.has(id)) id = 'discover';
   document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.id === id));
   document.querySelectorAll('[data-nav]').forEach((b) => b.classList.toggle('active', b.dataset.nav === id));
   if (id === 'dashboard') loadDashboard();
   if (id === 'favorites') renderFavorites();
   if (id === 'calendar') { loadCalendar(); track('calendar_view', null, { route: 'calendar' }); }
-  history.replaceState(null, '', `#${id}`); window.scrollTo({ top: 0, behavior: 'smooth' });
+  const nextHash = `#${id}`;
+  if (historyMode === 'replace') history.replaceState({ route: id }, '', nextHash);
+  else if (historyMode === 'push' && location.hash !== nextHash) history.pushState({ route: id }, '', nextHash);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
+function routeFromHistory() { const h = location.hash.replace('#',''); route(ROUTES.has(h) ? h : 'discover', 'none'); }
 function quickPost(type) {
   resetForm(); setPostType(type); route('post');
   track('quick_post_path', null, { listingType: type, source: 'home' });
@@ -97,10 +103,11 @@ async function init() {
   initPrefectures(); identity(); sessionId(); bindStatic(); installEnterpriseDiscovery(); resetForm(false);
   state.dashboard = read('dashboard_cache', state.dashboard);
   state.calendarDatePreset = '';
-  const h = location.hash.replace('#',''); if (['discover','calendar','post','dashboard','favorites'].includes(h)) route(h);
+  const h = location.hash.replace('#',''); route(ROUTES.has(h) ? h : 'discover', 'replace');
   await healthCheck(); if (state.online) await bootstrap();
   await Promise.all([loadBoard(true), loadDashboard(), loadCalendar()]);
   track('page_view', null, { route: h || 'discover' });
 }
 
+window.addEventListener('popstate', routeFromHistory);
 document.addEventListener('DOMContentLoaded', init);

@@ -6,9 +6,10 @@
 <meta name="robots" content="noindex,nofollow,noarchive">
 <meta name="description" content="地域のイベントを探す・告知する・開催場所を探す・場所を貸すを一つにつなぐイベント告知・マッチングプラットフォーム。青森市で実証中。">
 <meta name="theme-color" content="#ff5a36">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://fpgtwgtoqtokpitzlbie.supabase.co; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://fpgtwgtoqtokpitzlbie.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
 <title>イベント告知・マッチング｜地域のイベントと場所をつなぐ</title>
 <link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="enterprise.css" data-enterprise-layer>
 <script defer src="app.js"></script>
 <script defer src="app-data.js"></script>
 <script defer src="app-render.js"></script>
@@ -83,7 +84,7 @@
     <div class="wrap">
       <div class="section-heading split"><div><span class="eyebrow dark">SPACE × PLAN MATCHING</span><h2>開催場所と企画を探す</h2><p>公開条件を比較し、近い候補には一致度と理由を表示します。候補を自動で絞り込みますが、他の掲載も自由に検索できます。</p></div><div class="match-summary"><b id="kMatch">0</b><span>高一致候補</span></div></div>
       <div class="kpis" aria-label="現在の公開数"><div class="kpi"><b id="kSpace">0</b><span>使える場所</span></div><div class="kpi"><b id="kWant">0</b><span>開催場所を探す企画</span></div><div class="kpi"><b id="kEvent">0</b><span>開催イベント</span></div></div>
-      <div class="discover-tabs" role="tablist" aria-label="掲載種別"><button data-discover-type="space" class="active" type="button">使える場所</button><button data-discover-type="want" type="button">場所を探す企画</button><button data-discover-type="" type="button">すべて</button></div>
+      <div class="discover-tabs" aria-label="掲載種別"><button data-discover-type="space" class="active" type="button">使える場所</button><button data-discover-type="want" type="button">場所を探す企画</button><button data-discover-type="" type="button">すべて</button></div>
       <div class="toolbar filter-panel">
         <div><label for="prefectureFilter">都道府県</label><select id="prefectureFilter"></select></div>
         <div><label for="municipalityFilter">市区町村</label><input id="municipalityFilter" value="青森市" maxlength="40" placeholder="例：青森市"></div>
@@ -107,7 +108,7 @@
   <div class="page-hero event-page-hero"><div class="wrap"><span class="eyebrow">EVENT CALENDAR</span><h1 id="calendarHeading">地域のイベントを見つける</h1><p>ポップアップ、個人展示、小さなライブ、ワークショップなどもまとめて探せる地域カレンダーです。</p><button class="btn light" data-post-event type="button">イベントを無料告知</button></div></div>
   <div class="wrap page-body">
     <div class="toolbar filter-panel calendar-filter"><div><label for="calendarPrefecture">都道府県</label><select id="calendarPrefecture"></select></div><div><label for="calendarMunicipality">市区町村</label><input id="calendarMunicipality" value="青森市" maxlength="40"></div><div><label for="calendarQ">検索</label><input id="calendarQ" maxlength="80" placeholder="イベント名・内容"></div><div><label for="calendarCategory">カテゴリ</label><select id="calendarCategory"><option value="">カテゴリすべて</option><option>ポップアップ・物販</option><option>音楽・ライブ</option><option>展示・アート</option><option>飲食・フード</option><option>ワークショップ</option><option>撮影</option><option>地域活動</option><option>その他</option></select></div><div class="filter-actions"><button id="calendarSearchBtn" class="btn primary small" type="button">カレンダー更新</button></div></div>
-    <div id="calendarList" class="calendar-list"></div>
+    <div id="calendarList" class="calendar-list" aria-live="polite"></div>
   </div>
 </section>
 

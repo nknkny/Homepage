@@ -1,6 +1,7 @@
 function renderExistingImages(r) {
   const urls = r.imageUrls || [], paths = r.imagePaths || [];
-  $('existingImages').innerHTML = urls.map((u, i) => `<div class="image-tile"><img src="${esc(safeHttps(u))}" alt="登録画像${i+1}"><button type="button" class="image-remove" data-listing="${esc(r.id)}" data-delete-image="${esc(paths[i] || '')}">削除</button></div>`).join('');
+  const items = urls.map((u, i) => ({ url: safeHttps(u), path: paths[i] || '', index: i })).filter((x) => x.url);
+  $('existingImages').innerHTML = items.map((x) => `<div class="image-tile"><img src="${esc(x.url)}" alt="登録画像${x.index+1}"><button type="button" class="image-remove" data-listing="${esc(r.id)}" data-delete-image="${esc(x.path)}">削除</button></div>`).join('');
   bindDynamic($('existingImages'));
 }
 function editListing(id) {
@@ -64,7 +65,7 @@ async function deleteAccount() {
   if (!(await ensureReady())) return;
   try {
     await api('delete_account', { method: 'POST', auth: true, body: {} });
-    for (const k of ['identity','dashboard_cache']) localStorage.removeItem(key(k));
+    for (const k of ['identity','dashboard_cache']) removeStored(k);
     state.dashboard={listings:[],notifications:[]}; state.bootstrapped=false;
     identity(); await bootstrap(); await Promise.all([loadBoard(true), loadDashboard()]);
     toast('自分の掲載・管理データを削除しました。');
@@ -73,12 +74,13 @@ async function deleteAccount() {
 
 function exportIdentity() {
   const payload = { app: 'localspace', version: 1, ...identity() };
-  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })); a.download = `localspace-management-key-${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(a.href);
+  const objectUrl = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
+  const a = document.createElement('a'); a.href = objectUrl; a.download = `event-platform-management-key-${new Date().toISOString().slice(0,10)}.json`; a.hidden = true; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
 }
 async function importIdentity(file) {
   try {
     const v = JSON.parse(await file.text());
-    if (v.app !== 'localspace' || !/^[0-9a-f-]{36}$/i.test(v.ownerId || '') || text(v.ownerKey).length < 32) throw new Error('INVALID');
+    if (v.app !== 'localspace' || !UUID_RE.test(v.ownerId || '') || !SECRET_RE.test(v.ownerKey || '')) throw new Error('INVALID');
     write('identity', { ownerId: v.ownerId, ownerKey: v.ownerKey, createdAt: v.createdAt || new Date().toISOString() }); state.bootstrapped = false; if (!(await bootstrap())) throw new Error('AUTH_FAILED'); await loadDashboard(); toast('管理鍵を復元しました。');
   } catch { toast('管理鍵ファイルを確認できませんでした。'); }
 }

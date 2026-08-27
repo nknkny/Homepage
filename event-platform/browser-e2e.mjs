@@ -1,11 +1,8 @@
 import { chromium } from 'playwright';
+import AxeBuilder from '@axe-core/playwright';
 import assert from 'node:assert/strict';
 
 const url = process.env.PREVIEW_URL || 'https://nknkny.github.io/Homepage/event-platform/';
-const KNOWN_PREVIEW_WARNINGS = [
-  "The Content Security Policy directive 'frame-ancestors' is ignored when delivered via a <meta> element.",
-];
-
 async function waitForApp(page) {
   await page.waitForSelector('#enterpriseSearch', { state: 'visible', timeout: 30000 });
   await page.waitForFunction(() => {
@@ -20,10 +17,15 @@ function captureErrors(page, label) {
   page.on('console', (message) => {
     if (message.type() !== 'error') return;
     const text = message.text();
-    if (KNOWN_PREVIEW_WARNINGS.some((known) => text.includes(known))) return;
     errors.push(`${label} console: ${text}`);
   });
   return errors;
+}
+
+async function assertAccessible(page, label) {
+  const result = await new AxeBuilder({ page }).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+  const serious = result.violations.filter((v) => ['serious','critical'].includes(v.impact || ''));
+  assert.deepEqual(serious.map((v) => ({ id: v.id, impact: v.impact, targets: v.nodes.map((n) => n.target) })), [], `${label}: serious/critical accessibility violations`);
 }
 
 async function assertNoHorizontalOverflow(page, label) {
@@ -46,7 +48,9 @@ async function desktop(browser) {
   assert.equal(await page.locator('#enterpriseSearch').count(), 1);
   assert.equal(await page.locator('[data-enterprise-category]').count(), 6);
   assert.ok(await page.getByRole('button', { name: 'イベントを探す' }).isVisible());
-  await assertNoHorizontalOverflow(page, 'desktop');
+  await assertNoHorizontalOverflow(page, 'desktop-home');
+  await assertAccessible(page, 'desktop-home');
+  await page.screenshot({ path: '/tmp/event-platform-home-desktop.png', fullPage: true });
 
   await page.locator('#enterpriseLocation').fill('青森市');
   await page.locator('#enterpriseKeyword').fill('');
@@ -55,6 +59,9 @@ async function desktop(browser) {
   await page.waitForSelector('#calendar.view.active', { timeout: 15000 });
   assert.equal(await page.locator('#calendarMunicipality').inputValue(), '青森市');
   assert.ok((await page.url()).includes('#calendar'));
+  await page.goBack();
+  await page.waitForSelector('#discover.view.active', { timeout: 15000 });
+  assert.ok((await page.url()).includes('#discover'));
 
   await page.locator('[data-nav="discover"]').first().click();
   await page.waitForSelector('#discover.view.active');
@@ -67,6 +74,7 @@ async function desktop(browser) {
   await page.waitForSelector('#post.view.active');
   assert.equal(await page.locator('#postType').inputValue(), 'want');
 
+  await assertAccessible(page, 'desktop-post');
   await page.screenshot({ path: '/tmp/event-platform-desktop.png', fullPage: true });
   assert.deepEqual(errors, [], errors.join('\n'));
   await page.close();
@@ -82,12 +90,17 @@ async function mobile(browser) {
   assert.ok(await page.locator('#enterpriseSearch').isVisible());
   assert.ok(await page.locator('.enterprise-discovery-rail').isVisible());
   assert.ok(await page.locator('[data-quick-post="want"]').first().isVisible());
-  await assertNoHorizontalOverflow(page, 'mobile');
+  await assertNoHorizontalOverflow(page, 'mobile-home');
+  const lastNav = await page.locator('[data-nav="favorites"]').boundingBox();
+  assert.ok(lastNav && lastNav.x >= 0 && lastNav.x + lastNav.width <= 390, 'mobile: favorites navigation must be visible without clipping');
+  await assertAccessible(page, 'mobile-home');
+  await page.screenshot({ path: '/tmp/event-platform-home-mobile.png', fullPage: true });
 
   await page.locator('[data-enterprise-date="weekend"]').click();
   await page.waitForSelector('#calendar.view.active', { timeout: 15000 });
   assert.ok((await page.url()).includes('#calendar'));
 
+  await assertAccessible(page, 'mobile-calendar');
   await page.screenshot({ path: '/tmp/event-platform-mobile.png', fullPage: true });
   assert.deepEqual(errors, [], errors.join('\n'));
   await page.close();
