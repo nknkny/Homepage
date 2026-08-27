@@ -24,11 +24,11 @@ env:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 18
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
-      - name: Static UI and JavaScript checks
+      - name: Static UI, legal and JavaScript checks
         shell: bash
         run: |
           set -euo pipefail
@@ -36,10 +36,14 @@ jobs:
             node --check "$file"
           done
           test -f event-platform/enterprise.css
+          test -f event-platform/legal.css
+          test -f event-platform/_headers
           grep -Fq 'enterprise-search' event-platform/enterprise.css
+          grep -Fq 'enterprise.css" data-enterprise-layer' event-platform/index.html
           grep -Fq 'installEnterpriseDiscovery' event-platform/app-init.js
           grep -Fq 'enterpriseSearchBtn' event-platform/app-init.js
           grep -Fq 'dateRangeForPreset' event-platform/app-render.js
+          grep -Fq 'routeFromHistory' event-platform/app-init.js
           grep -Fq 'noindex,nofollow,noarchive' event-platform/index.html
           grep -Fq '開発プレビュー' event-platform/index.html
           grep -Fq 'イベントを探したい' event-platform/index.html
@@ -48,6 +52,12 @@ jobs:
           grep -Fq 'homeEventGrid' event-platform/index.html
           grep -Fq '開催場所と企画を探す' event-platform/index.html
           grep -Fq '予約・契約・決済・成功報酬は停止中' event-platform/index.html
+          ! grep -Fq "frame-ancestors 'none'" event-platform/index.html
+          grep -Fq "frame-ancestors 'none'" event-platform/_headers
+          grep -Fq '第一者利用計測' event-platform/privacy.html
+          grep -Fq 'legal.css' event-platform/terms.html
+          grep -Fq 'legal.css' event-platform/privacy.html
+          grep -Fq 'legal.css' event-platform/legal-boundaries.html
           for id in storageStatus storageNote healthBtn prefectureFilter municipalityFilter q categoryFilter sort searchBtn resetSearchBtn loadMoreBtn calendarPrefecture calendarMunicipality calendarQ calendarCategory calendarSearchBtn calendarList postForm postType editId convertedFromId title prefecture municipality areaDetail category description dateStart dateEnd availableFrom availableTo capacity sizeSqm priceAmount budgetMax placeName eventPrice spaceKind indoorOutdoor allowedUses prohibitedUses tags contactUrl images imagePreview existingImages imageRightsConfirmed spaceAuthority spaceInfoOnly temporaryUseOnly eventRightsConfirmed promoOptIn terms validationBox submitBtn resetBtn identityBox mineGrid recommendationGrid notificationList markReadBtn exportBtn importBtn importFile favGrid modal modalClose modalBody toast; do
             grep -Fq "id=\"$id\"" event-platform/index.html || { echo "missing DOM id: $id"; exit 1; }
           done
@@ -57,6 +67,7 @@ jobs:
           ! grep -R -E 'sk_(live|test)_[A-Za-z0-9]+' event-platform
           ! grep -R -E 'sb_secret_[A-Za-z0-9_-]+' event-platform
           ! grep -R -E 'whsec_[A-Za-z0-9]+' event-platform
+          git diff --check
 
       - name: Verify current API safety scope
         shell: bash
@@ -79,36 +90,42 @@ jobs:
           ok=0
           for i in $(seq 1 18); do
             code=$(curl --silent --show-error --location --max-time 30 -o /tmp/site.html -w '%{http_code}' "$PREVIEW_URL?run=$GITHUB_RUN_ID-$i" || true)
-            if [ "$code" = "200" ] && grep -Fq 'イベントを見つける。' /tmp/site.html && grep -Fq 'イベントを開きたい' /tmp/site.html && grep -Fq '場所を貸したい' /tmp/site.html && grep -Fq 'noindex,nofollow,noarchive' /tmp/site.html; then ok=1; break; fi
+            if [ "$code" = "200" ] && grep -Fq 'イベントを見つける。' /tmp/site.html && grep -Fq 'イベントを開きたい' /tmp/site.html && grep -Fq '場所を貸したい' /tmp/site.html && grep -Fq 'noindex,nofollow,noarchive' /tmp/site.html && grep -Fq 'enterprise.css" data-enterprise-layer' /tmp/site.html; then ok=1; break; fi
             sleep 10
           done
           test "$ok" = "1"
-          for file in styles.css enterprise.css app.js app-data.js app-render.js app-form.js app-dashboard.js app-init.js terms.html privacy.html legal-boundaries.html; do
+          for file in styles.css enterprise.css legal.css _headers app.js app-data.js app-render.js app-form.js app-dashboard.js app-init.js terms.html privacy.html legal-boundaries.html; do
             curl --fail --silent --show-error --location --max-time 30 "${PREVIEW_URL}${file}?run=$GITHUB_RUN_ID" -o "/tmp/${file//\//_}"
           done
           grep -Fq 'journey-grid' /tmp/styles.css
           grep -Fq 'enterprise-search' /tmp/enterprise.css
+          grep -Fq 'legal-shell' /tmp/legal.css
+          grep -Fq "frame-ancestors 'none'" /tmp/_headers
           grep -Fq 'installEnterpriseDiscovery' /tmp/app-init.js
           grep -Fq 'enterpriseSearchBtn' /tmp/app-init.js
+          grep -Fq 'routeFromHistory' /tmp/app-init.js
           grep -Fq 'dateRangeForPreset' /tmp/app-render.js
           grep -Fq 'renderHomeEvents' /tmp/app-render.js
           grep -Fq 'data-quick-post' /tmp/site.html
+          grep -Fq '第一者利用計測' /tmp/privacy.html
 
       - name: Install browser test runtime
+        if: github.event_name != 'schedule'
         shell: bash
         run: |
           set -euo pipefail
-          npm install --no-save --no-package-lock playwright@1.55.0
+          npm install --no-save --no-package-lock playwright@1.55.0 @axe-core/playwright@4.10.2
           npx playwright install --with-deps chromium
 
-      - name: Browser E2E desktop and mobile
+      - name: Browser E2E, responsive and accessibility checks
+        if: github.event_name != 'schedule'
         shell: bash
         run: |
           set -euo pipefail
           node event-platform/browser-e2e.mjs
 
       - name: Upload evidence
-        if: always()
+        if: always() && github.event_name != 'schedule'
         uses: actions/upload-artifact@v4
         with:
           name: event-platform-live-evidence-${{ github.run_id }}
@@ -118,12 +135,16 @@ jobs:
             /tmp/site.html
             /tmp/styles.css
             /tmp/enterprise.css
+            /tmp/legal.css
+            /tmp/_headers
             /tmp/app.js
             /tmp/app-data.js
             /tmp/app-render.js
             /tmp/app-form.js
             /tmp/app-dashboard.js
             /tmp/app-init.js
+            /tmp/event-platform-home-desktop.png
+            /tmp/event-platform-home-mobile.png
             /tmp/event-platform-desktop.png
             /tmp/event-platform-mobile.png
           if-no-files-found: ignore
