@@ -21,18 +21,42 @@ function renderBrowse() {
 function renderHomeEvents(rows) {
   const root = $('homeEventGrid'); if (!root) return;
   const now = new Date(); const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-  const upcoming = [...rows].filter((r) => !r.dateEnd || r.dateEnd >= today).sort((a,b) => String(a.dateStart || '9999').localeCompare(String(b.dateStart || '9999'))).slice(0,6);
+  const upcoming = [...rows].filter((r) => !r.dateEnd || r.dateEnd >= today).sort((a,b) => String(a.dateStart || '9999').localeCompare(String(b.dateStart || '9999'))).slice(0,8);
   root.innerHTML = upcoming.length ? upcoming.map((r) => card(r)).join('') : '<div class="empty">現在この地域で公開中の開催予定イベントはありません。最初のイベントを無料で告知できます。</div>';
   bindDynamic(root);
+}
+function dateKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function dateRangeForPreset(preset) {
+  if (!preset) return null;
+  const now = new Date(); now.setHours(0,0,0,0);
+  if (preset === 'today') return [dateKey(now), dateKey(now)];
+  if (preset === 'week') { const end = new Date(now); end.setDate(end.getDate()+6); return [dateKey(now), dateKey(end)]; }
+  if (preset === 'weekend') {
+    const day = now.getDay(); const add = day === 6 ? 0 : day === 0 ? 0 : 6-day;
+    const sat = new Date(now); sat.setDate(sat.getDate()+add);
+    const sun = new Date(sat); sun.setDate(sun.getDate()+1);
+    return [dateKey(sat), dateKey(sun)];
+  }
+  return null;
+}
+function eventInRange(r, range) {
+  if (!range) return true;
+  const start = r.dateStart || ''; const end = r.dateEnd || start;
+  if (!start) return false;
+  return start <= range[1] && end >= range[0];
 }
 function renderCalendar(rows) {
   renderHomeEvents(rows);
   const q = norm($('calendarQ').value);
-  rows = rows.filter((r) => !q || norm([r.title, r.description, r.placeName, (r.tags || []).join(' ')].join(' ')).includes(q)).sort((a,b) => String(a.dateStart).localeCompare(String(b.dateStart)));
-  if (!rows.length) { $('calendarList').innerHTML = '<div class="empty">この地域で掲載中のイベントはありません。最初のイベントを無料で告知できます。</div>'; return; }
+  const range = dateRangeForPreset(state.calendarDatePreset || '');
+  rows = rows.filter((r) => (!q || norm([r.title, r.description, r.placeName, (r.tags || []).join(' ')].join(' ')).includes(q)) && eventInRange(r, range)).sort((a,b) => String(a.dateStart).localeCompare(String(b.dateStart)));
+  const presetLabel = {today:'今日',weekend:'今週末',week:'7日以内'}[state.calendarDatePreset] || '';
+  if (!rows.length) { $('calendarList').innerHTML = `<div class="empty">${presetLabel ? `${presetLabel}に` : 'この地域で'}掲載中のイベントはありません。条件を変更するか、最初のイベントを無料で告知できます。</div>`; return; }
   const groups = {};
   for (const r of rows) (groups[r.dateStart] ??= []).push(r);
-  $('calendarList').innerHTML = Object.entries(groups).map(([d, items]) => `<section class="calendar-day"><div class="calendar-date"><b>${esc(dateLabel(d))}</b><span>${items.length}件</span></div><div class="grid">${items.map((r) => card(r)).join('')}</div></section>`).join('');
+  $('calendarList').innerHTML = `${presetLabel ? `<div class="notice"><strong>${esc(presetLabel)}</strong>のイベントを表示しています。</div>` : ''}${Object.entries(groups).map(([d, items]) => `<section class="calendar-day"><div class="calendar-date"><b>${esc(dateLabel(d))}</b><span>${items.length}件</span></div><div class="grid">${items.map((r) => card(r)).join('')}</div></section>`).join('')}`;
   bindDynamic($('calendarList'));
 }
 
