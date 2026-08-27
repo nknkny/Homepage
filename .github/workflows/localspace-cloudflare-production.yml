@@ -1,0 +1,139 @@
+name: LocalSpace Cloudflare Production
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  deploy:
+    if: >-
+      github.event.issue.number == 73 &&
+      (contains(github.event.comment.body, 'START_LOCALSPACE_CF_PROD') ||
+       contains(github.event.comment.body, 'VERIFY_LOCALSPACE_CF_PROD'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PROJECT: nknkny-localspace
+      ORIGIN: https://nknkny-localspace.pages.dev
+      API: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/localspace-api
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 10
+
+      - name: Resolve mode and source
+        id: meta
+        shell: bash
+        env:
+          COMMENT: ${{ github.event.comment.body }}
+        run: |
+          set -euo pipefail
+          if grep -Fq 'START_LOCALSPACE_CF_PROD' <<<"$COMMENT"; then mode=deploy; else mode=verify; fi
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "source=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Build production artifact before authorization
+        env:
+          LOCALSPACE_CANONICAL_ORIGIN: ${{ env.ORIGIN }}
+          LOCALSPACE_SOURCE_SHA: ${{ steps.meta.outputs.source }}
+        run: node scripts/build-localspace-cloudflare-pages.mjs
+
+      - name: Validate production artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check dist-localspace/app.js
+          grep -Fq '<strong>無料公開版</strong>' dist-localspace/index.html
+          grep -Fq 'index,follow,max-image-preview:large' dist-localspace/index.html
+          ! grep -Fq 'noindex,nofollow' dist-localspace/index.html
+          grep -Fq "<link rel=\"canonical\" href=\"$ORIGIN/\">" dist-localspace/index.html
+          ! grep -R -E 'buy\.stripe\.com|Pro 30日パス|1,980円|create_interest|request_action|prepare_pro_purchase' dist-localspace
+          jq -e --arg o "$ORIGIN" --arg s "${{ steps.meta.outputs.source }}" '.canonicalOrigin==$o and .sourceSha==$s and .commercialPayments==false and .successFee==false and .booking==false' dist-localspace/DEPLOYMENT.json >/dev/null
+
+      - name: Cloudflare device authorization
+        if: steps.meta.outputs.mode == 'deploy'
+        id: auth
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/wrangler-login.log"; clean="$RUNNER_TEMP/wrangler-login-clean.log"; : > "$log"
+          (CI='' npx --yes wrangler@4.119.0 login --device --browser=false >"$log" 2>&1) & pid=$!
+          url=''; code=''
+          for n in $(seq 1 45); do
+            perl -pe 's/\e\[[0-9;]*[mK]//g' "$log" > "$clean" || true
+            url=$(grep -Eo 'https://dash\.cloudflare\.com/oauth2/device(/verify)?' "$clean" | tail -1 || true)
+            code=$(grep -Eo '([A-Za-z0-9]{4}-[A-Za-z0-9]{4}|[A-Za-z0-9]{8})' "$clean" | tail -1 || true)
+            if [ -n "$url" ] && [ -n "$code" ]; then break; fi
+            if ! kill -0 "$pid" 2>/dev/null; then break; fi
+            sleep 1
+          done
+          if [ -z "$url" ] || [ -z "$code" ]; then cat "$clean" || true; kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; exit 1; fi
+          complete="${url}?user_code=${code}"
+          body=$(jq -n --arg u "$url" --arg c "$complete" --arg code "$code" --arg run "$GITHUB_RUN_ID" '{body:("LOCALSPACE_CF_AUTH_REQUIRED\nVERIFY_URL="+$u+"\nVERIFY_URL_COMPLETE="+$c+"\nCODE="+$code+"\nRUN_ID="+$run+"\n認証後、このrunが自動でデプロイを続行します。")}' )
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/73/comments" >/dev/null
+          wait "$pid"
+
+      - name: Create Pages project when absent
+        if: steps.meta.outputs.mode == 'deploy'
+        shell: bash
+        run: |
+          set -euo pipefail
+          projects=$(npx --yes wrangler@4.119.0 pages project list --json)
+          if ! jq -e --arg p "$PROJECT" '[.[] | select(.name==$p)] | length > 0' <<<"$projects" >/dev/null; then
+            npx --yes wrangler@4.119.0 pages project create "$PROJECT" --production-branch main
+          fi
+
+      - name: Deploy production
+        if: steps.meta.outputs.mode == 'deploy'
+        id: publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4.119.0 pages deploy dist-localspace --project-name "$PROJECT" --branch main --commit-hash "${{ steps.meta.outputs.source }}" --commit-message 'LocalSpace production release' | tee "$RUNNER_TEMP/deploy.log"
+
+      - name: Verify public production
+        id: verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=0
+          for n in $(seq 1 24); do
+            code=$(curl -sS -L --max-time 30 -o "$RUNNER_TEMP/home.html" -w '%{http_code}' "$ORIGIN/?v=$GITHUB_RUN_ID-$n" || true)
+            if [ "$code" = 200 ] && grep -Fq '<strong>無料公開版</strong>' "$RUNNER_TEMP/home.html" && grep -Fq 'index,follow,max-image-preview:large' "$RUNNER_TEMP/home.html" && ! grep -Fq 'noindex,nofollow' "$RUNNER_TEMP/home.html"; then ok=1; break; fi
+            sleep 5
+          done
+          test "$ok" = 1
+          curl -fsSL "$ORIGIN/robots.txt?v=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/robots.txt"
+          grep -Fq "Sitemap: $ORIGIN/sitemap.xml" "$RUNNER_TEMP/robots.txt"
+          curl -fsSL "$ORIGIN/DEPLOYMENT.json?v=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/deployment.json"
+          jq -e --arg o "$ORIGIN" --arg s "${{ steps.meta.outputs.source }}" '.canonicalOrigin==$o and .sourceSha==$s and .commercialPayments==false and .successFee==false' "$RUNNER_TEMP/deployment.json" >/dev/null
+          curl -fsSL -H "Origin: $ORIGIN" "$API?action=health" -D "$RUNNER_TEMP/api-headers.txt" -o "$RUNNER_TEMP/api.json"
+          grep -Fiq "access-control-allow-origin: $ORIGIN" "$RUNNER_TEMP/api-headers.txt"
+          jq -e '.ok==true and .build=="2026-08-27-localspace-api-v1" and .commercialPayments==false and .successFee==false and .realEstateBrokerage==false and .imageSignatureValidation==true' "$RUNNER_TEMP/api.json" >/dev/null
+          for f in app.js styles.css terms.html privacy.html legal-boundaries.html; do curl -fsSL "$ORIGIN/$f?v=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/$f"; done
+          grep -Fq '2026-08-27-ui-v4' "$RUNNER_TEMP/app.js"
+          grep -Fq '利用規約' "$RUNNER_TEMP/terms.html"
+          grep -Fq '180日' "$RUNNER_TEMP/privacy.html"
+          grep -Fq '成功報酬' "$RUNNER_TEMP/legal-boundaries.html"
+
+      - name: Report result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MODE: ${{ steps.meta.outputs.mode }}
+          AUTH: ${{ steps.auth.outcome }}
+          PUBLISH: ${{ steps.publish.outcome }}
+          VERIFY: ${{ steps.verify.outcome }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$MODE" = verify ]; then [ "$VERIFY" = success ] && overall=PASS || overall=FAIL; else [ "$AUTH" = success ] && [ "$PUBLISH" = success ] && [ "$VERIFY" = success ] && overall=PASS || overall=FAIL; fi
+          body=$(jq -n --arg o "$overall" --arg m "$MODE" --arg u "$ORIGIN" --arg r "$GITHUB_RUN_ID" --arg a "$AUTH" --arg p "$PUBLISH" --arg v "$VERIFY" --arg s "${{ steps.meta.outputs.source }}" '{body:("LOCALSPACE_CF_PRODUCTION="+$o+"\nMODE="+$m+"\nRUN_ID="+$r+"\nSOURCE_SHA="+$s+"\nURL="+$u+"/\nAUTH="+$a+"\nDEPLOY="+$p+"\nPUBLIC_VERIFY="+$v)}')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/73/comments" >/dev/null
