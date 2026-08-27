@@ -31,6 +31,7 @@ jobs:
           node --check event-platform/apply-final-hardening.mjs
           node event-platform/apply-final-hardening.mjs
           sed -i 's/[[:space:]]\+$//' event-platform/*.md
+          git checkout -- .github/workflows/event-platform-autopilot.yml
           node --check event-platform/app.js
           node --check event-platform/app-form.js
           node --check event-platform/app-dashboard.js
