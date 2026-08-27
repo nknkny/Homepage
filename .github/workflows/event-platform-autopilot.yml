@@ -24,7 +24,7 @@ env:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
 
@@ -32,7 +32,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for file in event-platform/app.js event-platform/app-data.js event-platform/app-render.js event-platform/app-form.js event-platform/app-dashboard.js event-platform/app-init.js; do
+          for file in event-platform/app.js event-platform/app-data.js event-platform/app-render.js event-platform/app-form.js event-platform/app-dashboard.js event-platform/app-init.js event-platform/browser-e2e.mjs; do
             node --check "$file"
           done
           test -f event-platform/enterprise.css
@@ -94,6 +94,19 @@ jobs:
           grep -Fq 'renderHomeEvents' /tmp/app-render.js
           grep -Fq 'data-quick-post' /tmp/site.html
 
+      - name: Install browser test runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Browser E2E desktop and mobile
+        shell: bash
+        run: |
+          set -euo pipefail
+          node event-platform/browser-e2e.mjs
+
       - name: Upload evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -111,5 +124,7 @@ jobs:
             /tmp/app-form.js
             /tmp/app-dashboard.js
             /tmp/app-init.js
+            /tmp/event-platform-desktop.png
+            /tmp/event-platform-mobile.png
           if-no-files-found: ignore
           retention-days: 14
