@@ -1,0 +1,78 @@
+name: Akiya Pocket original social creatives v5
+
+on:
+  issue_comment:
+    types: [created]
+permissions:
+  contents: write
+  issues: write
+jobs:
+  creatives:
+    if: github.event.issue.number == 42 && contains(github.event.comment.body, 'GENERATE_AKIYA_CREATIVES_V5')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 20
+      - run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq fonts-noto-cjk >/dev/null
+          python -m pip install -q pillow
+      - name: Generate six structurally distinct originals
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p akiya-pocket/assets/social/generated-v5
+          cat > /tmp/gen.py <<'PY'
+          from PIL import Image,ImageDraw,ImageFont
+          from pathlib import Path
+          W,H=1080,1350; out=Path('akiya-pocket/assets/social/generated-v5')
+          NAVY=(8,43,88); ORANGE=(235,91,27); INK=(23,34,48); WHITE=(255,255,255); BG=(246,248,251); MUTED=(90,104,120); PALE=(229,237,246); GREEN=(117,150,116); SKY=(202,226,241); ROAD=(196,201,207); LINE=(218,224,232)
+          font='/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc'; bold='/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc'
+          F=lambda n,b=False:ImageFont.truetype(bold if b else font,n)
+          def rr(d,b,r,f,o=None,w=1):d.rounded_rectangle(b,radius=r,fill=f,outline=o,width=w)
+          def house(d,x,y,s=1):
+            d.polygon([(x,y+75*s),(x+145*s,y),(x+290*s,y+75*s)],fill=(74,85,95));d.rectangle((x+28*s,y+75*s,x+262*s,y+230*s),fill=(229,219,202));d.rectangle((x+112*s,y+150*s,x+170*s,y+230*s),fill=(128,88,62));d.rectangle((x+55*s,y+112*s,x+95*s,y+152*s),fill=SKY);d.rectangle((x+195*s,y+112*s,x+235*s,y+152*s),fill=SKY)
+          def brand(d):d.text((64,54),'空家ポケット',font=F(32,True),fill=NAVY);d.ellipse((954,65,974,85),fill=ORANGE);d.text((64,100),'サービス説明用イメージ',font=F(19),fill=MUTED)
+          def footer(d,txt='無料会員登録 0円・月額 0円'):
+            d.line((64,1200,1016,1200),fill=LINE,width=2);d.text((64,1234),txt,font=F(29,True),fill=NAVY);d.text((64,1282),'実際の依頼物件・顧客写真ではありません',font=F(20),fill=MUTED)
+          # 1 editorial split: remote context
+          im=Image.new('RGB',(W,H),BG);d=ImageDraw.Draw(im);brand(d);d.text((64,172),'青森の実家、',font=F(52,True),fill=INK);d.text((64,240),'次に見に行けるのはいつ？',font=F(62,True),fill=NAVY);rr(d,(64,375,1016,980),36,WHITE,LINE,2);house(d,610,470,1.05);d.rectangle((64,740,1016,980),fill=PALE);d.text((110,785),'遠方にいるなら、まず「今」を知る。',font=F(35,True),fill=INK);d.text((110,855),'外から安全に見える範囲を確認し、',font=F(27),fill=MUTED);d.text((110,900),'写真と観察できた事実を報告します。',font=F(27),fill=MUTED);footer(d);im.save(out/'remote-editorial.png')
+          # 2 report proof dashboard
+          im=Image.new('RGB',(W,H),WHITE);d=ImageDraw.Draw(im);brand(d);d.text((64,178),'「何が届くか」を',font=F(52,True),fill=INK);d.text((64,248),'先に見せます。',font=F(70,True),fill=NAVY);y=405
+          for n,t,b in [('01','外観・敷地','安全に外から見える範囲'),('02','写真','その場で確認した様子'),('03','観察事実','原因や修理要否は断定しない')]:rr(d,(64,y,1016,y+160),26,BG,LINE,2);d.text((102,y+50),n,font=F(30,True),fill=ORANGE);d.text((190,y+30),t,font=F(34,True),fill=INK);d.text((190,y+90),b,font=F(25),fill=MUTED);y+=185
+          footer(d,'報告見本を公開中｜無料会員登録 0円');im.save(out/'report-proof-dashboard.png')
+          # 3 monthly choice poster
+          im=Image.new('RGB',(W,H),NAVY);d=ImageDraw.Draw(im);d.text((64,55),'空家ポケット',font=F(32,True),fill=WHITE);d.text((64,185),'毎月の管理は',font=F(54,True),fill=WHITE);d.text((64,255),'まだ決めなくていい。',font=F(66,True),fill=(255,197,164));rr(d,(64,420,1016,930),38,WHITE);d.text((110,480),'まず1回だけ',font=F(61,True),fill=NAVY);d.text((110,575),'外観・敷地の「今」を確認',font=F(38,True),fill=INK);d.line((110,675,950,675),fill=LINE,width=2);d.text((110,725),'現地確認 1回 3,480円（税込）',font=F(31,True),fill=INK);d.text((110,795),'会員登録 0円 / 月額 0円',font=F(31,True),fill=INK);d.text((64,1035),'サービス説明用イメージ',font=F(20),fill=(205,215,228));d.text((64,1110),'実際の依頼物件・顧客写真ではありません',font=F(20),fill=(205,215,228));im.save(out/'one-time-choice-poster.png')
+          # 4 unconfirmed honesty card
+          im=Image.new('RGB',(W,H),BG);d=ImageDraw.Draw(im);brand(d);d.text((64,180),'見えなかった場所は',font=F(48,True),fill=INK);d.text((64,250),'「未確認」と書きます。',font=F(66,True),fill=NAVY);rr(d,(90,430,990,925),36,WHITE,LINE,2);d.text((140,480),'現地確認報告（見本）',font=F(34,True),fill=NAVY);rows=[('確認','道路側外観・玄関周辺・敷地'),('事実','その場で見えた内容を記載'),('未確認','地上から見えない箇所は断定しない')]
+          yy=580
+          for a,b in rows:d.text((140,yy),a,font=F(28,True),fill=ORANGE if a=='未確認' else INK);d.text((315,yy),b,font=F(26),fill=MUTED);yy+=105
+          footer(d,'分からないことを、分かったふりにしない');im.save(out/'unconfirmed-honesty.png')
+          # 5 family context illustration
+          im=Image.new('RGB',(W,H),WHITE);d=ImageDraw.Draw(im);brand(d);d.text((64,172),'家族で話す前に、',font=F(50,True),fill=INK);d.text((64,242),'同じ「今」を見る。',font=F(66,True),fill=NAVY);house(d,665,435,.88);rr(d,(80,430,485,820),35,BG,LINE,2);d.rectangle((135,500,430,555),fill=NAVY);d.rectangle((135,600,395,625),fill=LINE);d.rectangle((135,660,420,685),fill=LINE);d.rectangle((135,720,355,745),fill=ORANGE);d.text((125,865),'写真＋観察事実を共有',font=F(36,True),fill=INK);footer(d);im.save(out/'family-share-visual.png')
+          # 6 scope infographic, different layout
+          im=Image.new('RGB',(W,H),PALE);d=ImageDraw.Draw(im);brand(d);d.text((64,175),'写真は撮る。',font=F(55,True),fill=INK);d.text((64,245),'でも、診断はしない。',font=F(63,True),fill=NAVY);rr(d,(64,405,508,980),32,WHITE);rr(d,(572,405,1016,980),32,WHITE);d.text((110,455),'すること',font=F(38,True),fill=NAVY);d.text((620,455),'しないこと',font=F(38,True),fill=ORANGE)
+          for i,s in enumerate(['外観・敷地を確認','写真を撮る','見えた事実を報告']):d.text((110,565+i*110),'✓ '+s,font=F(27,True),fill=INK)
+          for i,s in enumerate(['室内立入り','原因・修理要否の診断','工事・仲介']):d.text((620,565+i*110),'— '+s,font=F(25,True),fill=INK)
+          footer(d);im.save(out/'scope-two-column.png')
+          PY
+          python /tmp/gen.py
+          for f in akiya-pocket/assets/social/generated-v5/*.png;do test "$(stat -c%s "$f")" -gt 10000;done
+      - name: Commit
+        id: commit
+        run: |
+          git config user.name 'github-actions[bot]';git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add akiya-pocket/assets/social/generated-v5/*.png
+          if git diff --cached --quiet;then echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT";else git commit -m 'Akiya Pocket: generate original social creatives v5';git push origin HEAD:main;echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT";fi
+      - name: Report
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.commit.outputs.sha }}
+        run: |
+          state=FAIL;[ "${{ job.status }}" = success ] && state=PASS
+          body=$(jq -n --arg s "$state" --arg sha "${SHA:-}" --arg run "$GITHUB_RUN_ID" '{body:("AKIYA_CREATIVES_V5="+$s+"\nRUN_ID="+$run+"\nSHA="+$sha)}')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
