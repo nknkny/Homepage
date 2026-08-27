@@ -10,6 +10,67 @@ function quickPost(type) {
   resetForm(); setPostType(type); route('post');
   track('quick_post_path', null, { listingType: type, source: 'home' });
 }
+
+function installEnterpriseStyles() {
+  if (document.querySelector('link[data-enterprise-layer]')) return;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet'; link.href = 'enterprise.css?v=20260827-1'; link.dataset.enterpriseLayer = 'true';
+  document.head.appendChild(link);
+}
+
+function installEnterpriseDiscovery() {
+  const heroCopy = document.querySelector('#discover .hero-copy');
+  if (!heroCopy || document.getElementById('enterpriseSearch')) return;
+  const intro = heroCopy.querySelector('p:not(.hero-note)');
+  const box = document.createElement('div');
+  box.className = 'enterprise-search'; box.id = 'enterpriseSearch';
+  box.setAttribute('role', 'search');
+  box.innerHTML = `
+    <div class="enterprise-search-field"><label for="enterpriseLocation">地域</label><input id="enterpriseLocation" maxlength="40" value="${esc(CONFIG.defaultMunicipality)}" aria-label="イベントを探す地域"></div>
+    <div class="enterprise-search-field"><label for="enterpriseKeyword">イベント・キーワード</label><input id="enterpriseKeyword" maxlength="80" placeholder="音楽、マルシェ、ワークショップ…" aria-label="イベント検索キーワード"></div>
+    <div class="enterprise-search-field"><label for="enterpriseDate">日付</label><select id="enterpriseDate" aria-label="開催日"><option value="">すべての日付</option><option value="today">今日</option><option value="weekend">今週末</option><option value="week">7日以内</option></select></div>
+    <button id="enterpriseSearchBtn" class="enterprise-search-btn" type="button">イベントを探す</button>`;
+  intro?.insertAdjacentElement('afterend', box);
+
+  const quick = document.createElement('div');
+  quick.className = 'enterprise-quick';
+  quick.innerHTML = '<button type="button" data-enterprise-date="today">今日</button><button type="button" data-enterprise-date="weekend">今週末</button><button type="button" data-enterprise-date="week">7日以内</button>';
+  box.insertAdjacentElement('afterend', quick);
+
+  const hero = document.querySelector('#discover .hero');
+  const rail = document.createElement('section');
+  rail.className = 'enterprise-discovery-rail';
+  rail.innerHTML = `<div class="wrap enterprise-discovery-inner"><span class="enterprise-discovery-label">カテゴリから探す</span>${['ポップアップ・物販','音楽・ライブ','展示・アート','飲食・フード','ワークショップ','地域活動'].map((c) => `<button type="button" class="enterprise-category" data-enterprise-category="${esc(c)}">${esc(c)}</button>`).join('')}</div>`;
+  hero?.insertAdjacentElement('afterend', rail);
+
+  const runSearch = (preset = null) => {
+    const locationValue = text($('enterpriseLocation').value) || CONFIG.defaultMunicipality;
+    const keywordValue = text($('enterpriseKeyword').value);
+    if (preset !== null) $('enterpriseDate').value = preset;
+    state.calendarDatePreset = $('enterpriseDate').value;
+    $('calendarPrefecture').value = CONFIG.defaultPrefecture;
+    $('calendarMunicipality').value = locationValue;
+    $('calendarQ').value = keywordValue;
+    $('calendarCategory').value = '';
+    track('enterprise_event_search', null, { municipality: locationValue, datePreset: state.calendarDatePreset, hasKeyword: !!keywordValue });
+    route('calendar');
+  };
+  $('enterpriseSearchBtn').onclick = () => runSearch();
+  $('enterpriseKeyword').addEventListener('keydown', (e) => { if (e.key === 'Enter') runSearch(); });
+  quick.querySelectorAll('[data-enterprise-date]').forEach((b) => { b.onclick = () => runSearch(b.dataset.enterpriseDate); });
+  rail.querySelectorAll('[data-enterprise-category]').forEach((b) => {
+    b.onclick = () => {
+      state.calendarDatePreset = '';
+      $('calendarPrefecture').value = CONFIG.defaultPrefecture;
+      $('calendarMunicipality').value = text($('enterpriseLocation').value) || CONFIG.defaultMunicipality;
+      $('calendarQ').value = '';
+      $('calendarCategory').value = b.dataset.enterpriseCategory;
+      track('enterprise_category', null, { category: b.dataset.enterpriseCategory });
+      route('calendar');
+    };
+  });
+}
+
 function bindStatic() {
   document.querySelectorAll('[data-nav]').forEach((b) => { b.onclick = () => route(b.dataset.nav); });
   document.querySelectorAll('[data-quick-post]').forEach((b) => { b.onclick = () => quickPost(b.dataset.quickPost); });
@@ -19,7 +80,7 @@ function bindStatic() {
   $('searchBtn').onclick = async () => { await Promise.all([loadBoard(true), loadCandidatePools()]); track('search', null, { filterType: state.discoverType, sort: $('sort').value }); };
   $('resetSearchBtn').onclick = async () => { $('prefectureFilter').value = CONFIG.defaultPrefecture; $('municipalityFilter').value = CONFIG.defaultMunicipality; $('q').value = ''; $('categoryFilter').value = ''; $('sort').value = 'new'; await Promise.all([loadBoard(true), loadCandidatePools()]); };
   $('loadMoreBtn').onclick = () => loadBoard(false);
-  $('calendarSearchBtn').onclick = async () => { await loadCalendar(); track('calendar_view', null, { source: 'search' }); };
+  $('calendarSearchBtn').onclick = async () => { state.calendarDatePreset = ''; await loadCalendar(); track('calendar_view', null, { source: 'search' }); };
   $('sort').addEventListener('change', renderBrowse); $('calendarQ').addEventListener('input', () => renderCalendar(state.calendarRows));
   $('postForm').addEventListener('submit', submitForm); $('resetBtn').onclick = () => resetForm();
   $('description').addEventListener('input', () => { $('descriptionCount').textContent = String($('description').value.length); });
@@ -32,8 +93,10 @@ function bindStatic() {
 }
 
 async function init() {
-  initPrefectures(); identity(); sessionId(); bindStatic(); resetForm(false);
+  installEnterpriseStyles();
+  initPrefectures(); identity(); sessionId(); bindStatic(); installEnterpriseDiscovery(); resetForm(false);
   state.dashboard = read('dashboard_cache', state.dashboard);
+  state.calendarDatePreset = '';
   const h = location.hash.replace('#',''); if (['discover','calendar','post','dashboard','favorites'].includes(h)) route(h);
   await healthCheck(); if (state.online) await bootstrap();
   await Promise.all([loadBoard(true), loadDashboard(), loadCalendar()]);
