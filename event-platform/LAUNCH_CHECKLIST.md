@@ -12,7 +12,8 @@
 - [x] 旧課金/旧マッチDB撤去
 - [x] 旧Stripe Webhookを410停止関数化
 - [x] 最新UIをGitHubへ反映
-- [ ] GitHub Actions E2Eを新API仕様へ更新して成功確認
+- [x] GitHub Actions E2Eを新API仕様へ更新して成功確認
+- [x] GitHub Pages開発プレビューでPC/スマホ実ブラウザE2E成功
 
 ## B. 法務境界
 - [x] サイト内予約なし
@@ -33,6 +34,7 @@
 - [ ] Supabase CORSを確定URLに固定
 - [ ] 本番ビルドをindex,followへ切替
 - [ ] 本番URLでブラウザE2E
+- [ ] 本番ホストでCSP `frame-ancestors 'none'` をHTTPレスポンスヘッダーとして設定
 
 ## D. 営業
 - [x] 営業メール・問い合わせフォーム送信は保留
