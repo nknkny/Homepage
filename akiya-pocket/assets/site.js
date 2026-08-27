@@ -63,32 +63,32 @@ document.addEventListener('DOMContentLoaded',()=>AkiyaUI.turnstileForms().forEac
   });
 })();
 
-/* AKIYA_PAID_INTENT_HOME_CTA_V1 */
+/* AKIYA_REGISTRATION_FIRST_HOME_CTA_V1 */
 (function(){
   'use strict';
   document.addEventListener('DOMContentLoaded',()=>{
     const path=location.pathname.replace(/\/+$/,'');
     const isHome=path===''||path==='/'||path.endsWith('/index.html');
     if(!isHome)return;
-    const track=(label)=>{try{if(window.AkiyaAnalytics&&AkiyaAnalytics.publicTrack)AkiyaAnalytics.publicTrack('paid_intent_cta_click',{contentCategory:'conversion',contentId:'inspection_3480',actionLabel:label,value:'3480'})}catch(e){}};
+    const track=(label)=>{try{if(window.AkiyaAnalytics&&window.AkiyaAnalytics.publicTrack)window.AkiyaAnalytics.publicTrack('registration_cta_click',{contentCategory:'registration',contentId:'free_membership',actionLabel:label,value:'0'})}catch(e){}};
     const retarget=(el,label,text,campaign)=>{
       if(!el)return;
       el.textContent=text;
       el.href='register.html?utm_source=homepage&utm_medium=owned&utm_campaign='+campaign;
-      el.dataset.paidIntent='1';
+      el.dataset.registrationFirst='1';
       el.addEventListener('click',()=>track(label),{passive:true});
     };
-    retarget(document.querySelector('.home-main-btn'),'hero_paid_intent','3,480円で現地確認を依頼する','aomori_paid_intent_hero');
-    retarget(document.querySelector('.home-cta'),'header_paid_intent','現地確認を依頼','aomori_paid_intent_header');
+    retarget(document.querySelector('.home-main-btn'),'hero_free_registration','無料会員登録する','aomori_registration_hero');
+    retarget(document.querySelector('.home-cta'),'header_free_registration','無料会員登録','aomori_registration_header');
     const priceBtn=document.querySelector('.home-price-card .btn-primary');
-    retarget(priceBtn,'price_paid_intent','現地確認を依頼する','aomori_paid_intent_price');
+    retarget(priceBtn,'price_free_registration','まず無料会員登録','aomori_registration_price');
     const secure=document.querySelector('.home-secure');
-    if(secure)secure.textContent='依頼には無料会員登録が必要です。登録だけでは料金は発生しません。支払い前に条件と3,480円（税込）を確認できます。';
+    if(secure)secure.textContent='会員登録は0円・月額0円。登録だけでは料金は発生しません。現地確認が必要になった場合だけ、支払い前に条件と1回3,480円（税込）を確認して依頼できます。';
     const heroBtn=document.querySelector('.home-main-btn');
     if(heroBtn&&!document.querySelector('.home-proof-btn')){
       const proof=document.createElement('a');
       proof.className='btn btn-ghost home-proof-btn';
-      proof.href='report-sample.html?utm_source=homepage&utm_medium=owned&utm_campaign=aomori_paid_intent_proof';
+      proof.href='report-sample.html?utm_source=homepage&utm_medium=owned&utm_campaign=aomori_registration_proof';
       proof.textContent='報告見本を先に見る';
       proof.style.marginLeft='8px';
       proof.addEventListener('click',()=>track('hero_report_sample'),{passive:true});
