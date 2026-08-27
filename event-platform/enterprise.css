@@ -73,3 +73,9 @@ footer{background:#101828;color:#d0d5dd;border-top:0}.footer-row a{color:#fff}.f
   html{scroll-behavior:auto}
   *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
+
+/* WCAG contrast correction — verified by automated axe checks */
+:root{--ent-brand:#b42318;--ent-brand-dark:#912018}
+.poster-date{color:#b42318}
+.journey-label{color:#475467}
+.how-grid span{color:#b42318}
