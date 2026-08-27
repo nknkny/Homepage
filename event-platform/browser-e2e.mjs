@@ -2,6 +2,9 @@ import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 
 const url = process.env.PREVIEW_URL || 'https://nknkny.github.io/Homepage/event-platform/';
+const KNOWN_PREVIEW_WARNINGS = [
+  "The Content Security Policy directive 'frame-ancestors' is ignored when delivered via a <meta> element.",
+];
 
 async function waitForApp(page) {
   await page.waitForSelector('#enterpriseSearch', { state: 'visible', timeout: 30000 });
@@ -15,7 +18,10 @@ function captureErrors(page, label) {
   const errors = [];
   page.on('pageerror', (error) => errors.push(`${label} pageerror: ${error.message}`));
   page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(`${label} console: ${message.text()}`);
+    if (message.type() !== 'error') return;
+    const text = message.text();
+    if (KNOWN_PREVIEW_WARNINGS.some((known) => text.includes(known))) return;
+    errors.push(`${label} console: ${text}`);
   });
   return errors;
 }
