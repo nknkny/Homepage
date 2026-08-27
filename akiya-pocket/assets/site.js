@@ -53,8 +53,14 @@ document.addEventListener('DOMContentLoaded',()=>AkiyaUI.turnstileForms().forEac
   function eventPayload(eventType,details){details=details||{};return Object.assign({},acquisitionPayload(),{eventType:cut(eventType,80),page:cut(details.page||location.pathname,240),contentCategory:cut(details.contentCategory,80),contentId:cut(details.contentId,120),actionLabel:cut(details.actionLabel,120),value:details.value===undefined?'':cut(details.value,40),anonymousId:anonymousId(),sessionId:sessionId()})}
   async function track(eventType,details){const token=window.AkiyaAPI&&AkiyaAPI.token?AkiyaAPI.token():'';if(!token)return{ok:false,skipped:true};try{return await AkiyaAPI.submit('track_event',Object.assign({sessionToken:token},eventPayload(eventType,details)),20000)}catch(e){return{ok:false,skipped:true}}}
   async function publicTrack(eventType,details){try{return await AkiyaAPI.submit('track_public_event',eventPayload(eventType,details),20000)}catch(e){return{ok:false,skipped:true}}}
+  function normalizedPath(){let p=location.pathname.replace(/\/+$/,'');if(p.endsWith('.html'))p=p.slice(0,-5);return p||'/'}
+  function isRegisterPath(){const p=normalizedPath();return p==='/register'||p.endsWith('/register')}
   window.AkiyaAnalytics={acquisitionPayload,track,publicTrack,anonymousId,sessionId};
-  document.addEventListener('DOMContentLoaded',()=>{publicTrack('site_visit',{contentCategory:'funnel',contentId:'site',actionLabel:'page_view'});if(location.pathname.endsWith('register.html'))publicTrack('register_view',{contentCategory:'registration',contentId:'member_registration',actionLabel:'view'})});
+  document.addEventListener('DOMContentLoaded',()=>{
+    publicTrack('site_visit',{contentCategory:'funnel',contentId:'site',actionLabel:'page_view'});
+    if(isRegisterPath())publicTrack('register_view',{contentCategory:'registration',contentId:'member_registration',actionLabel:'view'});
+    document.querySelectorAll('a[href*="register"]').forEach(a=>a.addEventListener('click',()=>publicTrack('register_cta_click',{contentCategory:'registration',contentId:'member_registration',actionLabel:'cta_click'}),{passive:true}));
+  });
 })();
 
 /* AKIYA_PAID_INTENT_HOME_CTA_V1 */
