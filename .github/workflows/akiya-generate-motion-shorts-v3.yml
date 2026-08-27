@@ -1,0 +1,196 @@
+name: Akiya Pocket original motion shorts v3
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  motion:
+    if: github.event.issue.number == 42 && contains(github.event.comment.body, 'GENERATE_AKIYA_MOTION_V3')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 20
+      - name: Install renderer
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-noto-cjk >/dev/null
+          python -m pip install -q pillow
+      - name: Render four original motion stories
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p akiya-pocket/assets/social/generated-v4
+          cat > /tmp/render_motion.py <<'PY'
+          from PIL import Image, ImageDraw, ImageFont
+          import subprocess, math, os
+
+          W,H,FPS,D=540,960,15,16
+          NAVY=(8,43,88); ORANGE=(235,91,27); INK=(23,32,43); MUTED=(89,100,112)
+          BG=(245,248,252); WHITE=(255,255,255); SKY=(211,232,246); GREEN=(111,154,111); ROAD=(190,197,204); PALE=(230,238,247)
+          FONT='/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc'; BOLD='/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc'
+          def F(s,b=False): return ImageFont.truetype(BOLD if b else FONT,s)
+          def clamp(x,a=0,b=1): return max(a,min(b,x))
+          def ease(x): x=clamp(x); return x*x*(3-2*x)
+          def lerp(a,b,t): return a+(b-a)*ease(t)
+          def rr(d,box,r,fill,outline=None,w=1): d.rounded_rectangle(box,radius=r,fill=fill,outline=outline,width=w)
+          def text_center(d,s,y,size=34,fill=INK,bold=True):
+              font=F(size,bold); bb=d.textbbox((0,0),s,font=font); d.text(((W-(bb[2]-bb[0]))/2,y),s,font=font,fill=fill)
+          def brand(d):
+              d.text((28,25),'空家ポケット',font=F(21,True),fill=NAVY); d.ellipse((494,31,506,43),fill=ORANGE)
+              d.text((28,55),'イメージ映像',font=F(12),fill=MUTED)
+          def house(d,x,y,s=1,body=(239,230,213),roof=(78,89,99)):
+              d.polygon([(x,y+55*s),(x+90*s,y),(x+180*s,y+55*s)],fill=roof)
+              d.rectangle((x+18*s,y+55*s,x+162*s,y+150*s),fill=body)
+              d.rectangle((x+70*s,y+95*s,x+105*s,y+150*s),fill=(135,91,63))
+              d.rectangle((x+35*s,y+78*s,x+62*s,y+105*s),fill=SKY); d.rectangle((x+118*s,y+78*s,x+145*s,y+105*s),fill=SKY)
+          def person(d,x,y,s=1,shirt=NAVY):
+              d.ellipse((x+22*s,y,x+58*s,y+36*s),fill=(228,188,154))
+              d.rounded_rectangle((x+10*s,y+32*s,x+70*s,y+105*s),radius=15*s,fill=shirt)
+              d.line((x+8*s,y+50*s,x-15*s,y+90*s),fill=(228,188,154),width=max(2,int(8*s)))
+              d.line((x+72*s,y+50*s,x+92*s,y+88*s),fill=(228,188,154),width=max(2,int(8*s)))
+              d.line((x+28*s,y+104*s,x+18*s,y+150*s),fill=INK,width=max(2,int(9*s)))
+              d.line((x+54*s,y+104*s,x+65*s,y+150*s),fill=INK,width=max(2,int(9*s)))
+          def phone(d,x,y,s=1):
+              rr(d,(x,y,x+76*s,y+132*s),12*s,(31,36,43)); rr(d,(x+6*s,y+8*s,x+70*s,y+120*s),8*s,WHITE)
+              d.rectangle((x+16*s,y+24*s,x+60*s,y+33*s),fill=PALE)
+              d.rectangle((x+16*s,y+42*s,x+55*s,y+50*s),fill=(219,227,236))
+              d.rectangle((x+16*s,y+60*s,x+62*s,y+68*s),fill=(219,227,236))
+          def camera(d,x,y,s=1,flash=False):
+              rr(d,(x,y,x+90*s,y+55*s),10*s,NAVY); d.ellipse((x+30*s,y+8*s,x+72*s,y+50*s),fill=(25,31,40)); d.ellipse((x+38*s,y+16*s,x+64*s,y+42*s),fill=SKY)
+              if flash: d.ellipse((x+42*s,y+22*s,x+60*s,y+40*s),fill=WHITE)
+          def report(d,x,y,s=1,fill=WHITE):
+              rr(d,(x,y,x+170*s,y+215*s),14*s,fill,(214,222,231),2)
+              d.rectangle((x+18*s,y+22*s,x+140*s,y+35*s),fill=NAVY)
+              for i in range(4): d.rectangle((x+18*s,y+(58+32*i)*s,x+(145-8*i)*s,y+(67+32*i)*s),fill=(216,225,235))
+              d.rectangle((x+18*s,y+185*s,x+110*s,y+196*s),fill=ORANGE)
+          def arrow(d,x1,y1,x2,y2,fill=ORANGE,w=7):
+              d.line((x1,y1,x2,y2),fill=fill,width=w)
+              ang=math.atan2(y2-y1,x2-x1); L=18
+              a1=ang+2.55; a2=ang-2.55
+              d.polygon([(x2,y2),(x2+L*math.cos(a1),y2+L*math.sin(a1)),(x2+L*math.cos(a2),y2+L*math.sin(a2))],fill=fill)
+          def subtitle(d,s):
+              rr(d,(24,830,516,920),18,(255,255,255),(222,228,236),1)
+              font=F(24,True); bb=d.textbbox((0,0),s,font=font); d.text(((W-(bb[2]-bb[0]))/2,857),s,font=font,fill=INK)
+          def encode(name,framefn):
+              out=f'akiya-pocket/assets/social/generated-v4/{name}.mp4'
+              p=subprocess.Popen(['ffmpeg','-y','-loglevel','error','-f','rawvideo','-pix_fmt','rgb24','-s',f'{W}x{H}','-r',str(FPS),'-i','-','-an','-c:v','libx264','-preset','medium','-crf','24','-pix_fmt','yuv420p','-movflags','+faststart',out],stdin=subprocess.PIPE)
+              for i in range(FPS*D):
+                  t=i/FPS; im=Image.new('RGB',(W,H),BG); d=ImageDraw.Draw(im); brand(d); framefn(d,t); p.stdin.write(im.tobytes())
+              p.stdin.close(); rc=p.wait();
+              if rc: raise SystemExit(rc)
+              if os.path.getsize(out)<15000: raise RuntimeError('video too small '+out)
+
+          def remote_story(d,t):
+              if t<4:
+                  x=lerp(-100,105,t/1.1); person(d,x,250,1.25); phone(d,x+120,315,0.9)
+                  text_center(d,'青森の実家、',125,34,NAVY); text_center(d,'次に見に行けるのはいつ？',174,31,INK)
+                  subtitle(d,'遠くに住んでいると、確認だけでも大仕事。')
+              elif t<8:
+                  u=t-4; d.rectangle((0,660,540,820),fill=ROAD); house(d,300,285,1.05)
+                  d.line((85,650,420,390),fill=ORANGE,width=7); d.ellipse((70,635,100,665),fill=ORANGE); d.ellipse((405,375,435,405),fill=ORANGE)
+                  d.text((58,690),'自宅',font=F(25,True),fill=NAVY); d.text((372,690),'青森市',font=F(25,True),fill=NAVY)
+                  text_center(d,'移動する前に、',128,34,INK); text_center(d,'まず「今」を知る方法',176,38,NAVY)
+                  subtitle(d,'空家ポケットは、必要なときに1回だけ。')
+              elif t<12:
+                  u=t-8; hx=70; house(d,hx,235,1.35); cx=lerp(390,310,u/1.4); camera(d,cx,490,0.85,flash=(1.0<u<1.3 or 2.4<u<2.7))
+                  d.line((70,670,470,670),fill=ROAD,width=10); arrow(d,260,560,230,455)
+                  text_center(d,'外から安全に見える範囲を',120,31,INK); text_center(d,'写真＋観察事実で確認',168,39,NAVY)
+                  subtitle(d,'室内立入り・診断・工事は行いません。')
+              else:
+                  u=t-12; report(d,185,205,1.0); phone(d,62,310,0.9); arrow(d,155,380,178,350)
+                  text_center(d,'まず無料会員登録',115,42,NAVY); text_center(d,'依頼するかは、そのあとで。',166,28,INK)
+                  rr(d,(105,690,435,765),22,NAVY); text_center(d,'登録料 0円・月額 0円',708,28,WHITE)
+                  subtitle(d,'プロフィールのリンクから無料登録へ')
+
+          def process_story(d,t):
+              if t<4:
+                  house(d,170,235,1.15); camx=lerp(40,345,t/3.3); camera(d,camx,525,0.8,flash=(1.2<t<1.5 or 2.8<t<3.1))
+                  text_center(d,'現地で、何をする？',120,42,NAVY); subtitle(d,'① 外観・敷地を、安全に見える範囲で確認')
+              elif t<8:
+                  house(d,75,245,1.0); camera(d,315,430,0.85,flash=(t%1.2)<0.18)
+                  for j in range(3):
+                      a=clamp((t-4-j*.65)/.55); y=620+j*55; rr(d,(70,y,470,y+40),12,WHITE,(220,226,233)); d.rectangle((85,y+12,85+int(330*a),y+28),fill=(130,168,199))
+                  text_center(d,'写真を記録する',120,40,NAVY); subtitle(d,'② 見えたものを写真に残す')
+              elif t<12:
+                  report(d,185,200,1.0); p=clamp((t-8)/3.0)
+                  for j in range(3): d.rectangle((215,315+j*48,215+int((105-8*j)*p),325+j*48),fill=ORANGE if j==2 else NAVY)
+                  text_center(d,'「見えた事実」を書く',120,38,NAVY); subtitle(d,'③ 見えない場所は「未確認」として報告')
+              else:
+                  report(d,55,245,0.9); phone(d,350,305,1.0); arrow(d,220,400,345,390)
+                  text_center(d,'3,480円で届くもの',120,39,NAVY); text_center(d,'写真＋観察事実の報告',169,32,INK)
+                  rr(d,(105,690,435,765),22,NAVY); text_center(d,'無料会員登録から始める',709,26,WHITE)
+                  subtitle(d,'登録後に報告見本を確認できます')
+
+          def facility_story(d,t):
+              if t<4:
+                  person(d,82,300,1.1,shirt=(95,116,150)); house(d,300,265,0.9); d.rectangle((58,535,190,675),fill=WHITE); d.rectangle((90,565,158,655),fill=PALE); d.text((78,690),'施設',font=F(24,True),fill=NAVY)
+                  text_center(d,'親が施設へ。',120,42,NAVY); text_center(d,'実家は青森に残った。',170,33,INK); subtitle(d,'すぐに見に行けない家族へ。')
+              elif t<8:
+                  phone(d,215,240,1.25); d.ellipse((94,450,145,501),fill=ORANGE); d.ellipse((390,450,441,501),fill=NAVY); arrow(d,150,475,205,365); arrow(d,365,365,385,455,NAVY)
+                  d.text((70,515),'遠方の家族',font=F(22,True),fill=INK); d.text((365,515),'青森の実家',font=F(22,True),fill=INK)
+                  text_center(d,'まず、同じ「今」を見る',120,39,NAVY); subtitle(d,'写真があれば、家族で状況を共有しやすい。')
+              elif t<12:
+                  house(d,90,245,1.35); person(d,350,430,0.9); camera(d,370,510,0.7,flash=(t%1.4)<0.2)
+                  text_center(d,'現地確認は1回だけでもOK',120,36,NAVY); subtitle(d,'月額契約や自動更新はありません。')
+              else:
+                  phone(d,70,290,1.05); report(d,290,245,0.82); arrow(d,185,390,285,360)
+                  text_center(d,'登録は無料',120,45,NAVY); text_center(d,'必要になったら現況確認を依頼',174,27,INK)
+                  rr(d,(105,690,435,765),22,NAVY); text_center(d,'まず無料会員登録',708,30,WHITE); subtitle(d,'プロフィールのリンクから')
+
+          def choice_story(d,t):
+              if t<4:
+                  text_center(d,'「毎月の管理」は',130,39,INK); text_center(d,'まだ決めていない。',184,45,NAVY)
+                  d.line((270,310,270,615),fill=(210,218,226),width=6); rr(d,(55,370,235,530),22,WHITE,(214,222,231)); rr(d,(305,370,485,530),22,WHITE,(214,222,231))
+                  d.text((82,405),'月額管理',font=F(31,True),fill=MUTED); d.text((337,405),'まず1回',font=F(31,True),fill=NAVY); d.ellipse((374,470,414,510),fill=ORANGE)
+                  subtitle(d,'決める前に、今の状態だけ知りたい。')
+              elif t<8:
+                  house(d,175,245,1.1); d.ellipse((245,485,295,535),outline=ORANGE,width=7); arrow(d,270,610,270,540)
+                  text_center(d,'そんな時の「1回確認」',120,39,NAVY); subtitle(d,'外観・敷地を写真＋観察事実で報告')
+              elif t<12:
+                  rr(d,(80,230,460,585),28,WHITE,(214,222,231),2); d.text((120,275),'1回 3,480円（税込）',font=F(40,True),fill=NAVY); d.text((120,350),'月額 0円',font=F(34,True),fill=INK); d.text((120,410),'自動更新なし',font=F(34,True),fill=INK); d.text((120,470),'依頼しなければ課金なし',font=F(28,True),fill=INK)
+                  subtitle(d,'まず無料会員登録だけでもOK')
+              else:
+                  person(d,70,330,1.0); phone(d,220,265,1.05); house(d,350,300,0.72); arrow(d,300,410,345,390)
+                  text_center(d,'今すぐ契約を決めなくていい',120,34,NAVY); text_center(d,'まず登録 → 必要な時だけ依頼',169,29,INK)
+                  rr(d,(105,690,435,765),22,NAVY); text_center(d,'無料会員登録',709,32,WHITE); subtitle(d,'登録料・月額料金 0円')
+
+          encode('remote-home-story',remote_story)
+          encode('report-process-motion',process_story)
+          encode('parent-facility-story',facility_story)
+          encode('one-time-choice',choice_story)
+          PY
+          python /tmp/render_motion.py
+          for f in akiya-pocket/assets/social/generated-v4/*.mp4; do ffprobe -v error -show_entries format=duration,size -of default=nw=1 "$f"; test "$(stat -c%s "$f")" -gt 15000; test "$(stat -c%s "$f")" -lt 25000000; done
+      - name: Commit motion videos
+        id: commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add akiya-pocket/assets/social/generated-v4/*.mp4
+          if git diff --cached --quiet; then
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          else
+            git commit -m 'Akiya Pocket: generate original motion acquisition videos'
+            git push origin HEAD:main
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Report result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.commit.outputs.sha }}
+        shell: bash
+        run: |
+          state=FAIL; [ "${{ job.status }}" = success ] && state=PASS
+          body=$(jq -n --arg s "$state" --arg sha "${SHA:-}" --arg run "$GITHUB_RUN_ID" '{body:("AKIYA_MOTION_V3="+$s+"\nRUN_ID="+$run+"\nSHA="+$sha)}')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
