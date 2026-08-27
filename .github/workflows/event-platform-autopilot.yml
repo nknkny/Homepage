@@ -35,6 +35,11 @@ jobs:
           for file in event-platform/app.js event-platform/app-data.js event-platform/app-render.js event-platform/app-form.js event-platform/app-dashboard.js event-platform/app-init.js; do
             node --check "$file"
           done
+          test -f event-platform/enterprise.css
+          grep -Fq 'enterprise-search' event-platform/enterprise.css
+          grep -Fq 'installEnterpriseDiscovery' event-platform/app-init.js
+          grep -Fq 'enterpriseSearchBtn' event-platform/app-init.js
+          grep -Fq 'dateRangeForPreset' event-platform/app-render.js
           grep -Fq 'noindex,nofollow,noarchive' event-platform/index.html
           grep -Fq '開発プレビュー' event-platform/index.html
           grep -Fq 'イベントを探したい' event-platform/index.html
@@ -78,10 +83,14 @@ jobs:
             sleep 10
           done
           test "$ok" = "1"
-          for file in styles.css app.js app-data.js app-render.js app-form.js app-dashboard.js app-init.js terms.html privacy.html legal-boundaries.html; do
+          for file in styles.css enterprise.css app.js app-data.js app-render.js app-form.js app-dashboard.js app-init.js terms.html privacy.html legal-boundaries.html; do
             curl --fail --silent --show-error --location --max-time 30 "${PREVIEW_URL}${file}?run=$GITHUB_RUN_ID" -o "/tmp/${file//\//_}"
           done
           grep -Fq 'journey-grid' /tmp/styles.css
+          grep -Fq 'enterprise-search' /tmp/enterprise.css
+          grep -Fq 'installEnterpriseDiscovery' /tmp/app-init.js
+          grep -Fq 'enterpriseSearchBtn' /tmp/app-init.js
+          grep -Fq 'dateRangeForPreset' /tmp/app-render.js
           grep -Fq 'renderHomeEvents' /tmp/app-render.js
           grep -Fq 'data-quick-post' /tmp/site.html
 
@@ -95,6 +104,7 @@ jobs:
             /tmp/public-listings.json
             /tmp/site.html
             /tmp/styles.css
+            /tmp/enterprise.css
             /tmp/app.js
             /tmp/app-data.js
             /tmp/app-render.js
