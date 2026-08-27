@@ -30,6 +30,7 @@ jobs:
           set -euo pipefail
           node --check event-platform/apply-final-hardening.mjs
           node event-platform/apply-final-hardening.mjs
+          sed -i 's/[[:space:]]\+$//' event-platform/*.md
           node --check event-platform/app.js
           node --check event-platform/app-form.js
           node --check event-platform/app-dashboard.js
