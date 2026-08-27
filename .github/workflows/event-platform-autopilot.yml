@@ -44,6 +44,7 @@ jobs:
           grep -Fq 'enterpriseSearchBtn' event-platform/app-init.js
           grep -Fq 'dateRangeForPreset' event-platform/app-render.js
           grep -Fq 'routeFromHistory' event-platform/app-init.js
+          grep -Fq 'auditLegalPages' event-platform/browser-e2e.mjs
           grep -Fq 'noindex,nofollow,noarchive' event-platform/index.html
           grep -Fq '開発プレビュー' event-platform/index.html
           grep -Fq 'イベントを探したい' event-platform/index.html
@@ -148,5 +149,7 @@ jobs:
             /tmp/event-platform-home-mobile.png
             /tmp/event-platform-desktop.png
             /tmp/event-platform-mobile.png
+            /tmp/event-platform-legal-desktop.png
+            /tmp/event-platform-legal-mobile.png
           if-no-files-found: ignore
           retention-days: 14
