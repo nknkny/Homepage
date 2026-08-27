@@ -1,11 +1,18 @@
 function route(id) {
   document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.id === id));
   document.querySelectorAll('[data-nav]').forEach((b) => b.classList.toggle('active', b.dataset.nav === id));
-  if (id === 'dashboard') loadDashboard(); if (id === 'favorites') renderFavorites(); if (id === 'calendar') { loadCalendar(); track('calendar_view', null, { route: 'calendar' }); }
+  if (id === 'dashboard') loadDashboard();
+  if (id === 'favorites') renderFavorites();
+  if (id === 'calendar') { loadCalendar(); track('calendar_view', null, { route: 'calendar' }); }
   history.replaceState(null, '', `#${id}`); window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function quickPost(type) {
+  resetForm(); setPostType(type); route('post');
+  track('quick_post_path', null, { listingType: type, source: 'home' });
 }
 function bindStatic() {
   document.querySelectorAll('[data-nav]').forEach((b) => { b.onclick = () => route(b.dataset.nav); });
+  document.querySelectorAll('[data-quick-post]').forEach((b) => { b.onclick = () => quickPost(b.dataset.quickPost); });
   document.querySelectorAll('[data-discover-type]').forEach((b) => { b.onclick = async () => { state.discoverType = b.dataset.discoverType; document.querySelectorAll('[data-discover-type]').forEach((x) => x.classList.toggle('active', x === b)); await loadBoard(true); }; });
   document.querySelectorAll('[data-post-type]').forEach((b) => { b.onclick = () => { resetForm(); setPostType(b.dataset.postType); }; });
   document.querySelectorAll('[data-post-event]').forEach((b) => { b.onclick = () => { resetForm(); setPostType('event'); route('post'); }; });
@@ -28,7 +35,8 @@ async function init() {
   initPrefectures(); identity(); sessionId(); bindStatic(); resetForm(false);
   state.dashboard = read('dashboard_cache', state.dashboard);
   const h = location.hash.replace('#',''); if (['discover','calendar','post','dashboard','favorites'].includes(h)) route(h);
-  await healthCheck(); if (state.online) await bootstrap(); await Promise.all([loadBoard(true), loadDashboard()]);
+  await healthCheck(); if (state.online) await bootstrap();
+  await Promise.all([loadBoard(true), loadDashboard(), loadCalendar()]);
   track('page_view', null, { route: h || 'discover' });
 }
 
