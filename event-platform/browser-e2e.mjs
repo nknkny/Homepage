@@ -118,11 +118,36 @@ async function mobile(browser) {
   }
 }
 
+async function auditLegalPages(browser, viewport, label) {
+  const context = await browser.newContext(viewport);
+  const page = await context.newPage();
+  const errors = captureErrors(page, label);
+  const files = ['terms.html', 'privacy.html', 'legal-boundaries.html'];
+  try {
+    for (const file of files) {
+      const response = await page.goto(`${url}${file}?e2e=${Date.now()}`, { waitUntil: 'networkidle', timeout: 60000 });
+      assert.ok(response && response.ok(), `${label}-${file}: HTTP ${response?.status()}`);
+      assert.equal(await page.locator('meta[name="robots"]').getAttribute('content'), 'noindex,nofollow,noarchive');
+      assert.ok(await page.locator('.legal-shell h1').isVisible(), `${label}-${file}: legal heading visible`);
+      assert.ok((await page.locator('.legal-section').count()) > 0, `${label}-${file}: legal sections exist`);
+      await assertNoHorizontalOverflow(page, `${label}-${file}`);
+      await assertAccessible(page, `${label}-${file}`);
+      if (file === 'privacy.html' && label === 'legal-desktop') await page.screenshot({ path: '/tmp/event-platform-legal-desktop.png', fullPage: true });
+      if (file === 'legal-boundaries.html' && label === 'legal-mobile') await page.screenshot({ path: '/tmp/event-platform-legal-mobile.png', fullPage: true });
+    }
+    assert.deepEqual(errors, [], errors.join('\n'));
+  } finally {
+    await context.close();
+  }
+}
+
 const browser = await chromium.launch({ headless: true });
 try {
   await desktop(browser);
   await mobile(browser);
-  console.log('Browser E2E passed: desktop and mobile event discovery flows are healthy.');
+  await auditLegalPages(browser, { viewport: { width: 1440, height: 1000 } }, 'legal-desktop');
+  await auditLegalPages(browser, { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, 'legal-mobile');
+  console.log('Browser E2E passed: desktop/mobile discovery, posting, calendar, navigation, and legal pages are healthy.');
 } finally {
   await browser.close();
 }
