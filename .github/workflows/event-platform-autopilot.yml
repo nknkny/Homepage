@@ -68,6 +68,7 @@ jobs:
           ! grep -R -E 'sb_secret_[A-Za-z0-9_-]+' event-platform
           ! grep -R -E 'whsec_[A-Za-z0-9]+' event-platform
           git diff --check
+          cp event-platform/_headers /tmp/_headers
 
       - name: Verify current API safety scope
         shell: bash
@@ -94,7 +95,7 @@ jobs:
             sleep 10
           done
           test "$ok" = "1"
-          for file in styles.css enterprise.css legal.css _headers app.js app-data.js app-render.js app-form.js app-dashboard.js app-init.js terms.html privacy.html legal-boundaries.html; do
+          for file in styles.css enterprise.css legal.css app.js app-data.js app-render.js app-form.js app-dashboard.js app-init.js terms.html privacy.html legal-boundaries.html; do
             curl --fail --silent --show-error --location --max-time 30 "${PREVIEW_URL}${file}?run=$GITHUB_RUN_ID" -o "/tmp/${file//\//_}"
           done
           grep -Fq 'journey-grid' /tmp/styles.css
