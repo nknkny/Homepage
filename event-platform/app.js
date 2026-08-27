@@ -1,59 +1,168 @@
 'use strict';
-const C={build:'2026-08-26-core-market-v2',api:'https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/event-platform-api',match:65};
-const T={space:'使える場所',want:'場所を探している企画',event:'イベント'};
-const $=id=>document.getElementById(id),txt=v=>String(v??'').trim(),norm=v=>txt(v).normalize('NFKC').toLowerCase().replace(/\s+/g,' '),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const yen=v=>Number(v)>0?new Intl.NumberFormat('ja-JP',{style:'currency',currency:'JPY',maximumFractionDigits:0}).format(Number(v)):'',date=v=>{if(!v)return'';const d=new Date(v+'T00:00:00+09:00');return Number.isNaN(d.getTime())?v:new Intl.DateTimeFormat('ja-JP',{month:'numeric',day:'numeric',weekday:'short'}).format(d)};
-const K=x=>'event_platform_'+x,read=(x,d)=>{try{const v=localStorage.getItem(K(x));return v===null?d:JSON.parse(v)}catch{return d}},write=(x,v)=>localStorage.setItem(K(x),JSON.stringify(v));
-let R={},D={listings:[],notifications:[]},postType='space',discoverType='space',online=false,boot=false;
-function secret(){const a=crypto.getRandomValues(new Uint8Array(32));return[...a].map(b=>b.toString(16).padStart(2,'0')).join('')}
-function identity(){let v=read('identity',null);if(!v||!/^[0-9a-f-]{36}$/i.test(v.ownerId||'')||txt(v.ownerKey).length<32){v={ownerId:crypto.randomUUID(),ownerKey:secret(),createdAt:new Date().toISOString()};write('identity',v)}return v}
-const headers=()=>({'x-owner-id':identity().ownerId,'x-owner-key':identity().ownerKey});
-function toast(s){const e=$('toast');if(!e)return;e.textContent=s;e.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('show'),4200)}
-function safeUrl(v){try{const u=new URL(txt(v));return u.protocol==='https:'?u.href:''}catch{return''}}
-async function api(action,opt={}){const h={'Content-Type':'application/json'};if(opt.auth)Object.assign(h,headers());const r=await fetch(C.api+'?action='+encodeURIComponent(action),{method:opt.method||'GET',headers:h,body:opt.body===undefined?undefined:JSON.stringify(opt.body),cache:'no-store'});const d=await r.json().catch(()=>({ok:false,error:'INVALID_RESPONSE'}));if(!r.ok||d.ok===false){const e=new Error(d.error||'HTTP_'+r.status);e.data=d;e.status=r.status;throw e}return d}
-function conn(ok,n=''){online=ok;$('storageStatus').className='status '+(ok?'online':'bad');$('storageStatus').textContent=ok?'API接続':'キャッシュ閲覧';$('storageNote').textContent=n;document.querySelectorAll('[data-write-action]').forEach(b=>b.disabled=!ok)}
-const mapL=r=>({id:r.id,type:r.type,title:r.title,area:r.area,category:r.category,description:r.description,dateStart:r.date_start||'',dateEnd:r.date_end||'',availableFrom:r.available_from||'',availableTo:r.available_to||'',capacity:+(r.capacity||0),sizeSqm:+(r.size_sqm||0),priceAmount:+(r.price_amount||0),budgetMax:+(r.budget_max||0),placeName:r.place_name||'',eventPrice:r.event_price||'',spaceKind:r.space_kind||'',indoorOutdoor:r.indoor_outdoor||'',allowedUses:r.allowed_uses||'',prohibitedUses:r.prohibited_uses||'',tags:r.tags||[],contactUrl:r.contact_url||'',status:r.status||'published',createdAt:r.created_at||'',updatedAt:r.updated_at||'',autoStatusReason:r.auto_status_reason||'',spaceAuthority:!!r.space_authority,spaceInfoOnly:!!r.space_info_only,temporaryUseOnly:!!r.temporary_use_only,eventRightsConfirmed:!!r.event_rights_confirmed,promoOptIn:!!r.promo_opt_in,convertedFromId:r.converted_from_id||''});
-async function bootstrap(){try{await api('bootstrap',{method:'POST',auth:true,body:{}});boot=true;return true}catch(e){console.error(e);boot=false;return false}}
-async function publicLoad(){try{const d=await api('public_listings');R=Object.fromEntries((d.listings||[]).filter(x=>T[x.type]).map(x=>{const r=mapL(x);return[r.id,r]}));write('cache_v2',R);conn(true,'（共有DB・開発プレビュー）');renderAll();return true}catch(e){console.error(e);R=read('cache_v2',{});conn(false,'（API障害中・投稿停止）');renderAll();return false}}
-async function dashLoad(){if(!online||!boot)return;try{const d=await api('dashboard',{auth:true});D={listings:(d.listings||[]).filter(x=>T[x.type]).map(mapL),notifications:d.notifications||[]};write('dash_v2',D);renderDashboard()}catch(e){console.error(e);D=read('dash_v2',D);renderDashboard()}}
-async function refresh(){const ok=await publicLoad();if(ok&&!boot)await bootstrap();if(ok&&boot)await dashLoad();openHashListing()}
-const pubs=()=>Object.values(R).filter(r=>r.status==='published'),ownMap=()=>new Map(D.listings.map(r=>[r.id,r])),favs=()=>read('fav_v2',[]),setFav=a=>write('fav_v2',[...new Set(a)]);
-function chip(c,s){return`<span class="chip ${esc(c||'')}">${esc(s)}</span>`}
-function statusChip(r){const m={review_required:['pending','確認待ち'],auto_hidden:['hidden','自動停止'],expired:['expired','期限切れ'],stale:['expired','更新待ち']};return m[r.status]?chip(m[r.status][0],m[r.status][1]):''}
-function period(r){if(r.type==='space')return(!r.availableFrom&&!r.availableTo)?'利用可能日：応相談':`利用可能：${date(r.availableFrom)||'指定なし'}〜${date(r.availableTo)||'指定なし'}`;return`${date(r.dateStart)}${r.dateEnd&&r.dateEnd!==r.dateStart?'〜'+date(r.dateEnd):''}`}
-function money(r){if(r.type==='space'&&r.priceAmount>0)return`${yen(r.priceAmount)} / 日（目安）`;if(r.type==='want'&&r.budgetMax>0)return`予算上限 ${yen(r.budgetMax)} / 日`;if(r.type==='event'&&r.eventPrice)return r.eventPrice;return''}
-function score(w,s){if(!w||w.type!=='want'||!s||s.type!=='space'||w.status!=='published'||s.status!=='published')return{score:0,reasons:[]};let n=10,reasons=['対象種別 +10'];const wa=norm(w.area),sa=norm(s.area);if(wa&&sa&&wa===sa){n+=35;reasons.push('地域一致 +35')}else if(wa&&sa&&(wa.includes(sa)||sa.includes(wa))){n+=22;reasons.push('地域近似 +22')}if(w.category===s.category){n+=18;reasons.push('用途一致 +18')}if(w.dateEnd&&s.availableFrom&&s.availableFrom>w.dateEnd)return{score:0,reasons:['日程不一致']};if(w.dateStart&&s.availableTo&&s.availableTo<w.dateStart)return{score:0,reasons:['日程不一致']};if((s.availableFrom||s.availableTo)&&w.dateStart){n+=15;reasons.push('日程確認可 +15')}if(w.capacity>0&&s.capacity>0){if(s.capacity<w.capacity)return{score:0,reasons:['人数不一致']};n+=10;reasons.push('人数条件 +10')}if(w.budgetMax>0&&s.priceAmount>0){if(s.priceAmount<=w.budgetMax){n+=12;reasons.push('予算内 +12')}else if(s.priceAmount<=w.budgetMax*1.2){n+=4;reasons.push('予算に近い +4')}}const wt=new Set(w.tags||[]),shared=(s.tags||[]).filter(x=>wt.has(x));if(shared.length){const p=Math.min(15,shared.length*5);n+=p;reasons.push(`共通タグ ${shared.length}件 +${p}`)}return{score:Math.min(100,n),reasons}}
-const spacesForWant=w=>pubs().filter(x=>x.type==='space').map(r=>({r,...score(w,r)})).filter(x=>x.score>0).sort((a,b)=>b.score-a.score||String(b.r.createdAt).localeCompare(String(a.r.createdAt))),wantsForSpace=s=>pubs().filter(x=>x.type==='want').map(r=>({r,...score(r,s)})).filter(x=>x.score>0).sort((a,b)=>b.score-a.score||String(b.r.createdAt).localeCompare(String(a.r.createdAt)));
-function card(r,m=null){const f=favs().includes(r.id),facts=[];if(r.type==='space'&&r.spaceKind)facts.push(r.spaceKind);if(r.type==='space'&&r.indoorOutdoor)facts.push(r.indoorOutdoor);if(r.capacity>0)facts.push(`${r.capacity}人程度`);if(r.type==='event'&&r.placeName)facts.push(r.placeName);return`<article class="card card-${esc(r.type)}"><div class="meta">${chip(r.type,T[r.type])}${chip('',r.area)}${statusChip(r)}</div><h3>${esc(r.title)}</h3><div class="card-facts"><span>${esc(period(r))}</span>${facts.length?`<span>${esc(facts.join('・'))}</span>`:''}${money(r)?`<strong>${esc(money(r))}</strong>`:''}</div><p>${esc((r.description||'').slice(0,155))}${(r.description||'').length>155?'…':''}</p><div class="tags">${(r.tags||[]).slice(0,6).map(x=>chip('tag',x)).join('')}</div>${m?`<div class="score-box"><strong>一致度 ${m.score}点</strong><span>${esc(m.reasons.join(' / '))}</span></div>`:''}<div class="card-footer"><button class="btn primary small" data-detail="${r.id}" type="button">詳細を見る</button><button class="btn ghost small" data-fav="${r.id}" type="button">${f?'★':'☆'}</button></div></article>`}
-function bind(root=document){root.querySelectorAll('[data-detail]').forEach(b=>b.onclick=()=>detail(b.dataset.detail));root.querySelectorAll('[data-fav]').forEach(b=>b.onclick=()=>toggleFav(b.dataset.fav));root.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>edit(b.dataset.edit));root.querySelectorAll('[data-delete]').forEach(b=>b.onclick=()=>del(b.dataset.delete));root.querySelectorAll('[data-renew]').forEach(b=>b.onclick=()=>renew(b.dataset.renew));root.querySelectorAll('[data-convert]').forEach(b=>b.onclick=()=>convertToEvent(b.dataset.convert))}
-function filtered(){const q=norm($('q').value),a=norm($('areaFilter').value),c=$('categoryFilter').value;let x=pubs().filter(r=>r.type!=='event'&&(!discoverType||r.type===discoverType)).filter(r=>(!q||norm([r.title,r.area,r.category,r.description,r.spaceKind,r.allowedUses,(r.tags||[]).join(' ')].join(' ')).includes(q))&&(!a||norm(r.area).includes(a))&&(!c||r.category===c));const s=$('sort').value;if(s==='date')x.sort((a,b)=>String(a.dateStart||a.availableFrom||'9999').localeCompare(String(b.dateStart||b.availableFrom||'9999')));else if(s==='price')x.sort((a,b)=>(a.priceAmount||a.budgetMax||Number.MAX_SAFE_INTEGER)-(b.priceAmount||b.budgetMax||Number.MAX_SAFE_INTEGER));else x.sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));return x}
-function renderBrowse(){const x=filtered();$('listingGrid').innerHTML=x.length?x.map(card).join(''):'<div class="empty">条件に合う掲載はありません。</div>';bind($('listingGrid'));const p=pubs();$('kSpace').textContent=p.filter(x=>x.type==='space').length;$('kWant').textContent=p.filter(x=>x.type==='want').length;$('kEvent').textContent=p.filter(x=>x.type==='event').length;$('kMatch').textContent=p.filter(x=>x.type==='want').reduce((n,w)=>n+spacesForWant(w).filter(x=>x.score>=C.match).length,0)}
-function renderCalendar(){const q=norm($('calendarQ').value),a=norm($('calendarArea').value),c=$('calendarCategory').value;const x=pubs().filter(r=>r.type==='event'&&(!q||norm([r.title,r.description,r.placeName,(r.tags||[]).join(' ')].join(' ')).includes(q))&&(!a||norm(r.area).includes(a))&&(!c||r.category===c)).sort((a,b)=>String(a.dateStart).localeCompare(String(b.dateStart)));if(!x.length){$('calendarList').innerHTML='<div class="empty">掲載中のイベントはありません。</div>';return}const g={};for(const r of x)(g[r.dateStart]??=[]).push(r);$('calendarList').innerHTML=Object.entries(g).map(([d,rows])=>`<section class="calendar-day"><div class="calendar-date"><b>${esc(date(d))}</b><span>${rows.length}件</span></div><div class="grid">${rows.map(card).join('')}</div></section>`).join('');bind($('calendarList'))}
-function route(id){document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===id));document.querySelectorAll('[data-nav]').forEach(b=>b.classList.toggle('active',b.dataset.nav===id));if(id==='dashboard')renderDashboard();if(id==='favorites')renderFav();history.replaceState(null,'','#'+id);scrollTo({top:0,behavior:'smooth'})}
-function setType(t){postType=t;$('postType').value=t;document.querySelectorAll('[data-post-type]').forEach(b=>b.classList.toggle('active',b.dataset.postType===t));for(const k of ['space','want','event'])document.querySelectorAll('.'+k+'-only').forEach(e=>e.hidden=k!==t);const e=$('postExplainer');e.innerHTML=t==='space'?'<strong>場所を貸したい</strong><p>所有者・管理者等、掲載権限を持つ人が一時利用可能情報を公開します。契約は外部で直接。</p>':t==='want'?'<strong>場所を探している</strong><p>ポップアップ等の一時利用企画を公開し、条件の近い場所を探します。</p>':'<strong>イベントを告知</strong><p>開催が決まった小さな催しを地域カレンダーへ無料掲載します。</p>'}
-function detail(id){const r=R[id]||D.listings.find(x=>x.id===id);if(!r)return;const self=ownMap().has(r.id),u=safeUrl(r.contactUrl);let extra='';if(r.type==='space')extra=`<dl class="detail-list"><div><dt>場所</dt><dd>${esc(r.spaceKind||'未設定')} ${esc(r.indoorOutdoor||'')}</dd></div><div><dt>広さ</dt><dd>${r.sizeSqm?esc(r.sizeSqm+'㎡'):'未設定'}</dd></div><div><dt>利用OK</dt><dd>${esc(r.allowedUses||'個別確認')}</dd></div><div><dt>NG・注意</dt><dd>${esc(r.prohibitedUses||'個別確認')}</dd></div></dl>`;if(r.type==='event')extra=`<dl class="detail-list"><div><dt>開催場所</dt><dd>${esc(r.placeName)}</dd></div><div><dt>来場料金</dt><dd>${esc(r.eventPrice||'未設定')}</dd></div></dl>`;let rec='';if(r.type==='want'||r.type==='space'){const z=(r.type==='want'?spacesForWant(r):wantsForSpace(r)).slice(0,8);rec=`<hr><h3>${r.type==='want'?'条件の近い場所':'条件の近い企画'}</h3><p class="muted">公開条件による機械的な候補です。</p><div class="grid compact-grid">${z.map(x=>card(x.r,x)).join('')||'<div class="empty">候補なし</div>'}</div>`}$('modalBody').innerHTML=`<div class="meta">${chip(r.type,T[r.type])}${chip('',r.area)}${chip('',r.category)}</div><h2>${esc(r.title)}</h2><p class="detail-period">${esc(period(r))} ${money(r)?' / '+esc(money(r)):''}</p><div class="detail-copy">${esc(r.description)}</div>${extra}<div class="external-contact"><strong>連絡・契約は外部で直接</strong><p>当サイトは予約、交渉、契約、決済、成功報酬に関与しません。</p>${u?`<a class="btn primary" target="_blank" rel="noopener noreferrer" href="${esc(u)}">掲載者の公開窓口を開く</a>`:'<span>公開窓口なし</span>'}</div><div class="actions">${r.type==='event'?'<button class="btn ghost" id="shareEventBtn" type="button">共有</button>':''}${!self?'<button class="btn ghost" id="reportBtn" data-write-action type="button">問題を通報</button>':''}</div>${rec}`;$('modal').classList.add('open');bind($('modalBody'));if($('reportBtn'))$('reportBtn').onclick=()=>report(id);if($('shareEventBtn'))$('shareEventBtn').onclick=()=>shareEvent(r);document.querySelectorAll('[data-write-action]').forEach(b=>b.disabled=!online)}
-function closeModal(){$('modal').classList.remove('open')}
-function toggleFav(id){const a=favs(),i=a.indexOf(id);i>=0?a.splice(i,1):a.push(id);setFav(a);renderAll()}
-async function ready(){if(!online){toast('現在は書込みできません。');return false}if(!boot&&!(await bootstrap())){toast('管理鍵の初期化に失敗しました。');return false}return true}
-function errmsg(e){if(e?.data?.errors?.length)return e.data.errors.join(' / ');const m={RATE_LIMIT:'24時間の新規掲載上限に達しました。',DUPLICATE_ACTIVE_LISTING:'同じタイトル・地域の掲載が既にあります。',MODERATION_REJECTED:'掲載条件を確認してください。'};return m[e?.data?.error]||'処理に失敗しました。'}
-async function report(id){if(!(await ready()))return;const reason=prompt('問題の内容を入力してください。','権利侵害・虚偽・違法利用等の確認依頼');if(!txt(reason))return;try{await api('report',{method:'POST',auth:true,body:{listingId:id,reason:txt(reason)}});toast('通報を受け付けました。');closeModal();await refresh()}catch(e){toast(errmsg(e))}}
-async function shareEvent(r){const url=location.href.split('#')[0]+'#listing-'+r.id,text=`${r.title}｜${r.area}｜${period(r)}`;try{if(navigator.share)await navigator.share({title:r.title,text,url});else{await navigator.clipboard.writeText(text+' '+url);toast('イベントURLをコピーしました。')}}catch(e){if(e?.name!=='AbortError')toast('共有できませんでした。')}}
-function mineCard(r){return`<article class="card"><div class="meta">${chip(r.type,T[r.type])}${statusChip(r)}</div><h3>${esc(r.title)}</h3><p>${esc((r.description||'').slice(0,120))}</p><div class="card-footer wrap-actions"><button class="btn primary small" data-edit="${r.id}" type="button">編集</button>${r.type==='want'&&r.status==='published'?`<button class="btn secondary small" data-convert="${r.id}" type="button">開催決定 → カレンダー告知</button>`:''}${r.type==='space'&&r.status==='stale'?`<button class="btn ghost small" data-renew="${r.id}" type="button">再公開</button>`:''}<button class="btn danger small" data-delete="${r.id}" type="button">削除</button></div></article>`}
-function renderDashboard(){const mine=D.listings.filter(r=>r.status!=='deleted');$('mineGrid').innerHTML=mine.length?mine.map(mineCard).join(''):'<div class="empty">自分の掲載はありません。</div>';bind($('mineGrid'));$('identityBox').innerHTML='<strong>管理鍵はこの端末で自動生成されています。</strong><span>バックアップJSONを安全な場所に保存してください。</span>';const blocks=[];for(const r of mine.filter(x=>x.status==='published'&&(x.type==='want'||x.type==='space'))){const z=(r.type==='want'?spacesForWant(r):wantsForSpace(r)).slice(0,5);blocks.push(`<section class="recommend-block"><h3>${esc(r.title)}</h3><div class="grid compact-grid">${z.map(x=>card(x.r,x)).join('')||'<div class="empty">候補なし</div>'}</div></section>`)}$('recommendationGrid').innerHTML=blocks.join('')||'<div class="empty">公開中の場所または企画があると候補が表示されます。</div>';bind($('recommendationGrid'));$('notificationList').innerHTML=D.notifications.length?D.notifications.map(n=>`<article class="notice ${n.status==='unread'?'unread':''}"><strong>${esc(n.title)}</strong><p>${esc(n.message)}</p></article>`).join(''):'<div class="empty">通知はありません。</div>'}
-function renderFav(){const x=favs().map(id=>R[id]).filter(Boolean);$('favGrid').innerHTML=x.length?x.map(card).join(''):'<div class="empty">お気に入りはありません。</div>';bind($('favGrid'))}
-function renderAll(){renderBrowse();renderCalendar();renderDashboard();renderFav()}
-function payload(){return{id:txt($('editId').value)||undefined,type:postType,title:txt($('title').value),area:txt($('area').value),category:txt($('category').value),description:txt($('description').value),dateStart:txt($('dateStart').value),dateEnd:txt($('dateEnd').value),availableFrom:txt($('availableFrom').value),availableTo:txt($('availableTo').value),capacity:Number($('capacity').value||0),sizeSqm:Number($('sizeSqm').value||0),priceAmount:Number($('priceAmount').value||0),budgetMax:Number($('budgetMax').value||0),placeName:txt($('placeName').value),eventPrice:txt($('eventPrice').value),spaceKind:txt($('spaceKind').value),indoorOutdoor:txt($('indoorOutdoor').value),allowedUses:txt($('allowedUses').value),prohibitedUses:txt($('prohibitedUses').value),tags:txt($('tags').value).split(',').map(txt).filter(Boolean),contactUrl:txt($('contactUrl').value),spaceAuthority:$('spaceAuthority').checked,spaceInfoOnly:$('spaceInfoOnly').checked,temporaryUseOnly:$('temporaryUseOnly').checked,eventRightsConfirmed:$('eventRightsConfirmed').checked,promoOptIn:$('promoOptIn').checked,convertedFromId:txt($('convertedFromId').value)||null,termsAccepted:$('terms').checked}}
-function validate(p){const e=[];if(p.title.length<4)e.push('タイトルは4文字以上必要です。');if(!p.area)e.push('地域を入力してください。');if(!p.category)e.push('用途・カテゴリを選択してください。');if(p.description.length<20)e.push('説明は20文字以上必要です。');if(!safeUrl(p.contactUrl))e.push('公開用問い合わせURLはHTTPSで入力してください。');if(p.type==='space'){if(!p.spaceKind)e.push('場所の種類を選択してください。');if(!p.spaceAuthority)e.push('掲載権限の確認が必要です。');if(!p.spaceInfoOnly)e.push('情報掲載型の確認が必要です。')}if(p.type==='want'){if(!p.dateStart||!p.dateEnd)e.push('希望日を入力してください。');if(!p.temporaryUseOnly)e.push('一時利用の確認が必要です。')}if(p.type==='event'){if(!p.dateStart||!p.dateEnd)e.push('開催日を入力してください。');if(!p.placeName)e.push('開催場所名を入力してください。');if(!p.eventRightsConfirmed)e.push('告知権限の確認が必要です。')}if(!p.termsAccepted)e.push('規約等への同意が必要です。');if(p.dateStart&&p.dateEnd&&p.dateEnd<p.dateStart)e.push('終了日は開始日以降にしてください。');if(p.availableFrom&&p.availableTo&&p.availableTo<p.availableFrom)e.push('利用可能終了日は開始日以降にしてください。');return e}
-async function submitForm(ev){ev.preventDefault();if(!(await ready()))return;const p=payload(),errors=validate(p);if(errors.length){$('validationBox').innerHTML=`<div class="error-box">${errors.map(x=>`<div>${esc(x)}</div>`).join('')}</div>`;return}$('submitBtn').disabled=true;$('submitBtn').textContent='審査中…';try{const d=await api('save_listing',{method:'POST',auth:true,body:p});toast(d.status==='review_required'?'確認待ちとして保存しました。':'掲載しました。');resetForm();await refresh();route(p.type==='event'?'calendar':'dashboard')}catch(e){$('validationBox').innerHTML=`<div class="error-box">${esc(errmsg(e))}</div>`}finally{$('submitBtn').disabled=!online;$('submitBtn').textContent='自動審査して掲載'}}
-function resetForm(){$('postForm').reset();$('editId').value='';$('convertedFromId').value='';$('validationBox').innerHTML='';setType(postType);$('postHeading').textContent='無料で掲載する'}
-const fill=id=>D.listings.find(x=>x.id===id)||R[id];
-function edit(id){const r=fill(id);if(!r)return;setType(r.type);$('editId').value=r.id;$('convertedFromId').value=r.convertedFromId||'';for(const k of ['title','area','category','description','dateStart','dateEnd','availableFrom','availableTo','capacity','sizeSqm','priceAmount','budgetMax','placeName','eventPrice','spaceKind','indoorOutdoor','allowedUses','prohibitedUses','contactUrl'])$(k).value=r[k]||'';$('tags').value=(r.tags||[]).join(', ');$('spaceAuthority').checked=r.spaceAuthority;$('spaceInfoOnly').checked=r.spaceInfoOnly;$('temporaryUseOnly').checked=r.temporaryUseOnly;$('eventRightsConfirmed').checked=r.eventRightsConfirmed;$('promoOptIn').checked=r.promoOptIn;$('terms').checked=true;$('postHeading').textContent='掲載を編集';route('post')}
-function convertToEvent(id){const r=fill(id);if(!r||r.type!=='want')return;resetForm();setType('event');$('convertedFromId').value=r.id;$('title').value=r.title;$('area').value=r.area;$('category').value=r.category;$('description').value=r.description;$('dateStart').value=r.dateStart;$('dateEnd').value=r.dateEnd;$('contactUrl').value=r.contactUrl;$('tags').value=(r.tags||[]).join(', ');$('promoOptIn').checked=true;$('terms').checked=true;$('postHeading').textContent='開催決定：カレンダーに載せる';route('post');toast('開催場所名と告知権限を確認してください。')}
-async function del(id){if(!confirm('この掲載を削除しますか？')||!(await ready()))return;try{await api('delete_listing',{method:'POST',auth:true,body:{id}});toast('削除しました。');await refresh()}catch(e){toast(errmsg(e))}}
-async function renew(id){if(!(await ready()))return;try{await api('renew_listing',{method:'POST',auth:true,body:{id}});toast('再公開しました。');await refresh()}catch(e){toast(errmsg(e))}}
-function exportIdentity(){const blob=new Blob([JSON.stringify({service:'event-platform',version:2,...identity()},null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='event-platform-management-key.json';a.click();URL.revokeObjectURL(a.href)}
-function importIdentity(file){const rd=new FileReader();rd.onload=()=>{try{const x=JSON.parse(String(rd.result||''));if(!/^[0-9a-f-]{36}$/i.test(x.ownerId||'')||txt(x.ownerKey).length<32)throw 0;write('identity',{ownerId:x.ownerId,ownerKey:x.ownerKey,createdAt:x.createdAt||new Date().toISOString()});boot=false;D={listings:[],notifications:[]};toast('管理鍵を復元しました。');refresh()}catch{toast('管理鍵ファイルが正しくありません。')}};rd.readAsText(file)}
-function openHashListing(){const m=location.hash.match(/^#listing-([0-9a-f-]{36})$/i);if(m&&R[m[1]])detail(m[1])}
-function bindStatic(){document.querySelectorAll('[data-nav]').forEach(b=>b.onclick=()=>route(b.dataset.nav));document.querySelectorAll('[data-discover-type]').forEach(b=>b.onclick=()=>{discoverType=b.dataset.discoverType;document.querySelectorAll('[data-discover-type]').forEach(x=>x.classList.toggle('active',x===b));renderBrowse()});document.querySelectorAll('[data-post-type]').forEach(b=>b.onclick=()=>{resetForm();setType(b.dataset.postType)});document.querySelectorAll('[data-post-event]').forEach(b=>b.onclick=()=>{resetForm();setType('event');route('post')});['q','areaFilter','categoryFilter','sort'].forEach(id=>$(id).addEventListener('input',renderBrowse));['calendarQ','calendarArea','calendarCategory'].forEach(id=>$(id).addEventListener('input',renderCalendar));$('postForm').addEventListener('submit',submitForm);$('resetBtn').onclick=resetForm;$('modalClose').onclick=closeModal;$('modal').onclick=e=>{if(e.target===$('modal'))closeModal()};document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});$('exportBtn').onclick=exportIdentity;$('importBtn').onclick=()=>$('importFile').click();$('importFile').onchange=e=>{const f=e.target.files?.[0];if(f)importIdentity(f);e.target.value=''};$('markReadBtn').onclick=async()=>{if(!(await ready()))return;try{await api('mark_notifications_read',{method:'POST',auth:true,body:{}});await dashLoad()}catch(e){toast(errmsg(e))}};$('healthBtn').onclick=async()=>{try{const d=await api('health');toast(`API正常 / ${d.build}`)}catch{toast('APIに接続できません。')}};document.querySelectorAll('[data-dash]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-dash]').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.dash-panel').forEach(p=>p.classList.toggle('active',p.id===b.dataset.dash))});window.addEventListener('hashchange',openHashListing)}
-async function init(){identity();bindStatic();setType('space');D=read('dash_v2',D);const h=location.hash.replace('#','');if(['discover','calendar','post','dashboard','favorites'].includes(h))route(h);await refresh()}
-document.addEventListener('DOMContentLoaded',init);
+
+const CONFIG = {
+  build: '2026-08-27-ui-v4',
+  api: 'https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/localspace-api',
+  pageSize: 60,
+  matchThreshold: 65,
+  defaultPrefecture: '青森県',
+  defaultMunicipality: '青森市',
+};
+
+const TYPES = { space: '使える場所', want: '場所を探している企画', event: 'イベント' };
+const PREFECTURES = ['北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県','茨城県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県','新潟県','富山県','石川県','福井県','山梨県','長野県','岐阜県','静岡県','愛知県','三重県','滋賀県','京都府','大阪府','兵庫県','奈良県','和歌山県','鳥取県','島根県','岡山県','広島県','山口県','徳島県','香川県','愛媛県','高知県','福岡県','佐賀県','長崎県','熊本県','大分県','宮崎県','鹿児島県','沖縄県'];
+
+const $ = (id) => document.getElementById(id);
+const text = (v) => String(v ?? '').trim();
+const norm = (v) => text(v).normalize('NFKC').toLowerCase().replace(/\s+/g, ' ');
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const yen = (v) => Number(v) > 0 ? new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 }).format(Number(v)) : '';
+const dateLabel = (v) => {
+  if (!v) return '';
+  const d = new Date(`${v}T00:00:00+09:00`);
+  return Number.isNaN(d.getTime()) ? v : new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' }).format(d);
+};
+const key = (x) => `localspace_${x}`;
+const read = (x, fallback) => { try { const v = localStorage.getItem(key(x)); return v == null ? fallback : JSON.parse(v); } catch { return fallback; } };
+const write = (x, v) => localStorage.setItem(key(x), JSON.stringify(v));
+
+let state = {
+  online: false,
+  bootstrapped: false,
+  publicRows: [],
+  publicCount: 0,
+  publicOffset: 0,
+  publicHasMore: false,
+  candidateRows: [],
+  calendarRows: [],
+  cityStats: { space: 0, want: 0, event: 0 },
+  previewObjectUrls: [],
+  discoverType: 'space',
+  dashboard: { listings: [], notifications: [] },
+  selectedFiles: [],
+};
+
+function randomSecret() {
+  const a = crypto.getRandomValues(new Uint8Array(32));
+  return [...a].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+function identity() {
+  let v = read('identity', null);
+  if (!v || !/^[0-9a-f-]{36}$/i.test(v.ownerId || '') || text(v.ownerKey).length < 32) {
+    v = { ownerId: crypto.randomUUID(), ownerKey: randomSecret(), createdAt: new Date().toISOString() };
+    write('identity', v);
+  }
+  return v;
+}
+function sessionId() {
+  let v = read('analytics_session', '');
+  if (!/^[0-9a-f-]{36}$/i.test(v)) { v = crypto.randomUUID(); write('analytics_session', v); }
+  return v;
+}
+function authHeaders() {
+  const i = identity();
+  return { 'x-owner-id': i.ownerId, 'x-owner-key': i.ownerKey };
+}
+function safeHttps(v) {
+  try { const u = new URL(text(v)); return u.protocol === 'https:' ? u.href : ''; } catch { return ''; }
+}
+function toast(message) {
+  const e = $('toast');
+  if (!e) return;
+  e.textContent = message;
+  e.classList.add('show');
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => e.classList.remove('show'), 4200);
+}
+function setConnection(ok, note = '') {
+  state.online = ok;
+  $('storageStatus').className = `status ${ok ? 'online' : 'bad'}`;
+  $('storageStatus').textContent = ok ? 'API接続' : 'API未接続';
+  $('storageNote').textContent = note;
+  document.querySelectorAll('[data-write-action]').forEach((b) => { b.disabled = !ok; });
+}
+async function api(action, options = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (options.auth) Object.assign(headers, authHeaders());
+  const qs = options.query ? `&${new URLSearchParams(options.query).toString()}` : '';
+  const r = await fetch(`${CONFIG.api}?action=${encodeURIComponent(action)}${qs}`, {
+    method: options.method || 'GET', headers,
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    cache: 'no-store',
+  });
+  const d = await r.json().catch(() => ({ ok: false, error: 'INVALID_RESPONSE' }));
+  if (!r.ok || d.ok === false) {
+    const e = new Error(d.error || `HTTP_${r.status}`); e.status = r.status; e.data = d; throw e;
+  }
+  return d;
+}
+function errorMessage(e) {
+  const d = e?.data || {};
+  if (d.errors?.length) return d.errors.join('\n');
+  const map = {
+    AUTH_REQUIRED: '管理鍵が必要です。', AUTH_FAILED: '管理鍵が一致しません。',
+    RATE_LIMIT: '24時間の新規掲載上限に達しました。', DUPLICATE_ACTIVE_LISTING: '同じ内容の公開中掲載があります。',
+    IMAGE_LIMIT: '写真は最大3枚です。', IMAGE_SIZE: '写真サイズが上限を超えています。', BAD_IMAGE_SIGNATURE: '画像ファイルの内容を確認できませんでした。',
+    ORIGIN_FORBIDDEN: 'このサイトからの接続は許可されていません。', INTERNAL_ERROR: 'サーバー処理でエラーが発生しました。',
+  };
+  return map[d.error || e?.message] || d.message || d.error || e?.message || '処理に失敗しました。';
+}
+
+async function track(eventName, listing = null, properties = {}) {
+  try {
+    await api('track', { method: 'POST', body: {
+      sessionId: sessionId(), eventName,
+      listingId: listing?.id || null, listingType: listing?.type || null,
+      prefecture: listing?.prefecture || activePrefecture(), municipality: listing?.municipality || activeMunicipality(),
+      area: listing?.areaDetail || '', properties,
+    }});
+  } catch { /* analytics must never block product use */ }
+}
+
+function prefectureOptions() {
+  return PREFECTURES.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
+}
+function initPrefectures() {
+  for (const id of ['prefectureFilter', 'calendarPrefecture', 'prefecture']) {
+    $(id).innerHTML = prefectureOptions();
+    $(id).value = CONFIG.defaultPrefecture;
+  }
+}
+function activePrefecture() { return $('prefectureFilter')?.value || CONFIG.defaultPrefecture; }
+function activeMunicipality() { return text($('municipalityFilter')?.value || CONFIG.defaultMunicipality); }
+
+function mapListing(r) {
+  return {
+    id: r.id, type: r.type, title: r.title, prefecture: r.prefecture || '', municipality: r.municipality || '', areaDetail: r.area_detail || '', area: r.area || '',
+    category: r.category || '', description: r.description || '', dateStart: r.date_start || '', dateEnd: r.date_end || '', availableFrom: r.available_from || '', availableTo: r.available_to || '',
+    capacity: +(r.capacity || 0), sizeSqm: +(r.size_sqm || 0), priceAmount: +(r.price_amount || 0), budgetMax: +(r.budget_max || 0),
+    placeName: r.place_name || '', eventPrice: r.event_price || '', spaceKind: r.space_kind || '', indoorOutdoor: r.indoor_outdoor || '',
+    allowedUses: r.allowed_uses || '', prohibitedUses: r.prohibited_uses || '', tags: Array.isArray(r.tags) ? r.tags : [], contactUrl: r.contact_url || '',
+    status: r.status || 'published', createdAt: r.created_at || '', updatedAt: r.updated_at || '', autoStatusReason: r.auto_status_reason || '',
+    spaceAuthority: !!r.space_authority, spaceInfoOnly: !!r.space_info_only, temporaryUseOnly: !!r.temporary_use_only, eventRightsConfirmed: !!r.event_rights_confirmed,
+    promoOptIn: !!r.promo_opt_in, convertedFromId: r.converted_from_id || '', imageUrls: Array.isArray(r.image_urls) ? r.image_urls : [], imagePaths: Array.isArray(r.image_paths) ? r.image_paths : [],
+  };
+}
+
+async function bootstrap() {
+  try { await api('bootstrap', { method: 'POST', auth: true, body: {} }); state.bootstrapped = true; return true; }
+  catch (e) { console.error(e); state.bootstrapped = false; return false; }
+}
+async function healthCheck(showToast = false) {
+  try {
+    const d = await api('health');
+    const safe = d.ok && d.structuredGeography === true && d.serverKeywordSearch === true && d.cityStats === true && d.imageSignatureValidation === true && d.accountDeletion === true && d.commercialPayments === false && d.successFee === false && d.booking === false && d.privateMessaging === false && d.employmentMatching === false && d.realEstateBrokerage === false && d.underlyingPayments === false;
+    if (!safe) throw new Error('UNSAFE_HEALTH_STATE');
+    setConnection(true, `（${d.build}）`);
+    if (showToast) toast(`API正常 / ${d.build}`);
+    return true;
+  } catch (e) {
+    console.error(e); setConnection(false, '（投稿・更新を停止）'); if (showToast) toast('APIに接続できません。'); return false;
+  }
+}
+function boardQuery(offset = 0) {
+  return {
+    type: state.discoverType || '', prefecture: $('prefectureFilter').value, municipality: text($('municipalityFilter').value),
+    category: $('categoryFilter').value, q: text($('q').value), limit: CONFIG.pageSize, offset,
+  };
+}
