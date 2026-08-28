@@ -14,49 +14,65 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      ORIGIN: https://nknkny.github.io
+      ORIGIN: https://akiya-pocket-aomori.pages.dev
       API: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-api
       PAY: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-payment-api
     steps:
-      - name: Diagnose CORS and readiness
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Non-mutating production payment-path diagnostic
         id: diag
         shell: bash
         run: |
-          set -u
-          api_code=$(curl -sS -o "$RUNNER_TEMP/api-body" -D "$RUNNER_TEMP/api-h" -w '%{http_code}' -X OPTIONS -H "Origin: $ORIGIN" -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type' "$API" || true)
-          pay_code=$(curl -sS -o "$RUNNER_TEMP/pay-body" -D "$RUNNER_TEMP/pay-h" -w '%{http_code}' -X OPTIONS -H "Origin: $ORIGIN" -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type' "$PAY" || true)
-          api_acao=$(grep -i '^access-control-allow-origin:' "$RUNNER_TEMP/api-h" | head -1 | tr -d '\r' | sed 's/^[^:]*:[[:space:]]*//' || true)
-          pay_acao=$(grep -i '^access-control-allow-origin:' "$RUNNER_TEMP/pay-h" | head -1 | tr -d '\r' | sed 's/^[^:]*:[[:space:]]*//' || true)
-          get_code=$(curl -sS -o "$RUNNER_TEMP/ready.json" -w '%{http_code}' -H "Origin: $ORIGIN" "$PAY" || true)
-          ready=$(jq -r '.ready // "missing"' "$RUNNER_TEMP/ready.json" 2>/dev/null || echo invalid_json)
-          amount=$(jq -r '.amountJpy // "missing"' "$RUNNER_TEMP/ready.json" 2>/dev/null || echo invalid_json)
-          link=$(jq -r '.paymentLinkReady // "missing"' "$RUNNER_TEMP/ready.json" 2>/dev/null || echo invalid_json)
-          build=$(jq -r '.buildVersion // "missing"' "$RUNNER_TEMP/ready.json" 2>/dev/null || echo invalid_json)
-          printf 'API_OPTIONS=%s\nAPI_ACAO=%s\nPAY_OPTIONS=%s\nPAY_ACAO=%s\nPAY_GET=%s\nREADY=%s\nAMOUNT=%s\nLINK_READY=%s\nBUILD=%s\n' "$api_code" "$api_acao" "$pay_code" "$pay_acao" "$get_code" "$ready" "$amount" "$link" "$build" | tee "$RUNNER_TEMP/diag.txt"
+          set -euo pipefail
+          api_options=$(curl -sS -o /dev/null -D "$RUNNER_TEMP/api-h" -w '%{http_code}' -X OPTIONS -H "Origin: $ORIGIN" -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type' "$API")
+          pay_options=$(curl -sS -o /dev/null -D "$RUNNER_TEMP/pay-h" -w '%{http_code}' -X OPTIONS -H "Origin: $ORIGIN" -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type' "$PAY")
+          api_acao=$(grep -i '^access-control-allow-origin:' "$RUNNER_TEMP/api-h" | head -1 | tr -d '\r' | sed 's/^[^:]*:[[:space:]]*//')
+          pay_acao=$(grep -i '^access-control-allow-origin:' "$RUNNER_TEMP/pay-h" | head -1 | tr -d '\r' | sed 's/^[^:]*:[[:space:]]*//')
+          api_get=$(curl -fsS -H "Origin: $ORIGIN" "$API")
+          pay_get=$(curl -fsS -H "Origin: $ORIGIN" "$PAY")
+          test "$api_options" = 204
+          test "$pay_options" = 204
+          test "$api_acao" = "$ORIGIN"
+          test "$pay_acao" = "$ORIGIN"
+          jq -e '.ok==true and .ready==true and .registrationPropertyOptional==true and .publicRegistrationDiagnostics==true' <<<"$api_get" >/dev/null
+          jq -e '.ok==true and .ready==true and .amountJpy==3480 and .paymentLinkReady==true' <<<"$pay_get" >/dev/null
+
+          curl -fsSL "$ORIGIN/register.html?diag=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/register.html"
+          curl -fsSL "$ORIGIN/request.html?diag=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/request.html"
+          curl -fsSL "$ORIGIN/checkout.html?diag=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/checkout.html"
+          grep -Fq '無料会員登録する' "$RUNNER_TEMP/register.html"
+          grep -Fq 'register-inline-1.js' "$RUNNER_TEMP/register.html"
+          grep -Fq 'request-inline-1.js' "$RUNNER_TEMP/request.html"
+          grep -Fq 'checkout-inline-1.js' "$RUNNER_TEMP/checkout.html"
+          grep -Fq '1回3,480円' "$RUNNER_TEMP/checkout.html"
+
+          api_build=$(jq -r '.buildVersion' <<<"$api_get")
+          pay_build=$(jq -r '.buildVersion' <<<"$pay_get")
           {
-            echo "api_code=$api_code"
+            echo "api_options=$api_options"
             echo "api_acao=$api_acao"
-            echo "pay_code=$pay_code"
+            echo "pay_options=$pay_options"
             echo "pay_acao=$pay_acao"
-            echo "get_code=$get_code"
-            echo "ready=$ready"
-            echo "amount=$amount"
-            echo "link=$link"
-            echo "build=$build"
+            echo "api_build=$api_build"
+            echo "pay_build=$pay_build"
           } >> "$GITHUB_OUTPUT"
-      - name: Record diagnostic
+
+      - name: Report diagnostic
+        if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          API_CODE: ${{ steps.diag.outputs.api_code }}
+          RESULT: ${{ steps.diag.outcome }}
+          API_OPTIONS: ${{ steps.diag.outputs.api_options }}
           API_ACAO: ${{ steps.diag.outputs.api_acao }}
-          PAY_CODE: ${{ steps.diag.outputs.pay_code }}
+          PAY_OPTIONS: ${{ steps.diag.outputs.pay_options }}
           PAY_ACAO: ${{ steps.diag.outputs.pay_acao }}
-          GET_CODE: ${{ steps.diag.outputs.get_code }}
-          READY: ${{ steps.diag.outputs.ready }}
-          AMOUNT: ${{ steps.diag.outputs.amount }}
-          LINK: ${{ steps.diag.outputs.link }}
-          BUILD: ${{ steps.diag.outputs.build }}
+          API_BUILD: ${{ steps.diag.outputs.api_build }}
+          PAY_BUILD: ${{ steps.diag.outputs.pay_build }}
         shell: bash
         run: |
-          body=$(jq -n --arg a "$API_CODE" --arg aa "$API_ACAO" --arg p "$PAY_CODE" --arg pa "$PAY_ACAO" --arg g "$GET_CODE" --arg r "$READY" --arg m "$AMOUNT" --arg l "$LINK" --arg b "$BUILD" '{body:("AKIYA_PAID_SALES_DIAG\nAPI_OPTIONS="+$a+"\nAPI_ACAO="+$aa+"\nPAY_OPTIONS="+$p+"\nPAY_ACAO="+$pa+"\nPAY_GET="+$g+"\nREADY="+$r+"\nAMOUNT="+$m+"\nLINK_READY="+$l+"\nBUILD="+$b)}')
+          overall=FAIL; [ "$RESULT" = success ] && overall=PASS
+          body=$(jq -n --arg o "$overall" --arg a "${API_OPTIONS:-}" --arg aa "${API_ACAO:-}" --arg p "${PAY_OPTIONS:-}" --arg pa "${PAY_ACAO:-}" --arg ab "${API_BUILD:-}" --arg pb "${PAY_BUILD:-}" --arg r "$GITHUB_RUN_ID" '{body:("AKIYA_PAID_SALES_DIAG="+$o+"\nRUN_ID="+$r+"\nAPI_OPTIONS="+$a+" API_ACAO="+$aa+"\nPAY_OPTIONS="+$p+" PAY_ACAO="+$pa+"\nAPI_BUILD="+$ab+"\nPAY_BUILD="+$pb)}')
           curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
