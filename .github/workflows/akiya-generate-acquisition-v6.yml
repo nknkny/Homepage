@@ -1,0 +1,184 @@
+name: Akiya Pocket distinct acquisition creatives v6
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  generate:
+    if: github.event.issue.number == 42 && contains(github.event.comment.body, 'GENERATE_AKIYA_ACQ_V6')
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 20
+      - name: Install renderer
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-noto-cjk >/dev/null
+          python -m pip install -q pillow
+      - name: Render unique images and motion videos
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p akiya-pocket/assets/social/generated-v6
+          cat > /tmp/render_v6.py <<'PY'
+          from PIL import Image, ImageDraw, ImageFont, ImageFilter
+          import os, math, random, subprocess
+          random.seed(20260828)
+          OUT='akiya-pocket/assets/social/generated-v6'
+          NAVY=(8,43,88); ORANGE=(235,91,27); INK=(24,32,42); MUTED=(92,101,112); WHITE=(255,255,255)
+          BG=(245,248,251); SKY=(207,229,242); GREEN=(91,135,91); PALE=(226,235,244); ROAD=(183,190,197)
+          FONT='/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc'; BOLD='/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc'
+          def F(s,b=False): return ImageFont.truetype(BOLD if b else FONT,s)
+          def rr(d,b,r,fill,outline=None,w=1): d.rounded_rectangle(b,radius=r,fill=fill,outline=outline,width=w)
+          def ct(d,s,y,size=42,fill=INK,b=True,W=1080):
+              font=F(size,b); bb=d.textbbox((0,0),s,font=font); d.text(((W-(bb[2]-bb[0]))/2,y),s,font=font,fill=fill)
+          def brand(d,W=1080):
+              d.text((54,45),'空家ポケット',font=F(34,True),fill=NAVY); d.ellipse((W-86,55,W-66,75),fill=ORANGE)
+          def label(d,s,x,y): rr(d,(x,y,x+220,y+56),18,(255,255,255,235)); d.text((x+20,y+12),s,font=F(24,True),fill=NAVY)
+          def house(d,x,y,s=1,body=(235,226,208),roof=(73,81,91),snow=False):
+              d.polygon([(x,y+70*s),(x+130*s,y),(x+260*s,y+70*s)],fill=roof)
+              if snow: d.line((x+4,y+66*s,x+130*s,y+4*s,x+255*s,y+66*s),fill=WHITE,width=max(3,int(13*s)))
+              d.rectangle((x+25*s,y+70*s,x+235*s,y+220*s),fill=body)
+              d.rectangle((x+105*s,y+145*s,x+155*s,y+220*s),fill=(126,88,64))
+              for wx in (55,175):
+                  d.rectangle((x+wx*s,y+105*s,x+(wx+42)*s,y+145*s),fill=(177,216,235)); d.line((x+(wx+21)*s,y+105*s,x+(wx+21)*s,y+145*s),fill=WHITE,width=max(1,int(3*s)))
+          def phone(d,x,y,s=1):
+              rr(d,(x,y,x+115*s,y+205*s),18*s,(28,33,40)); rr(d,(x+9*s,y+13*s,x+106*s,y+187*s),13*s,WHITE)
+              d.rectangle((x+24*s,y+38*s,x+90*s,y+52*s),fill=PALE); d.rectangle((x+24*s,y+68*s,x+84*s,y+81*s),fill=(215,225,235)); d.rectangle((x+24*s,y+99*s,x+92*s,y+112*s),fill=(215,225,235)); d.ellipse((x+50*s,y+164*s,x+65*s,y+179*s),fill=ORANGE)
+          def person(d,x,y,s=1,shirt=NAVY):
+              d.ellipse((x+32*s,y,x+82*s,y+50*s),fill=(225,184,151)); rr(d,(x+16*s,y+44*s,x+98*s,y+145*s),20*s,shirt)
+              d.line((x+24*s,y+145*s,x+10*s,y+220*s),fill=INK,width=max(3,int(12*s))); d.line((x+78*s,y+145*s,x+92*s,y+220*s),fill=INK,width=max(3,int(12*s)))
+          def report(d,x,y,s=1):
+              rr(d,(x,y,x+250*s,y+315*s),18*s,WHITE,(210,220,230),2); d.rectangle((x+28*s,y+28*s,x+210*s,y+46*s),fill=NAVY)
+              for j in range(4): d.rectangle((x+28*s,y+(82+48*j)*s,x+(215-12*j)*s,y+(96+48*j)*s),fill=(213,224,235))
+              d.rectangle((x+28*s,y+278*s,x+156*s,y+294*s),fill=ORANGE)
+          def texture(im,amount=12):
+              px=im.load(); W,H=im.size
+              for _ in range(W*H//80):
+                  x=random.randrange(W); y=random.randrange(H); r,g,b=px[x,y][:3]; z=random.randint(-amount,amount); px[x,y]=(max(0,min(255,r+z)),max(0,min(255,g+z)),max(0,min(255,b+z)))
+              return im
+          def save_scene(name,kind):
+              W,H=1080,1350; im=Image.new('RGB',(W,H),BG); d=ImageDraw.Draw(im); brand(d,W)
+              if kind==1:
+                  # natural residential scene; no customer claim
+                  d.rectangle((0,150,W,760),fill=(205,226,241)); d.rectangle((0,760,W,H),fill=(196,203,192));
+                  for i in range(12):
+                      x=random.randint(10,1060); y=random.randint(650,1030); d.ellipse((x-30,y-70,x+45,y+40),fill=random.choice([(81,123,80),(95,141,87),(71,112,73)]))
+                  house(d,265,360,2.0,body=(229,220,203),roof=(67,72,79));
+                  d.polygon([(0,1060),(1080,900),(1080,1350),(0,1350)],fill=(171,178,184));
+                  ct(d,'「見に行けない」を、',880,52,NAVY); ct(d,'そのままにしない選択肢。',950,48,INK); d.text((72,1155),'サービス説明用イメージ｜実際の依頼物件ではありません',font=F(21),fill=(55,64,74))
+              elif kind==2:
+                  d.rectangle((0,145,W,820),fill=(225,234,240)); house(d,100,365,1.55,body=(238,230,216),roof=(85,84,82)); phone(d,680,410,1.6); d.line((480,680,670,600),fill=ORANGE,width=10)
+                  ct(d,'家族で「今」を共有する。',885,52,NAVY); d.text((90,1000),'写真があれば、離れて暮らす家族でも同じ状態を見ながら話せます。',font=F(27),fill=INK); d.text((90,1190),'イメージ画像｜実顧客・実物件ではありません',font=F(21),fill=MUTED)
+              elif kind==3:
+                  d.rectangle((0,145,W,850),fill=(213,226,235)); house(d,300,340,1.85,body=(232,224,210),roof=(79,83,88),snow=True); d.rectangle((0,800,W,H),fill=(237,242,245));
+                  ct(d,'雪の前に、まず状況だけ。',900,50,NAVY); d.text((90,1015),'今すぐ依頼しなくても、無料会員登録だけしておけます。',font=F(29),fill=INK); d.text((90,1190),'サービス説明用イメージ｜実際の依頼物件ではありません',font=F(21),fill=MUTED)
+              elif kind==4:
+                  rr(d,(70,190,1010,1120),44,WHITE,(213,221,230),3); ct(d,'無料会員で、まずできること',250,50,NAVY)
+                  items=[('01','サービス内容を確認'),('02','報告見本を確認'),('03','必要なときだけ依頼')]
+                  for i,(n,s) in enumerate(items):
+                      y=420+i*205; d.ellipse((120,y-10,220,y+90),fill=NAVY); d.text((145,y+13),n,font=F(30,True),fill=WHITE); d.text((270,y+12),s,font=F(36,True),fill=INK)
+                  rr(d,(250,1040,830,1130),26,NAVY); ct(d,'登録料 0円・月額 0円',1059,34,WHITE); d.text((75,1220),'※登録しただけでは料金は発生しません。',font=F(23),fill=MUTED)
+              elif kind==5:
+                  rr(d,(70,190,1010,1160),44,(249,251,253),(213,221,230),3); ct(d,'報告は「見えたこと」と「見えないこと」',240,43,NAVY)
+                  report(d,120,400,1.45); d.text((550,465),'確認できた',font=F(34,True),fill=NAVY); d.text((550,520),'→ 写真＋観察事実',font=F(30),fill=INK); d.text((550,665),'確認できない',font=F(34,True),fill=ORANGE); d.text((550,720),'→ 「未確認」と記載',font=F(30),fill=INK); d.text((95,1220),'原因や修理要否を診断するサービスではありません。',font=F(23),fill=MUTED)
+              elif kind==6:
+                  rr(d,(70,200,1010,1140),44,WHITE,(214,222,231),3); ct(d,'いま払う必要はありません。',265,50,NAVY); d.text((140,430),'無料会員登録',font=F(48,True),fill=INK); d.text((710,430),'0円',font=F(54,True),fill=ORANGE); d.line((140,520,940,520),fill=(225,230,236),width=3); d.text((140,600),'月額料金',font=F(48,True),fill=INK); d.text((710,600),'0円',font=F(54,True),fill=ORANGE); d.line((140,690,940,690),fill=(225,230,236),width=3); d.text((140,770),'現地確認',font=F(48,True),fill=INK); d.text((620,770),'必要な時だけ',font=F(38,True),fill=NAVY); rr(d,(190,970,890,1085),30,NAVY); ct(d,'まず無料会員登録',994,40,WHITE)
+              texture(im,8).save(f'{OUT}/{name}.png',quality=95)
+          for name,kind in [('residential-distance',1),('family-phone-share',2),('prewinter-house',3),('free-member-steps',4),('verified-report-scope',5),('zero-cost-entry',6)]: save_scene(name,kind)
+
+          W,H,FPS,D=540,960,24,17
+          def ease(x): x=max(0,min(1,x)); return x*x*(3-2*x)
+          def lerp(a,b,t): return a+(b-a)*ease(t)
+          def bsmall(d): d.text((26,24),'空家ポケット',font=F(21,True),fill=NAVY); d.text((26,53),'イメージ映像',font=F(12),fill=MUTED)
+          def sub(d,s): rr(d,(22,827,518,925),18,WHITE,(218,225,233)); font=F(22,True); bb=d.textbbox((0,0),s,font=font); d.text(((W-(bb[2]-bb[0]))/2,860),s,font=font,fill=INK)
+          def arrow(d,x1,y1,x2,y2,c=ORANGE,w=7):
+              d.line((x1,y1,x2,y2),fill=c,width=w); ang=math.atan2(y2-y1,x2-x1); L=17; d.polygon([(x2,y2),(x2+L*math.cos(ang+2.55),y2+L*math.sin(ang+2.55)),(x2+L*math.cos(ang-2.55),y2+L*math.sin(ang-2.55))],fill=c)
+          def tcenter(d,s,y,size=34,c=INK):
+              font=F(size,True); bb=d.textbbox((0,0),s,font=font); d.text(((W-(bb[2]-bb[0]))/2,y),s,font=font,fill=c)
+          def encode(name,fn):
+              out=f'{OUT}/{name}.mp4'; p=subprocess.Popen(['ffmpeg','-y','-loglevel','error','-f','rawvideo','-pix_fmt','rgb24','-s',f'{W}x{H}','-r',str(FPS),'-i','-','-an','-c:v','libx264','-preset','medium','-crf','23','-pix_fmt','yuv420p','-movflags','+faststart',out],stdin=subprocess.PIPE)
+              for i in range(FPS*D):
+                  t=i/FPS; im=Image.new('RGB',(W,H),BG); d=ImageDraw.Draw(im); bsmall(d); fn(d,t); p.stdin.write(im.tobytes())
+              p.stdin.close(); rc=p.wait();
+              if rc: raise SystemExit(rc)
+              if os.path.getsize(out)<25000: raise RuntimeError('video too small '+out)
+          def video_free(d,t):
+              if t<4:
+                  person(d,65,280,1.15); phone(d,290,275,1.3); tcenter(d,'無料会員って、',120,40,NAVY); tcenter(d,'何ができる？',170,44,INK); sub(d,'登録しただけでは料金は発生しません。')
+              elif t<8:
+                  for i,txt in enumerate(['サービス内容を見る','報告見本を見る','必要な時だけ依頼']):
+                      y=230+i*145; rr(d,(72,y,468,y+105),18,WHITE,(214,222,231)); d.ellipse((92,y+25,147,y+80),fill=NAVY); d.text((111,y+34),str(i+1),font=F(23,True),fill=WHITE); d.text((170,y+34),txt,font=F(25,True),fill=INK)
+                  sub(d,'無料登録は「今すぐ買う」ためではありません。')
+              elif t<12:
+                  phone(d,85,250,1.25); report(d,275,230,.85); arrow(d,215,380,270,355); tcenter(d,'まず情報を確認する',120,34,NAVY); sub(d,'依頼するかは、登録後に決められます。')
+              else:
+                  rr(d,(85,285,455,500),26,WHITE,(214,222,231)); tcenter(d,'登録料 0円',320,41,NAVY); tcenter(d,'月額 0円',385,41,NAVY); rr(d,(82,650,458,745),25,NAVY); tcenter(d,'無料会員登録へ',674,32,WHITE); sub(d,'プロフィール等の公式導線から')
+          def video_family(d,t):
+              if t<4:
+                  phone(d,65,280,1.05); phone(d,365,280,1.05); tcenter(d,'家族で話したい。',120,38,NAVY); tcenter(d,'でも「今」が分からない。',170,31,INK); sub(d,'離れて暮らす家族の実家確認。')
+              elif t<8:
+                  house(d,150,245,1.0); camx=lerp(365,300,(t-4)/1.6); rr(d,(camx,505,camx+105,565),12,NAVY); d.ellipse((camx+33,512,camx+82,560),fill=(28,35,44)); d.ellipse((camx+45,524,camx+70,549),fill=SKY); tcenter(d,'現地で写真を記録',120,35,NAVY); sub(d,'安全に外から見える範囲だけ確認。')
+              elif t<12:
+                  report(d,145,220,1.0); phone(d,48,330,.72); phone(d,390,330,.72); arrow(d,185,510,110,420); arrow(d,350,510,420,420); tcenter(d,'同じ報告を見ながら話せる',120,31,NAVY); sub(d,'写真＋観察した事実を共有。')
+              else:
+                  tcenter(d,'まず無料会員登録',250,43,NAVY); tcenter(d,'必要な時だけ現況確認',320,29,INK); rr(d,(95,600,445,700),25,NAVY); tcenter(d,'登録料・月額 0円',628,29,WHITE); sub(d,'実顧客・実物件の映像ではありません。')
+          def video_prewinter(d,t):
+              if t<4:
+                  house(d,145,250,1.0,snow=False); forx=lerp(600,360,t/4); d.ellipse((forx,160,forx+18,178),fill=(210,225,240)); tcenter(d,'青森の冬が来る前に',120,39,NAVY); sub(d,'今すぐ契約しなくてもいい。')
+              elif t<8:
+                  house(d,145,250,1.0,snow=True); d.rectangle((0,610,W,820),fill=(235,241,245)); tcenter(d,'まず「今」だけ知りたい',120,38,NAVY); sub(d,'そんな段階のための1回確認。')
+              elif t<12:
+                  phone(d,90,285,1.15); d.text((265,315),'無料会員登録',font=F(31,True),fill=NAVY); d.text((265,370),'登録料 0円',font=F(28),fill=INK); d.text((265,420),'月額 0円',font=F(28),fill=INK); d.text((265,470),'依頼は後で選べる',font=F(25),fill=INK); sub(d,'登録だけでは課金されません。')
+              else:
+                  house(d,60,290,.8,snow=True); report(d,295,240,.72); arrow(d,220,430,290,370); tcenter(d,'必要になった時だけ依頼',130,34,NAVY); rr(d,(90,650,450,745),25,NAVY); tcenter(d,'無料会員登録へ',677,31,WHITE); sub(d,'サービス説明用イメージ映像')
+          def video_honesty(d,t):
+              if t<4:
+                  house(d,145,255,1.0); d.rectangle((250,480,420,610),fill=(235,239,243)); d.line((250,480,420,610),fill=ORANGE,width=6); tcenter(d,'見えない場所まで',120,37,INK); tcenter(d,'分かったふりをしない。',169,38,NAVY); sub(d,'現況確認で大切にすること。')
+              elif t<8:
+                  report(d,150,220,1.0); d.text((105,580),'確認できた → 写真＋観察事実',font=F(24,True),fill=NAVY); d.text((105,635),'確認できない → 「未確認」',font=F(24,True),fill=ORANGE); sub(d,'断定しないことも報告の一部です。')
+              elif t<12:
+                  rr(d,(80,245,460,600),25,WHITE,(214,222,231)); d.text((120,300),'しないこと',font=F(35,True),fill=NAVY); d.text((125,380),'・室内立入り',font=F(27),fill=INK); d.text((125,435),'・修理や工事',font=F(27),fill=INK); d.text((125,490),'・専門的な診断',font=F(27),fill=INK); sub(d,'外から安全に見える範囲を確認。')
+              else:
+                  tcenter(d,'まず無料会員登録',270,42,NAVY); tcenter(d,'サービス範囲を先に確認できます',330,25,INK); rr(d,(92,620,448,718),25,NAVY); tcenter(d,'登録料・月額 0円',649,29,WHITE); sub(d,'イメージ映像｜実案件ではありません')
+          encode('free-member-first-motion',video_free)
+          encode('family-share-motion',video_family)
+          encode('prewinter-motion',video_prewinter)
+          encode('honest-report-motion',video_honesty)
+          PY
+          python /tmp/render_v6.py
+          for f in akiya-pocket/assets/social/generated-v6/*; do test -s "$f"; done
+          for f in akiya-pocket/assets/social/generated-v6/*.mp4; do ffprobe -v error -show_entries format=duration,size -of default=nw=1 "$f"; test "$(stat -c%s "$f")" -gt 25000; test "$(stat -c%s "$f")" -lt 25000000; done
+      - name: Commit generated assets
+        id: commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add akiya-pocket/assets/social/generated-v6/
+          if git diff --cached --quiet; then
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          else
+            git commit -m 'Akiya Pocket: generate distinct acquisition creatives v6'
+            git push origin HEAD:main
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Report result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.commit.outputs.sha }}
+        shell: bash
+        run: |
+          state=FAIL; [ "${{ job.status }}" = success ] && state=PASS
+          body=$(jq -n --arg s "$state" --arg sha "${SHA:-}" --arg run "$GITHUB_RUN_ID" '{body:("AKIYA_ACQ_V6="+$s+"\nRUN_ID="+$run+"\nSHA="+$sha)}')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
