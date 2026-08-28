@@ -20,7 +20,6 @@ registerForm.addEventListener('submit',async e=>{
   if(!d.name){publicTrack('register_client_validation_error','name_missing');return AkiyaUI.show(box,'お名前を入力してください。')}
   if(!d.email){publicTrack('register_client_validation_error','email_missing');return AkiyaUI.show(box,'メールアドレスを入力してください。')}
   if(!AkiyaUI.requirePassword(d.password)){publicTrack('register_client_validation_error','password_too_short');return AkiyaUI.show(box,'パスワードは6文字以上で入力してください。')}
-  if(d.password!==passwordConfirm.value){publicTrack('register_client_validation_error','password_mismatch');return AkiyaUI.show(box,'確認用パスワードが一致しません。')}
   if(!d.requiredConsent){publicTrack('register_client_validation_error','required_consent_missing');return AkiyaUI.show(box,'規約とプライバシーポリシーへの同意が必要です。')}
   AkiyaUI.busy(btn,true);
   try{
