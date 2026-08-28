@@ -1,0 +1,90 @@
+name: Akiya motion quality audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'akiya-pocket/assets/social/generated-v4/*.mp4'
+      - 'akiya-pocket/assets/social/generated-v4-facebook/*.mp4'
+      - 'akiya-pocket/assets/social/generated-v6/*.mp4'
+      - 'akiya-pocket/assets/social/generated-v7/*.mp4'
+      - '.github/workflows/akiya-motion-quality-audit.yml'
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit:
+    if: github.event_name == 'push' || (github.event.issue.number == 42 && contains(github.event.comment.body, 'RUN_AKIYA_MOTION_QUALITY_AUDIT'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Verify generated social videos are real motion video
+        run: |
+          set -euo pipefail
+          command -v ffprobe >/dev/null
+          command -v ffmpeg >/dev/null
+          mapfile -t files < <(find \
+            akiya-pocket/assets/social/generated-v4 \
+            akiya-pocket/assets/social/generated-v4-facebook \
+            akiya-pocket/assets/social/generated-v6 \
+            akiya-pocket/assets/social/generated-v7 \
+            -maxdepth 1 -type f -name '*.mp4' 2>/dev/null | sort)
+          if [ "${#files[@]}" -lt 10 ]; then
+            echo "ERROR: expected at least 10 current-generation MP4 files, found ${#files[@]}" >&2
+            exit 1
+          fi
+          checked=0
+          for f in "${files[@]}"; do
+            dur=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$f")
+            width=$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 "$f")
+            height=$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 "$f")
+            fps_expr=$(ffprobe -v error -select_streams v:0 -show_entries stream=avg_frame_rate -of csv=p=0 "$f")
+            python3 - "$f" "$dur" "$width" "$height" "$fps_expr" <<'PY'
+import sys
+f,d,w,h,fps_expr=sys.argv[1:]
+d=float(d); w=int(w); h=int(h)
+num,den=(fps_expr.split('/')+['1'])[:2]
+fps=float(num)/max(float(den),1e-9)
+ratio=w/h
+assert 10 <= d <= 30, f"{f}: duration {d:.2f}s outside 10-30s"
+assert h > w, f"{f}: not portrait ({w}x{h})"
+assert 0.52 <= ratio <= 0.60, f"{f}: aspect ratio {ratio:.3f} not approximately 9:16"
+assert w >= 360 and h >= 640, f"{f}: resolution too low {w}x{h}"
+assert fps >= 20, f"{f}: fps too low {fps:.2f}"
+PY
+            hashes=$(mktemp)
+            ffmpeg -v error -i "$f" -vf 'fps=1,scale=160:-2,format=gray' -f framemd5 - > "$hashes"
+            total=$(awk '!/^#/ {n++} END{print n+0}' "$hashes")
+            unique=$(awk '!/^#/ {print $NF}' "$hashes" | sort -u | wc -l | tr -d ' ')
+            rm -f "$hashes"
+            if [ "$total" -lt 8 ]; then
+              echo "ERROR: $f has too few sampled frames: $total" >&2
+              exit 1
+            fi
+            min_unique=6
+            if [ "$unique" -lt "$min_unique" ]; then
+              echo "ERROR: $f behaves like static/card media: only $unique unique 1fps frames out of $total" >&2
+              exit 1
+            fi
+            echo "PASS $f duration=${dur}s ${width}x${height} unique_sampled_frames=${unique}/${total}"
+            checked=$((checked+1))
+          done
+          echo "AKIYA_MOTION_QUALITY_AUDIT=PASS checked=$checked"
+
+      - name: Report audit
+        if: always() && github.event_name == 'issue_comment'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "${{ job.status }}" = 'success' ]; then overall=PASS; else overall=FAIL; fi
+          body=$(jq -n --arg o "$overall" '{body:("AKIYA_MOTION_QUALITY_AUDIT="+$o)}')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
