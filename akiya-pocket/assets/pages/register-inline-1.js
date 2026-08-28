@@ -5,6 +5,13 @@ const publicTrack=(type,label,value)=>{
   AkiyaAnalytics.publicTrack(type,{contentCategory:'registration',contentId:'member_registration',actionLabel:label||'',value:value===undefined?'':value});
 };
 const paidIntentCampaign=()=>/^aomori_paid_intent_/.test(new URLSearchParams(location.search).get('utm_campaign')||'');
+document.addEventListener('DOMContentLoaded',()=>{
+  const heroCta=document.querySelector('.page-hero a[href="#free-register"]');
+  if(heroCta){
+    heroCta.textContent='無料チェックリストを使う';
+    heroCta.setAttribute('aria-label','実家・空き家の状況整理チェックリストを無料で使う');
+  }
+});
 registerForm.addEventListener('input',()=>{
   if(!registrationStarted){registrationStarted=true;publicTrack('register_start','first_input')}
 });
