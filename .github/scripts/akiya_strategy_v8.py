@@ -1,0 +1,201 @@
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
+import os, math, random, subprocess, hashlib, json
+
+random.seed(20260828)
+OUT='akiya-pocket/assets/social/generated-v8'
+os.makedirs(OUT, exist_ok=True)
+FONT='/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc'
+BOLD='/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc'
+NAVY=(13,43,76); INK=(28,35,43); MUTED=(94,105,116); ORANGE=(228,93,49)
+WHITE=(255,255,255); LINE=(209,219,227)
+
+def F(n,b=False): return ImageFont.truetype(BOLD if b else FONT,n)
+def rr(d,b,r,fill,outline=None,w=1): d.rounded_rectangle(b,radius=r,fill=fill,outline=outline,width=w)
+def text(d,s,xy,n=36,c=INK,b=False): d.text(xy,s,font=F(n,b),fill=c)
+def center(d,s,y,n=42,c=INK,b=True,W=1080):
+    f=F(n,b); q=d.textbbox((0,0),s,font=f); d.text(((W-(q[2]-q[0]))/2,y),s,font=f,fill=c)
+def brand(d,W=1080):
+    text(d,'空家ポケット',(54,44),30,NAVY,True); d.ellipse((W-88,54,W-66,76),fill=ORANGE)
+def gradient(size,a,b):
+    W,H=size; im=Image.new('RGB',size); p=im.load()
+    for y in range(H):
+        t=y/max(1,H-1); c=tuple(int(a[i]*(1-t)+b[i]*t) for i in range(3))
+        for x in range(W): p[x,y]=c
+    return im
+def grain(im,n=12000,amp=4):
+    p=im.load(); W,H=im.size
+    for _ in range(n):
+        x=random.randrange(W); y=random.randrange(H); r,g,b=p[x,y]; z=random.randint(-amp,amp)
+        p[x,y]=(max(0,min(255,r+z)),max(0,min(255,g+z)),max(0,min(255,b+z)))
+    return im
+def house(d,x,y,s=1,body=(224,211,188),roof=(70,76,82),snow=False):
+    # Soft fictional Japanese detached-house illustration.
+    d.polygon([(x,y+55*s),(x+120*s,y),(x+240*s,y+55*s)],fill=roof)
+    d.rectangle((x+18*s,y+55*s,x+222*s,y+198*s),fill=body)
+    d.rectangle((x+100*s,y+127*s,x+145*s,y+198*s),fill=(126,92,70))
+    for wx in (45,160):
+        d.rectangle((x+wx*s,y+88*s,x+(wx+43)*s,y+130*s),fill=(174,210,226))
+        d.line((x+(wx+21)*s,y+88*s,x+(wx+21)*s,y+130*s),fill=WHITE,width=max(2,int(3*s)))
+    if snow: d.line((x+3,y+54*s,x+120*s,y+3*s,x+237*s,y+54*s),fill=WHITE,width=max(4,int(10*s)))
+def phone(d,x,y,s=1):
+    rr(d,(x,y,x+128*s,y+228*s),22*s,(29,33,38)); rr(d,(x+9*s,y+13*s,x+119*s,y+207*s),16*s,WHITE)
+    for j,w in enumerate((78,66,88)): d.rectangle((x+24*s,y+(48+38*j)*s,x+(24+w)*s,y+(61+38*j)*s),fill=(216,225,233))
+    d.ellipse((x+55*s,y+177*s,x+74*s,y+196*s),fill=ORANGE)
+def report(d,x,y,s=1):
+    rr(d,(x,y,x+250*s,y+310*s),20*s,WHITE,(203,214,223),2)
+    d.rectangle((x+26*s,y+28*s,x+210*s,y+48*s),fill=NAVY)
+    for j,w in enumerate((170,142,185,120)): d.rectangle((x+26*s,y+(86+46*j)*s,x+(26+w)*s,y+(99+46*j)*s),fill=(213,224,232))
+    d.rectangle((x+26*s,y+270*s,x+155*s,y+287*s),fill=ORANGE)
+def footer(d): text(d,'オリジナル説明用イメージ｜実顧客・実物件ではありません',(60,1270),18,MUTED)
+
+def save_still(name,mode):
+    W,H=1080,1350
+    pals=[((244,248,250),(226,237,241)),((252,247,239),(239,229,214)),((243,241,251),(226,226,243)),((242,249,245),(225,239,230)),((250,244,245),(240,226,229))]
+    im=grain(gradient((W,H),*pals[mode%len(pals)])); d=ImageDraw.Draw(im); brand(d)
+    if mode==0:
+        center(d,'遠方の実家。外から見るなら',170,43,NAVY); center(d,'まずこの5か所',230,56,INK)
+        items=['建物全体','玄関・窓','雨どい・見える屋根','庭・草木','郵便受け周辺']
+        for i,s in enumerate(items):
+            y=380+i*136; rr(d,(100,y,980,y+100),25,WHITE,LINE,2); d.ellipse((135,y+24,187,y+76),fill=NAVY); text(d,'✓',(149,y+29),25,WHITE,True); text(d,s,(225,y+27),32,INK,True)
+    elif mode==1:
+        d.rectangle((0,145,W,790),fill=(207,225,235)); house(d,120,335,2.3); rr(d,(680,270,985,710),34,(250,250,249)); phone(d,765,360,1.2)
+        text(d,'遠方にいる日常と、',(70,860),46,NAVY,True); text(d,'青森の実家の「今」。',(70,925),50,INK,True); text(d,'移動しなくても、まず確認材料を持てる。',(70,1038),27,MUTED)
+    elif mode==2:
+        center(d,'よくある勘違い',170,34,ORANGE); rr(d,(85,270,995,585),36,(255,244,241)); text(d,'Q',(130,325),60,ORANGE,True); text(d,'登録したらすぐ課金？',(230,333),39,INK,True)
+        rr(d,(85,650,995,1040),36,WHITE,LINE,2); text(d,'A',(130,710),60,NAVY,True); text(d,'いいえ。登録だけでは',(230,710),37,NAVY,True); text(d,'料金は発生しません。',(230,765),37,NAVY,True); text(d,'現地確認を申し込むかは後で選べます。',(130,900),27,MUTED)
+    elif mode==3:
+        d.rectangle((0,145,W,770),fill=(196,216,231)); house(d,275,335,2.15,snow=True); center(d,'雪が積もる前に',845,48,NAVY); center(d,'「今」を一度そろえる',910,52,INK); text(d,'危険を煽るためではなく、家族で同じ現況を把握するため。',(85,1040),27,MUTED)
+    elif mode==4:
+        center(d,'報告で大切にすること',170,40,NAVY); report(d,95,330,1.35); rr(d,(510,330,975,610),30,WHITE); text(d,'確認できた',(560,380),30,NAVY,True); text(d,'写真＋観察事実',(560,435),31,INK,True)
+        rr(d,(510,675,975,955),30,(255,247,242)); text(d,'確認できない',(560,725),30,ORANGE,True); text(d,'「未確認」と記載',(560,780),31,INK,True); text(d,'分からないことを、分かったことにしない。',(120,1080),30,MUTED)
+    elif mode==5:
+        center(d,'家族で見る写真を、ひとつに。',170,44,NAVY); rr(d,(80,285,500,960),34,WHITE); house(d,145,420,1.2); text(d,'青森の実家',(155,700),30,INK,True)
+        rr(d,(580,285,1000,960),34,(236,242,248)); phone(d,710,410,1.8); text(d,'離れて暮らす家族',(650,720),28,INK,True); d.line((500,625,580,625),fill=ORANGE,width=9); d.polygon([(580,625),(553,610),(553,640)],fill=ORANGE)
+    elif mode==6:
+        center(d,'会員登録',235,44,MUTED); center(d,'0円',310,110,ORANGE); center(d,'月額 0円',465,44,NAVY); rr(d,(175,615,905,760),36,NAVY); center(d,'登録だけでは課金なし',650,41,WHITE); text(d,'使うかどうかを決める前に、内容だけ確認できます。',(160,890),29,INK)
+    elif mode==7:
+        center(d,'空家ポケットが見る範囲',170,43,NAVY); house(d,355,355,1.55); pts=[(350,520,'外観'),(610,515,'窓'),(465,335,'屋根'),(300,675,'庭'),(670,690,'外まわり')]
+        for x,y,s in pts: d.ellipse((x-18,y-18,x+18,y+18),fill=ORANGE); rr(d,(x-55,y+28,x+78,y+72),16,WHITE); text(d,s,(x-35,y+37),20,INK,True)
+        text(d,'安全に外から見える範囲だけ。室内・高所・診断は行いません。',(100,980),27,MUTED)
+    elif mode==8:
+        center(d,'写真報告までの4ステップ',170,43,NAVY); labels=['対象を確認','現地で撮影','見えた事実を整理','写真付きで報告']
+        for i,s in enumerate(labels):
+            y=340+i*190; rr(d,(120,y,960,y+125),30,WHITE,LINE,2); text(d,str(i+1),(155,y+31),45,ORANGE,True); text(d,s,(245,y+38),31,INK,True)
+            if i<3: d.line((540,y+125,540,y+185),fill=NAVY,width=6)
+    else:
+        center(d,'「確認したら修理営業される？」',200,42,NAVY); rr(d,(90,340,990,585),36,(255,242,239)); center(d,'空家ポケットの基本サービスに',385,32,INK); center(d,'修理・工事は含みません',440,44,ORANGE)
+        rr(d,(90,665,990,980),36,WHITE,LINE,2); text(d,'すること',(150,720),28,NAVY,True); text(d,'外観・敷地の目視／写真／観察事実の報告',(150,775),28,INK); text(d,'しないこと',(150,865),28,NAVY,True); text(d,'室内立入り／工事／専門診断',(150,920),28,INK)
+    footer(d); im.save(f'{OUT}/{name}.png',optimize=True)
+
+stills=[('ig-utility-checklist',0),('ig-faq-no-charge',2),('ig-seasonal-prep',3),('ig-honest-report',4),('ig-family-share',5),('ig-free-entry',6),('fb-remote-magazine',1),('fb-scope-map',7),('fb-process-ribbon',8),('fb-myth-no-repair',9)]
+for name,mode in stills: save_still(name,mode)
+
+# Motion: different scene grammar for every video, 18 seconds, 9:16.
+W,H,FPS,D=720,1280,30,18
+def base(bg=(244,247,249)):
+    im=Image.new('RGB',(W,H),bg); d=ImageDraw.Draw(im); text(d,'空家ポケット',(30,25),22,NAVY,True); text(d,'オリジナル説明用イメージ',(30,58),12,MUTED); return im,d
+def cap(d,s):
+    rr(d,(28,1105,692,1225),25,WHITE,LINE,2); f=F(24,True); q=d.textbbox((0,0),s,font=f); d.text(((W-(q[2]-q[0]))/2,1145),s,font=f,fill=INK)
+def ctext(d,s,y,n=36,c=INK):
+    f=F(n,True); q=d.textbbox((0,0),s,font=f); d.text(((W-(q[2]-q[0]))/2,y),s,font=f,fill=c)
+def encode(name,fn):
+    out=f'{OUT}/{name}.mp4'
+    args=['ffmpeg','-y','-loglevel','error','-f','rawvideo','-pix_fmt','rgb24','-s',f'{W}x{H}','-r',str(FPS),'-i','-','-f','lavfi','-i','sine=frequency=180:sample_rate=44100','-shortest','-t',str(D),'-filter_complex','[1:a]volume=0.015,afade=t=in:st=0:d=1,afade=t=out:st=17:d=1[a]','-map','0:v','-map','[a]','-c:v','libx264','-preset','medium','-crf','22','-pix_fmt','yuv420p','-c:a','aac','-b:a','64k','-movflags','+faststart',out]
+    p=subprocess.Popen(args,stdin=subprocess.PIPE)
+    for i in range(FPS*D): p.stdin.write(fn(i/FPS).tobytes())
+    p.stdin.close(); rc=p.wait()
+    if rc: raise SystemExit(rc)
+    if os.path.getsize(out)<45000: raise RuntimeError('video too small '+out)
+
+def calendar_story(t):
+    im,d=base((246,244,239)); ctext(d,'次の帰省日、まだ未定。',105,39,NAVY)
+    if t<4:
+        rr(d,(105,255,615,815),38,WHITE,LINE,3); ctext(d,'8月',300,32,MUTED)
+        for r in range(5):
+            for c in range(7): d.ellipse((150+c*62,390+r*70,184+c*62,424+r*70),fill=(232,235,237))
+        x=150+(int(t*2)%7)*62; d.ellipse((x,390,x+34,424),outline=ORANGE,width=5); cap(d,'予定が決まらなくても、家のことは気になる。')
+    elif t<8:
+        house(d,205,360,1.3); d.line((90,900,630,900),fill=(204,211,216),width=5); d.ellipse((95,875,145,925),fill=NAVY); d.ellipse((575,875,625,925),fill=ORANGE); cap(d,'青森へ行く日と、現況を知る日は別にできる。')
+    elif t<13:
+        phone(d,145,310,2.1); report(d,405,335,.75); d.line((335,580,405,515),fill=ORANGE,width=8); cap(d,'内容と報告見本を先に確認。')
+    else:
+        rr(d,(110,340,610,610),35,WHITE); ctext(d,'登録料 0円',405,48,ORANGE); ctext(d,'月額 0円',480,40,NAVY); cap(d,'必要になった時の入口として。')
+    return im
+
+def decision_story(t):
+    im,d=base((242,246,243)); ctext(d,'まだ、決めなくていい。',105,40,NAVY)
+    if t<5:
+        for i,s in enumerate(['売る','残す','管理する']): rr(d,(70+i*215,330,245+i*215,520),28,WHITE,LINE,2); text(d,s,(112+i*215,400),31,INK,True)
+        cap(d,'選択肢を決める前に、今の状態を知る。')
+    elif t<9:
+        house(d,240,340,1.1); d.ellipse((318,630,402,714),outline=ORANGE,width=9); d.line((385,700,470,800),fill=ORANGE,width=12); cap(d,'外から安全に見える範囲を確認。')
+    elif t<14:
+        report(d,240,300,1.0); cap(d,'写真と観察事実だけを整理する。')
+    else:
+        ctext(d,'判断材料を、先に。',430,46,NAVY); cap(d,'売却・相続・修理の助言をするサービスではありません。')
+    return im
+
+def one_time_faq(t):
+    im,d=base((250,245,242))
+    if t<4: ctext(d,'Q. 毎月契約が必要？',260,45,ORANGE); cap(d,'一度だけ見たい人には重すぎる？')
+    elif t<8: ctext(d,'A. 月額契約なし',300,54,NAVY); ctext(d,'自動更新なし',380,44,INK); cap(d,'現地確認は必要な時の1回単位。')
+    elif t<13: house(d,230,350,1.2); d.ellipse((290,760,430,900),outline=NAVY,width=13); ctext(d,'1回',795,45,NAVY); cap(d,'青森市の外観・敷地を安全に見える範囲で。')
+    else: ctext(d,'まず内容を確認',420,48,NAVY); cap(d,'登録は無料。現地確認を頼むかは後で選べます。')
+    return im
+
+def family_chat(t):
+    im,d=base((242,245,251)); ctext(d,'家族の「最後に見た日」が違う。',105,34,NAVY)
+    if t<5:
+        for i,(x,s,c) in enumerate([(60,'先月は草が…',(229,239,247)),(260,'私は春以来見てない',(248,235,226)),(100,'今の写真ある？',(231,242,234))]): rr(d,(x,300+i*190,x+400,420+i*190),28,c); text(d,s,(x+25,338+i*190),25,INK,True)
+        cap(d,'言葉だけだと、家族の認識がずれる。')
+    elif t<10:
+        house(d,250,310,1.0); d.rectangle((135,650,585,920),fill=(225,233,240)); d.rectangle((160,680,560,890),fill=(198,218,229)); cap(d,'同じ現況写真を見ながら話せる。')
+    elif t<14: report(d,235,300,1.05); cap(d,'写真＋見えた事実。見えない場所は未確認。')
+    else: ctext(d,'家族で「今」をそろえる。',430,42,NAVY); cap(d,'必要なら公式サイトで確認範囲を見る。')
+    return im
+
+def process_walk(t):
+    im,d=base((245,249,247)); stages=[('1','対象確認'),('2','現地撮影'),('3','事実整理'),('4','写真報告')]; idx=min(3,int(t//4.2))
+    for i,(n,s) in enumerate(stages):
+        y=245+i*190; rr(d,(105,y,615,y+120),30,WHITE,LINE,2); d.ellipse((130,y+30,190,y+90),fill=NAVY if i<=idx else (205,213,218)); text(d,n,(150,y+42),24,WHITE,True); text(d,s,(230,y+40),30,INK,True)
+        if i<3: d.line((360,y+120,360,y+180),fill=ORANGE if i<idx else (205,213,218),width=7)
+    cap(d,['確認範囲を決める','安全に見える場所から撮る','断定せず観察事実を整理','写真と一緒に報告'][idx]); return im
+
+def winter_check(t):
+    im,d=base((238,245,250))
+    if t<5: house(d,245,330,1.1); ctext(d,'雪の前に見るなら',160,40,NAVY); cap(d,'危険を煽るのではなく、現況をそろえる。')
+    elif t<10:
+        for i,s in enumerate(['玄関まわり','雨どい','庭・草木']): rr(d,(110,300+i*190,610,425+i*190),25,WHITE); text(d,s,(170,338+i*190),30,INK,True); d.ellipse((530,338+i*190,570,378+i*190),fill=ORANGE)
+        cap(d,'外から安全に見える範囲だけ確認。')
+    elif t<14: house(d,245,330,1.1,snow=True); cap(d,'高所・屋根上・危険箇所には入りません。')
+    else: ctext(d,'今の状態を、写真で。',430,45,NAVY); cap(d,'必要なら公式サイトでサービス範囲を見る。')
+    return im
+
+def yard_scan(t):
+    im,d=base((244,249,242)); house(d,240,270,1.05); pts=[(250,535,'建物'),(460,520,'窓'),(190,700,'庭'),(500,730,'外まわり')]; idx=int(t*1.1)%len(pts)
+    for i,(x,y,s) in enumerate(pts): d.ellipse((x-22,y-22,x+22,y+22),fill=ORANGE if i==idx else (180,195,183)); text(d,s,(x-28,y+35),19,INK,True)
+    d.arc((120,180,600,900),start=(t*40)%360,end=((t*40)%360)+65,fill=NAVY,width=10); cap(d,'建物だけでなく、外から見える敷地も確認対象。'); return im
+
+def honest_mask(t):
+    im,d=base((248,247,244)); ctext(d,'見えない場所は、見えないまま。',120,35,NAVY)
+    if t<6: report(d,230,285,1.05); d.rectangle((285,500,440,540),fill=(210,222,231)); cap(d,'確認できたことは写真＋観察事実。')
+    elif t<12: report(d,230,285,1.05); rr(d,(255,570,465,660),20,(255,239,233)); ctext(d,'未確認',590,32,ORANGE); cap(d,'安全に見えなかった場所を断定しません。')
+    else: ctext(d,'「分からない」を残す。',410,47,NAVY); cap(d,'診断ではなく、現況確認だからこそのルール。')
+    return im
+
+videos=[('ig-calendar-story',calendar_story),('ig-decision-story',decision_story),('yt-one-time-faq',one_time_faq),('yt-family-chat',family_chat),('fb-report-process',process_walk),('yt-prewinter-check',winter_check),('yt-yard-scan',yard_scan),('yt-honest-mask',honest_mask)]
+for name,fn in videos: encode(name,fn)
+
+files=sorted(os.path.join(OUT,x) for x in os.listdir(OUT))
+assert len(files)==18, len(files)
+rows=[]
+for p in files:
+    size=os.path.getsize(p); assert size>15000,(p,size)
+    sha=hashlib.sha256(open(p,'rb').read()).hexdigest(); row={'file':p,'bytes':size,'sha256':sha}
+    if p.endswith('.mp4'):
+        probe=json.loads(subprocess.check_output(['ffprobe','-v','error','-select_streams','v:0','-show_entries','stream=width,height,avg_frame_rate,duration','-of','json',p],text=True))['streams'][0]
+        row['probe']=probe
+    rows.append(row)
+assert len(set(x['sha256'] for x in rows))==18
+open('/tmp/v8-manifest.json','w').write(json.dumps(rows,ensure_ascii=False,indent=2))
+print(json.dumps({'ok':True,'files':18,'unique_sha':18,'videos':8,'stills':10},ensure_ascii=False))
