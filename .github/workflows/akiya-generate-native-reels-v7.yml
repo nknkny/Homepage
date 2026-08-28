@@ -47,7 +47,7 @@ jobs:
           def person(d,x,y,s=1): d.ellipse((x+28*s,y,x+70*s,y+42*s),fill=(226,185,151)); rr(d,(x+15*s,y+37*s,x+84*s,y+125*s),18*s,NAVY); d.line((x+28*s,y+125*s,x+14*s,y+190*s),fill=INK,width=max(3,int(10*s))); d.line((x+70*s,y+125*s,x+82*s,y+190*s),fill=INK,width=max(3,int(10*s)))
           def report(d,x,y,s=1): rr(d,(x,y,x+205*s,y+260*s),15*s,WHITE,(211,221,231),2); d.rectangle((x+24*s,y+25*s,x+175*s,y+41*s),fill=NAVY); [d.rectangle((x+24*s,y+(70+40*j)*s,x+(175-10*j)*s,y+(82+40*j)*s),fill=(214,225,235)) for j in range(4)]; d.rectangle((x+24*s,y+225*s,x+130*s,y+239*s),fill=ORANGE)
           def calendar(d,x,y,s=1): rr(d,(x,y,x+220*s,y+210*s),18*s,WHITE,(211,221,231),2); d.rectangle((x,y,x+220*s,y+48*s),fill=NAVY); d.text((x+48*s,y+9*s),'8月',font=F(max(12,int(25*s)),True),fill=WHITE); [d.rectangle((x+(25+55*c)*s,y+(72+45*r)*s,x+(48+55*c)*s,y+(95+45*r)*s),fill=PALE) for r in range(3) for c in range(3)]
-          def option(d,x,y,s,label,active=False): rr(d,(x,y,x+150,y+70),17,NAVY if active else WHITE,(211,221,231),2); f=F(23,True); bb=d.textbbox((0,0),label,font=f); d.text((x+(150-(bb[2]-bb[0]))/2,y+20),label,font=f,fill=WHITE if active else INK)
+          def option(d,x,y,label,active=False): rr(d,(x,y,x+150,y+70),17,NAVY if active else WHITE,(211,221,231),2); f=F(23,True); bb=d.textbbox((0,0),label,font=f); d.text((x+(150-(bb[2]-bb[0]))/2,y+20),label,font=f,fill=WHITE if active else INK)
           def yard(d,x,y,s=1): house(d,x,y,s); [d.ellipse((x+(20+i*32)*s,y+160*s,x+(55+i*32)*s,y+215*s),fill=(74+5*i,120+4*i,76)) for i in range(5)]
           def render(name,story):
               raw=f'/tmp/{name}-raw.mp4'; out=f'{OUT}/{name}.mp4'
@@ -56,7 +56,6 @@ jobs:
                   t=i/FPS; im=Image.new('RGB',(W,H),BG); d=ImageDraw.Draw(im); brand(d); story(d,t); p.stdin.write(im.tobytes())
               p.stdin.close();
               if p.wait(): raise SystemExit('render failed')
-              # Original synthesized ambient/chime only; no third-party music.
               filt="sine=frequency=220:sample_rate=44100:duration=18,volume=0.025[a];sine=frequency=330:sample_rate=44100:duration=18,volume=0.018[b];[a][b]amix=inputs=2:normalize=0,afade=t=in:st=0:d=0.4,afade=t=out:st=17:d=1[aout]"
               subprocess.check_call(['ffmpeg','-y','-loglevel','error','-i',raw,'-filter_complex',filt,'-map','0:v','-map','[aout]','-c:v','copy','-c:a','aac','-b:a','96k','-shortest','-movflags','+faststart',out])
               os.remove(raw)
