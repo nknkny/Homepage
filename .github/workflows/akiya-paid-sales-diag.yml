@@ -26,31 +26,39 @@ jobs:
         id: diag
         shell: bash
         run: |
-          set -euo pipefail
-          api_options=$(curl -sS -o /dev/null -D "$RUNNER_TEMP/api-h" -w '%{http_code}' -X OPTIONS -H "Origin: $ORIGIN" -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type' "$API")
-          pay_options=$(curl -sS -o /dev/null -D "$RUNNER_TEMP/pay-h" -w '%{http_code}' -X OPTIONS -H "Origin: $ORIGIN" -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type' "$PAY")
-          api_acao=$(grep -i '^access-control-allow-origin:' "$RUNNER_TEMP/api-h" | head -1 | tr -d '\r' | sed 's/^[^:]*:[[:space:]]*//')
-          pay_acao=$(grep -i '^access-control-allow-origin:' "$RUNNER_TEMP/pay-h" | head -1 | tr -d '\r' | sed 's/^[^:]*:[[:space:]]*//')
-          api_get=$(curl -fsS -H "Origin: $ORIGIN" "$API")
-          pay_get=$(curl -fsS -H "Origin: $ORIGIN" "$PAY")
-          test "$api_options" = 204
-          test "$pay_options" = 204
-          test "$api_acao" = "$ORIGIN"
-          test "$pay_acao" = "$ORIGIN"
-          jq -e '.ok==true and .ready==true and .registrationPropertyOptional==true and .publicRegistrationDiagnostics==true' <<<"$api_get" >/dev/null
-          jq -e '.ok==true and .ready==true and .amountJpy==3480 and .paymentLinkReady==true' <<<"$pay_get" >/dev/null
+          set -u -o pipefail
+          fails=()
+          pass(){ echo "PASS $1"; }
+          fail(){ echo "FAIL $1"; fails+=("$1"); }
+          check_eq(){ [ "$2" = "$3" ] && pass "$1" || fail "$1"; }
+          check_cmd(){ if "$@"; then return 0; else return 1; fi; }
 
-          curl -fsSL "$ORIGIN/register.html?diag=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/register.html"
-          curl -fsSL "$ORIGIN/request.html?diag=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/request.html"
-          curl -fsSL "$ORIGIN/checkout.html?diag=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/checkout.html"
-          grep -Fq '無料会員登録する' "$RUNNER_TEMP/register.html"
-          grep -Fq 'register-inline-1.js' "$RUNNER_TEMP/register.html"
-          grep -Fq 'request-inline-1.js' "$RUNNER_TEMP/request.html"
-          grep -Fq 'checkout-inline-1.js' "$RUNNER_TEMP/checkout.html"
-          grep -Fq '1回3,480円' "$RUNNER_TEMP/checkout.html"
+          api_options=$(curl -sS -o /dev/null -D "$RUNNER_TEMP/api-h" -w '%{http_code}' -X OPTIONS -H "Origin: $ORIGIN" -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type' "$API" || echo CURL_FAIL)
+          pay_options=$(curl -sS -o /dev/null -D "$RUNNER_TEMP/pay-h" -w '%{http_code}' -X OPTIONS -H "Origin: $ORIGIN" -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type' "$PAY" || echo CURL_FAIL)
+          api_acao=$(grep -i '^access-control-allow-origin:' "$RUNNER_TEMP/api-h" 2>/dev/null | head -1 | tr -d '\r' | sed 's/^[^:]*:[[:space:]]*//' || true)
+          pay_acao=$(grep -i '^access-control-allow-origin:' "$RUNNER_TEMP/pay-h" 2>/dev/null | head -1 | tr -d '\r' | sed 's/^[^:]*:[[:space:]]*//' || true)
+          api_get=$(curl -fsS -H "Origin: $ORIGIN" "$API" 2>/dev/null || true)
+          pay_get=$(curl -fsS -H "Origin: $ORIGIN" "$PAY" 2>/dev/null || true)
 
-          api_build=$(jq -r '.buildVersion' <<<"$api_get")
-          pay_build=$(jq -r '.buildVersion' <<<"$pay_get")
+          check_eq api_options "$api_options" 204
+          check_eq pay_options "$pay_options" 204
+          check_eq api_acao "$api_acao" "$ORIGIN"
+          check_eq pay_acao "$pay_acao" "$ORIGIN"
+          if jq -e '.ok==true and .ready==true and .registrationPropertyOptional==true and .publicRegistrationDiagnostics==true' <<<"$api_get" >/dev/null 2>&1; then pass api_readiness; else fail api_readiness; fi
+          if jq -e '.ok==true and .ready==true and .amountJpy==3480 and .paymentLinkReady==true' <<<"$pay_get" >/dev/null 2>&1; then pass payment_readiness; else fail payment_readiness; fi
+
+          for page in register request checkout; do
+            if curl -fsSL "$ORIGIN/${page}.html?diag=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/${page}.html"; then pass "${page}_fetch"; else fail "${page}_fetch"; : > "$RUNNER_TEMP/${page}.html"; fi
+          done
+          if grep -Fq '無料会員登録する' "$RUNNER_TEMP/register.html"; then pass register_free_cta; else fail register_free_cta; fi
+          if grep -Fq 'register-inline-1.js' "$RUNNER_TEMP/register.html"; then pass register_script; else fail register_script; fi
+          if grep -Fq 'request-inline-1.js' "$RUNNER_TEMP/request.html"; then pass request_script; else fail request_script; fi
+          if grep -Fq 'checkout-inline-1.js' "$RUNNER_TEMP/checkout.html"; then pass checkout_script; else fail checkout_script; fi
+          if grep -Fq '1回3,480円' "$RUNNER_TEMP/checkout.html"; then pass checkout_price; else fail checkout_price; fi
+
+          api_build=$(jq -r '.buildVersion // ""' <<<"$api_get" 2>/dev/null || true)
+          pay_build=$(jq -r '.buildVersion // ""' <<<"$pay_get" 2>/dev/null || true)
+          failed_checks=$(IFS=,; echo "${fails[*]}")
           {
             echo "api_options=$api_options"
             echo "api_acao=$api_acao"
@@ -58,7 +66,9 @@ jobs:
             echo "pay_acao=$pay_acao"
             echo "api_build=$api_build"
             echo "pay_build=$pay_build"
+            echo "failed_checks=$failed_checks"
           } >> "$GITHUB_OUTPUT"
+          [ ${#fails[@]} -eq 0 ]
 
       - name: Report diagnostic
         if: always()
@@ -71,8 +81,9 @@ jobs:
           PAY_ACAO: ${{ steps.diag.outputs.pay_acao }}
           API_BUILD: ${{ steps.diag.outputs.api_build }}
           PAY_BUILD: ${{ steps.diag.outputs.pay_build }}
+          FAILED_CHECKS: ${{ steps.diag.outputs.failed_checks }}
         shell: bash
         run: |
           overall=FAIL; [ "$RESULT" = success ] && overall=PASS
-          body=$(jq -n --arg o "$overall" --arg a "${API_OPTIONS:-}" --arg aa "${API_ACAO:-}" --arg p "${PAY_OPTIONS:-}" --arg pa "${PAY_ACAO:-}" --arg ab "${API_BUILD:-}" --arg pb "${PAY_BUILD:-}" --arg r "$GITHUB_RUN_ID" '{body:("AKIYA_PAID_SALES_DIAG="+$o+"\nRUN_ID="+$r+"\nAPI_OPTIONS="+$a+" API_ACAO="+$aa+"\nPAY_OPTIONS="+$p+" PAY_ACAO="+$pa+"\nAPI_BUILD="+$ab+"\nPAY_BUILD="+$pb)}')
+          body=$(jq -n --arg o "$overall" --arg a "${API_OPTIONS:-}" --arg aa "${API_ACAO:-}" --arg p "${PAY_OPTIONS:-}" --arg pa "${PAY_ACAO:-}" --arg ab "${API_BUILD:-}" --arg pb "${PAY_BUILD:-}" --arg f "${FAILED_CHECKS:-}" --arg r "$GITHUB_RUN_ID" '{body:("AKIYA_PAID_SALES_DIAG="+$o+"\nRUN_ID="+$r+"\nAPI_OPTIONS="+$a+" API_ACAO="+$aa+"\nPAY_OPTIONS="+$p+" PAY_ACAO="+$pa+"\nAPI_BUILD="+$ab+"\nPAY_BUILD="+$pb+"\nFAILED_CHECKS="+$f)}')
           curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
