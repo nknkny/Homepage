@@ -8,7 +8,7 @@ on:
     types: [created]
 
 permissions:
-  contents: read
+  contents: write
   issues: write
 
 jobs:
@@ -25,7 +25,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: main
-
       - name: Verify live ownership key and sitemap
         id: verify
         shell: bash
@@ -35,7 +34,6 @@ jobs:
           test "$key_body" = "$INDEXNOW_KEY"
           curl -fsSL --max-time 20 "$ORIGIN/sitemap.xml?run=$GITHUB_RUN_ID" -o "$RUNNER_TEMP/sitemap.xml"
           grep -Fq "$ORIGIN/" "$RUNNER_TEMP/sitemap.xml"
-
       - name: Submit canonical URLs to IndexNow
         id: submit
         shell: bash
@@ -58,7 +56,6 @@ jobs:
             --data-binary @"$RUNNER_TEMP/indexnow.json")
           echo "http_code=$code" >> "$GITHUB_OUTPUT"
           test "$code" = 200 -o "$code" = 202
-
       - name: Report IndexNow result
         if: always()
         env:
@@ -72,9 +69,44 @@ jobs:
           count=$(cat "$RUNNER_TEMP/indexnow-count.txt" 2>/dev/null || echo 0)
           if [ "$VERIFY" = success ] && [ "$SUBMIT" = success ]; then overall=PASS; else overall=FAIL; fi
           body=$(jq -n --arg o "$overall" --arg c "$count" --arg h "${HTTP_CODE:-}" --arg r "$GITHUB_RUN_ID" '{body:("AKIYA_INDEXNOW="+$o+"\nRUN_ID="+$r+"\nURL_COUNT="+$c+"\nHTTP_CODE="+$h)}')
-          curl -fsSL -X POST \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H 'Accept: application/vnd.github+json' \
-            -H 'Content-Type: application/json' \
-            -d "$body" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
+
+  v8_generate:
+    if: github.event_name == 'issue_comment' && github.event.issue.number == 42 && contains(github.event.comment.body, 'GENERATE_AKIYA_STRATEGY_V8')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 5
+      - name: Install renderer
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-noto-cjk >/dev/null
+          python -m pip install -q pillow
+      - name: Render and validate 18 creatives
+        run: python .github/scripts/akiya_strategy_v8.py
+      - name: Commit generated assets
+        id: commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add akiya-pocket/assets/social/generated-v8
+          if git diff --cached --quiet; then
+            echo 'No asset changes'
+          else
+            git commit -m 'Generate diversified v8 acquisition creatives'
+            git push origin HEAD:main
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Report v8 result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT_OUTCOME: ${{ steps.commit.outcome }}
+          SHA: ${{ steps.commit.outputs.sha }}
+        run: |
+          if [ "$COMMIT_OUTCOME" = success ]; then overall=PASS; else overall=FAIL; fi
+          body=$(jq -n --arg o "$overall" --arg s "${SHA:-}" --arg r "$GITHUB_RUN_ID" '{body:("AKIYA_STRATEGY_V8="+$o+"\nRUN_ID="+$r+"\nSHA="+$s)}')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
