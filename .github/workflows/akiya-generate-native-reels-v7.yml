@@ -1,0 +1,108 @@
+name: Akiya Pocket native unique reels v7
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  generate:
+    if: github.event.issue.number == 42 && contains(github.event.comment.body, 'GENERATE_AKIYA_REELS_V7')
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 20
+      - name: Install renderer
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-noto-cjk >/dev/null
+          python -m pip install -q pillow
+      - name: Render three unique native vertical videos with original audio
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p akiya-pocket/assets/social/generated-v7
+          cat > /tmp/render_v7.py <<'PY'
+          from PIL import Image, ImageDraw, ImageFont
+          import subprocess, math, os
+          OUT='akiya-pocket/assets/social/generated-v7'; W,H,FPS,D=540,960,24,18
+          NAVY=(8,43,88); ORANGE=(235,91,27); INK=(25,33,43); MUTED=(91,101,112); WHITE=(255,255,255); BG=(246,249,252); PALE=(224,234,244); SKY=(205,228,243); GREEN=(88,135,88)
+          FONT='/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc'; BOLD='/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc'
+          def F(s,b=False): return ImageFont.truetype(BOLD if b else FONT,s)
+          def rr(d,b,r,fill,outline=None,w=1): d.rounded_rectangle(b,radius=r,fill=fill,outline=outline,width=w)
+          def e(x): x=max(0,min(1,x)); return x*x*(3-2*x)
+          def lerp(a,b,x): return a+(b-a)*e(x)
+          def ct(d,s,y,z=34,c=INK):
+              f=F(z,True); bb=d.textbbox((0,0),s,font=f); d.text(((W-(bb[2]-bb[0]))/2,y),s,font=f,fill=c)
+          def brand(d): d.text((25,22),'空家ポケット',font=F(20,True),fill=NAVY); d.text((25,50),'イメージ映像',font=F(11),fill=MUTED)
+          def sub(d,s): rr(d,(22,830,518,925),18,WHITE,(218,225,233)); f=F(21,True); bb=d.textbbox((0,0),s,font=f); d.text(((W-(bb[2]-bb[0]))/2,862),s,font=f,fill=INK)
+          def phone(d,x,y,s=1): rr(d,(x,y,x+95*s,y+170*s),16*s,(27,33,40)); rr(d,(x+8*s,y+11*s,x+87*s,y+155*s),11*s,WHITE); d.rectangle((x+21*s,y+35*s,x+72*s,y+46*s),fill=PALE); d.rectangle((x+21*s,y+64*s,x+68*s,y+75*s),fill=(212,224,235)); d.ellipse((x+42*s,y+134*s,x+55*s,y+147*s),fill=ORANGE)
+          def house(d,x,y,s=1): d.polygon([(x,y+55*s),(x+105*s,y),(x+210*s,y+55*s)],fill=(76,82,89)); d.rectangle((x+22*s,y+55*s,x+188*s,y+175*s),fill=(235,226,208)); d.rectangle((x+82*s,y+112*s,x+127*s,y+175*s),fill=(126,89,65)); d.rectangle((x+42*s,y+86*s,x+73*s,y+119*s),fill=SKY); d.rectangle((x+142*s,y+86*s,x+173*s,y+119*s),fill=SKY)
+          def person(d,x,y,s=1): d.ellipse((x+28*s,y,x+70*s,y+42*s),fill=(226,185,151)); rr(d,(x+15*s,y+37*s,x+84*s,y+125*s),18*s,NAVY); d.line((x+28*s,y+125*s,x+14*s,y+190*s),fill=INK,width=max(3,int(10*s))); d.line((x+70*s,y+125*s,x+82*s,y+190*s),fill=INK,width=max(3,int(10*s)))
+          def report(d,x,y,s=1): rr(d,(x,y,x+205*s,y+260*s),15*s,WHITE,(211,221,231),2); d.rectangle((x+24*s,y+25*s,x+175*s,y+41*s),fill=NAVY); [d.rectangle((x+24*s,y+(70+40*j)*s,x+(175-10*j)*s,y+(82+40*j)*s),fill=(214,225,235)) for j in range(4)]; d.rectangle((x+24*s,y+225*s,x+130*s,y+239*s),fill=ORANGE)
+          def calendar(d,x,y,s=1): rr(d,(x,y,x+220*s,y+210*s),18*s,WHITE,(211,221,231),2); d.rectangle((x,y,x+220*s,y+48*s),fill=NAVY); d.text((x+48*s,y+9*s),'8月',font=F(max(12,int(25*s)),True),fill=WHITE); [d.rectangle((x+(25+55*c)*s,y+(72+45*r)*s,x+(48+55*c)*s,y+(95+45*r)*s),fill=PALE) for r in range(3) for c in range(3)]
+          def option(d,x,y,s,label,active=False): rr(d,(x,y,x+150,y+70),17,NAVY if active else WHITE,(211,221,231),2); f=F(23,True); bb=d.textbbox((0,0),label,font=f); d.text((x+(150-(bb[2]-bb[0]))/2,y+20),label,font=f,fill=WHITE if active else INK)
+          def yard(d,x,y,s=1): house(d,x,y,s); [d.ellipse((x+(20+i*32)*s,y+160*s,x+(55+i*32)*s,y+215*s),fill=(74+5*i,120+4*i,76)) for i in range(5)]
+          def render(name,story):
+              raw=f'/tmp/{name}-raw.mp4'; out=f'{OUT}/{name}.mp4'
+              p=subprocess.Popen(['ffmpeg','-y','-loglevel','error','-f','rawvideo','-pix_fmt','rgb24','-s',f'{W}x{H}','-r',str(FPS),'-i','-','-an','-c:v','libx264','-preset','medium','-crf','23','-pix_fmt','yuv420p',raw],stdin=subprocess.PIPE)
+              for i in range(FPS*D):
+                  t=i/FPS; im=Image.new('RGB',(W,H),BG); d=ImageDraw.Draw(im); brand(d); story(d,t); p.stdin.write(im.tobytes())
+              p.stdin.close();
+              if p.wait(): raise SystemExit('render failed')
+              # Original synthesized ambient/chime only; no third-party music.
+              filt="sine=frequency=220:sample_rate=44100:duration=18,volume=0.025[a];sine=frequency=330:sample_rate=44100:duration=18,volume=0.018[b];[a][b]amix=inputs=2:normalize=0,afade=t=in:st=0:d=0.4,afade=t=out:st=17:d=1[aout]"
+              subprocess.check_call(['ffmpeg','-y','-loglevel','error','-i',raw,'-filter_complex',filt,'-map','0:v','-map','[aout]','-c:v','copy','-c:a','aac','-b:a','96k','-shortest','-movflags','+faststart',out])
+              os.remove(raw)
+              if os.path.getsize(out)<40000: raise RuntimeError('small '+out)
+          def no_trip(d,t):
+              if t<4: calendar(d,155,250,1.05); d.line((175,490,375,490),fill=ORANGE,width=7); ct(d,'次に青森へ帰る日が',110,34,NAVY); ct(d,'まだ決まっていない。',158,38,INK); sub(d,'それでも、実家は少し気になる。')
+              elif t<8: person(d,55,330,1.05); phone(d,300,300,1.35); ct(d,'今すぐ依頼しなくていい',115,34,NAVY); sub(d,'無料会員登録だけしておけます。')
+              elif t<12: phone(d,65,285,1.2); report(d,285,245,.85); d.line((205,390,280,350),fill=ORANGE,width=7); ct(d,'内容と報告見本を先に確認',118,30,NAVY); sub(d,'必要になった時だけ次へ。')
+              elif t<15: house(d,160,270,1.05); ct(d,'登録料 0円・月額 0円',115,38,NAVY); sub(d,'登録しただけでは課金されません。')
+              else: rr(d,(88,305,452,420),25,NAVY); ct(d,'無料会員登録',335,34,WHITE); ct(d,'帰省予定がなくても、準備はできる。',520,24,INK); sub(d,'Instagramプロフィール等の公式導線から')
+          def undecided(d,t):
+              if t<4: option(d,30,310,'売る？'); option(d,195,310,'残す？'); option(d,360,310,'管理？'); ct(d,'まだ、何も決めていない。',120,36,NAVY); sub(d,'決める前に「今」だけ知りたい時。')
+              elif t<8: yard(d,150,260,1.08); ct(d,'まず現在の様子を確認する',115,32,NAVY); sub(d,'空家ポケットは現況確認だけのサービスです。')
+              elif t<12: report(d,168,235,1.0); ct(d,'写真＋観察できた事実',115,34,NAVY); sub(d,'売却・相続・修理の助言はしません。')
+              elif t<15: phone(d,210,270,1.25); ct(d,'無料登録から始められる',115,35,NAVY); sub(d,'依頼するかは、登録後に選べます。')
+              else: rr(d,(82,310,458,425),25,NAVY); ct(d,'無料会員登録',342,34,WHITE); ct(d,'「決める前」の選択肢。',535,28,INK); sub(d,'実案件・実顧客の映像ではありません')
+          def yard_story(d,t):
+              if t<4: yard(d,150,250,1.08); ct(d,'建物だけじゃなく、',110,36,NAVY); ct(d,'外まわりも気になる。',158,38,INK); sub(d,'敷地の様子を外から確認できる範囲で。')
+              elif t<8: d.rectangle((80,300,460,610),fill=SKY); yard(d,165,325,.82); d.ellipse((355,485,395,525),outline=ORANGE,width=6); ct(d,'見えた範囲を写真に残す',115,32,NAVY); sub(d,'立入りが必要な場所は無理に確認しません。')
+              elif t<12: report(d,165,235,1.0); ct(d,'観察した事実を報告',115,35,NAVY); sub(d,'原因や危険度を診断するものではありません。')
+              elif t<15: phone(d,210,270,1.25); ct(d,'まず無料会員登録',115,38,NAVY); sub(d,'サービス範囲を見てから判断できます。')
+              else: house(d,45,330,.7); report(d,315,290,.62); ct(d,'必要な時だけ現況確認',130,30,NAVY); rr(d,(90,650,450,745),25,NAVY); ct(d,'無料会員登録へ',678,30,WHITE); sub(d,'イメージ映像｜実物件ではありません')
+          render('ig-calendar-no-trip-reel',no_trip)
+          render('ig-undecided-current-state-reel',undecided)
+          render('yt-yard-context-short',yard_story)
+          PY
+          python /tmp/render_v7.py
+          for f in akiya-pocket/assets/social/generated-v7/*.mp4; do ffprobe -v error -show_entries format=duration,size:stream=codec_type -of default=nw=1 "$f"; test "$(stat -c%s "$f")" -gt 40000; test "$(stat -c%s "$f")" -lt 25000000; done
+      - name: Commit generated assets
+        id: commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add akiya-pocket/assets/social/generated-v7/
+          git commit -m 'Akiya Pocket: generate native unique reels v7'
+          git push origin HEAD:main
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Report result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.commit.outputs.sha }}
+        shell: bash
+        run: |
+          state=FAIL; [ "${{ job.status }}" = success ] && state=PASS
+          body=$(jq -n --arg s "$state" --arg sha "${SHA:-}" --arg run "$GITHUB_RUN_ID" '{body:("AKIYA_REELS_V7="+$s+"\nRUN_ID="+$run+"\nSHA="+$sha)}')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
