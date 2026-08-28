@@ -1,0 +1,41 @@
+name: Akiya Pocket Facebook motion 30fps
+on:
+  issue_comment:
+    types: [created]
+permissions:
+  contents: write
+  issues: write
+jobs:
+  render:
+    if: github.event.issue.number == 42 && contains(github.event.comment.body, 'GENERATE_AKIYA_FB_30FPS')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg >/dev/null
+      - name: Re-encode unique Facebook motion assets
+        run: |
+          set -euo pipefail
+          mkdir -p akiya-pocket/assets/social/generated-v4-facebook
+          ffmpeg -y -loglevel error -i akiya-pocket/assets/social/generated-v4/report-process-motion.mp4 -vf fps=30 -an -c:v libx264 -preset medium -crf 23 -pix_fmt yuv420p -movflags +faststart akiya-pocket/assets/social/generated-v4-facebook/report-process-motion-fb.mp4
+          ffmpeg -y -loglevel error -i akiya-pocket/assets/social/generated-v4/parent-facility-story.mp4 -vf fps=30 -an -c:v libx264 -preset medium -crf 23 -pix_fmt yuv420p -movflags +faststart akiya-pocket/assets/social/generated-v4-facebook/parent-facility-story-fb.mp4
+          for f in akiya-pocket/assets/social/generated-v4-facebook/*.mp4; do ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate,width,height -of default=nw=1 "$f"; done
+      - name: Commit
+        id: commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add akiya-pocket/assets/social/generated-v4-facebook/*.mp4
+          if git diff --cached --quiet; then echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"; else git commit -m 'Akiya Pocket: generate 30fps Facebook motion assets'; git push origin HEAD:main; echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"; fi
+      - name: Report
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.commit.outputs.sha }}
+        run: |
+          state=FAIL; [ "${{ job.status }}" = success ] && state=PASS
+          body=$(jq -n --arg s "$state" --arg sha "${SHA:-}" '{body:("AKIYA_FB_30FPS="+$s+"\nSHA="+$sha)}')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
