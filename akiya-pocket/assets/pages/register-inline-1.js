@@ -6,11 +6,26 @@ const publicTrack=(type,label,value)=>{
 };
 const paidIntentCampaign=()=>/^aomori_paid_intent_/.test(new URLSearchParams(location.search).get('utm_campaign')||'');
 document.addEventListener('DOMContentLoaded',()=>{
+  const hero=document.querySelector('.page-hero');
+  const registerSection=document.querySelector('#free-register');
   const heroCta=document.querySelector('.page-hero a[href="#free-register"]');
+  const heroSecondary=document.querySelector('.page-hero a.btn-ghost[href="aomori-vacant-house-checklist.html"]');
+
   if(heroCta){
-    heroCta.textContent='無料チェックリストを使う';
-    heroCta.setAttribute('aria-label','実家・空き家の状況整理チェックリストを無料で使う');
+    heroCta.textContent='3項目で無料チェックリストを使う';
+    heroCta.setAttribute('aria-label','3項目を入力して実家・空き家の状況整理チェックリストを無料で使う');
+    heroCta.addEventListener('click',()=>publicTrack('register_cta_click','hero_primary'));
   }
+  if(heroSecondary){
+    heroSecondary.remove();
+  }
+  if(hero&&registerSection){
+    hero.insertAdjacentElement('afterend',registerSection);
+  }
+  document.querySelectorAll('a[href="#free-register"]').forEach((a,i)=>{
+    if(a===heroCta)return;
+    a.addEventListener('click',()=>publicTrack('register_cta_click',`inline_${i+1}`));
+  });
 });
 registerForm.addEventListener('input',()=>{
   if(!registrationStarted){registrationStarted=true;publicTrack('register_start','first_input')}
