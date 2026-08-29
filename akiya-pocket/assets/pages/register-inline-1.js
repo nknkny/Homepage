@@ -7,7 +7,6 @@ const publicTrack=(type,label,value)=>{
 const paidIntentCampaign=()=>/^aomori_paid_intent_/.test(new URLSearchParams(location.search).get('utm_campaign')||'');
 document.addEventListener('DOMContentLoaded',()=>{
   const hero=document.querySelector('.page-hero');
-  const registerSection=document.querySelector('#free-register');
   const heroCta=document.querySelector('.page-hero a[href="#free-register"]');
   const heroSecondary=document.querySelector('.page-hero a.btn-ghost[href="aomori-vacant-house-checklist.html"]');
 
@@ -17,10 +16,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     heroCta.addEventListener('click',()=>publicTrack('register_cta_click','hero_primary'));
   }
   if(heroSecondary){
-    heroSecondary.remove();
-  }
-  if(hero&&registerSection){
-    hero.insertAdjacentElement('afterend',registerSection);
+    heroSecondary.addEventListener('click',()=>publicTrack('checklist_preview_click','hero_secondary'));
   }
   document.querySelectorAll('a[href="#free-register"]').forEach((a,i)=>{
     if(a===heroCta)return;
