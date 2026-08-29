@@ -1,0 +1,52 @@
+name: Akiya Pocket registration value-first fix
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  fix:
+    if: github.event.issue.number == 42 && contains(github.event.comment.body, 'RUN_AKIYA_REGISTER_VALUE_FIRST_FIX')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Preserve preview before registration form
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('akiya-pocket/assets/pages/register-inline-1.js')
+          s=p.read_text()
+          old=s
+          s=s.replace("  const registerSection=document.querySelector('#free-register');\n","")
+          s=s.replace("  if(heroSecondary){\n    heroSecondary.remove();\n  }\n", "  if(heroSecondary){\n    heroSecondary.addEventListener('click',()=>publicTrack('checklist_preview_click','hero_secondary'));\n  }\n")
+          s=s.replace("  if(hero&&registerSection){\n    hero.insertAdjacentElement('afterend',registerSection);\n  }\n","")
+          if s==old:
+              raise SystemExit('expected registration ordering code not found')
+          p.write_text(s)
+          PY
+          git diff --check
+          git diff -- akiya-pocket/assets/pages/register-inline-1.js
+      - name: Commit fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add akiya-pocket/assets/pages/register-inline-1.js
+          git commit -m 'Preserve value-first registration flow'
+          git push origin HEAD:main
+      - name: Report
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = '${{ job.status }}' === 'success' ? 'AKIYA_REGISTER_VALUE_FIRST_FIX=PASS' : 'AKIYA_REGISTER_VALUE_FIRST_FIX=FAIL';
+            await github.rest.issues.createComment({owner: context.repo.owner, repo: context.repo.repo, issue_number: 42, body});
