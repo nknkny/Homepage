@@ -4,7 +4,25 @@ const publicTrack=(type,label,value)=>{
   if(!window.AkiyaAnalytics||!AkiyaAnalytics.publicTrack)return;
   AkiyaAnalytics.publicTrack(type,{contentCategory:'registration',contentId:'member_registration',actionLabel:label||'',value:value===undefined?'':value});
 };
-const paidIntentCampaign=()=>/^aomori_paid_intent_/.test(new URLSearchParams(location.search).get('utm_campaign')||'');
+const params=new URLSearchParams(location.search);
+const campaign=()=>params.get('utm_campaign')||'';
+const paidIntentCampaign=()=>/^aomori_paid_intent_/.test(campaign());
+const registrationIntentContext=()=>{
+  const c=campaign();
+  if(/one_time|photo_report|remote_snapshot/.test(c)){
+    return {
+      key:'one_time_check',
+      html:'<b>1回だけの現地確認を見て来た方へ</b><br>無料会員登録後、必要な場合だけ青森市の現地確認（1回3,480円・税込）を別途依頼できます。登録だけでは課金されません。無料チェックリストは登録後すぐ使えます。'
+    };
+  }
+  if(/checklist|free_member|family_chat/.test(c)){
+    return {
+      key:'checklist',
+      html:'<b>無料チェックリストを使いたい方へ</b><br>登録後すぐ、確認済み・未確認を保存できる会員版チェックリストへ進めます。登録料0円・月額0円。現地確認の申込みは必須ではありません。'
+    };
+  }
+  return null;
+};
 document.addEventListener('DOMContentLoaded',()=>{
   const hero=document.querySelector('.page-hero');
   const formSection=document.getElementById('free-register');
@@ -16,6 +34,20 @@ document.addEventListener('DOMContentLoaded',()=>{
   // Preview/proof content remains on the same page below the form.
   if(hero&&formSection&&hero.nextElementSibling!==formSection){
     hero.insertAdjacentElement('afterend',formSection);
+  }
+
+  const context=registrationIntentContext();
+  if(context&&formSection){
+    const wrap=formSection.querySelector('.wrap.form-shell');
+    if(wrap&&!wrap.querySelector('[data-registration-intent-context]')){
+      const notice=document.createElement('div');
+      notice.className='notice';
+      notice.dataset.registrationIntentContext=context.key;
+      notice.style.marginBottom='18px';
+      notice.innerHTML=context.html;
+      wrap.insertAdjacentElement('afterbegin',notice);
+      publicTrack('registration_intent_context_view',context.key);
+    }
   }
 
   if(formSection&&'IntersectionObserver' in window){
