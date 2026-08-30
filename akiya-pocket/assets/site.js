@@ -96,3 +96,62 @@ document.addEventListener('DOMContentLoaded',()=>AkiyaUI.turnstileForms().forEac
     }
   });
 })();
+
+/* AKIYA_VALUE_FIRST_ANALYTICS_KEEPALIVE_V1 */
+(function(){
+  'use strict';
+  if(!window.AkiyaAPI||typeof AkiyaAPI.submit!=='function')return;
+  const rawSubmit=AkiyaAPI.submit.bind(AkiyaAPI);
+  AkiyaAPI.submit=async function(action,data,timeout){
+    if(String(action||'')!=='track_public_event')return rawSubmit(action,data,timeout);
+    const endpoint=String((window.AKIYA_CONFIG&&window.AKIYA_CONFIG.API_URL)||'').trim();
+    if(!/^https:\/\/[a-z0-9-]+\.supabase\.co\/functions\/v1\/akiya-pocket-api$/i.test(endpoint))return rawSubmit(action,data,timeout);
+    const clientRequestId=AkiyaAPI.uid('track_public_event');
+    const payload=Object.assign({},data||{},{action:'track_public_event',clientRequestId});
+    try{
+      const r=await fetch(endpoint,{method:'POST',mode:'cors',credentials:'omit',cache:'no-store',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      const x=await r.json().catch(()=>null);
+      return x&&typeof x==='object'?x:{ok:r.ok};
+    }catch(e){return rawSubmit(action,data,timeout)}
+  };
+})();
+
+/* AKIYA_VALUE_FIRST_CHECKLIST_MICROCOMMITMENT_V1 */
+(function(){
+  'use strict';
+  document.addEventListener('DOMContentLoaded',()=>{
+    let path=location.pathname.replace(/\/+$/,'');if(path.endsWith('.html'))path=path.slice(0,-5);
+    if(!path.endsWith('/aomori-vacant-house-checklist'))return;
+    const panel=document.querySelector('.section .panel');
+    if(!panel)return;
+    const boxes=Array.from(panel.querySelectorAll('.choice input[type="checkbox"]'));
+    if(!boxes.length)return;
+    const grid=panel.querySelector('.grid-2');
+    const notice=panel.querySelector('.notice');
+    const actions=panel.querySelector('.form-actions');
+    const primary=actions&&actions.querySelector('a[href*="register"]');
+    const secondary=actions&&actions.querySelector('a[href^="#"]');
+    const progress=document.createElement('div');
+    progress.setAttribute('aria-live','polite');
+    progress.style.margin='16px 0 0';
+    progress.innerHTML='<p style="margin:0 0 7px"><b id="akiyaChecklistCount">0 / '+boxes.length+' 項目を確認済み</b></p><div role="progressbar" aria-valuemin="0" aria-valuemax="'+boxes.length+'" aria-valuenow="0" style="height:8px;border-radius:999px;background:#e8edf3;overflow:hidden"><span style="display:block;width:0;height:100%;background:currentColor;transition:width .2s ease"></span></div><p class="small muted" style="margin:8px 0 0">チェックできない項目は「未確認」のままで構いません。まず分かっていることだけ整理してください。</p>';
+    if(grid)grid.insertAdjacentElement('afterend',progress);else panel.insertBefore(progress,notice||actions||null);
+    if(secondary){secondary.className='small muted';secondary.textContent='まだ保存せず、このまま公開版を続ける';secondary.style.display='inline-block';secondary.style.margin='10px 0 0'}
+    let firstTracked=false;
+    const update=()=>{
+      const count=boxes.filter(x=>x.checked).length;
+      const label=progress.querySelector('#akiyaChecklistCount');
+      const bar=progress.querySelector('[role="progressbar"]');
+      const fill=bar&&bar.querySelector('span');
+      if(label)label.textContent=count+' / '+boxes.length+' 項目を確認済み';
+      if(bar)bar.setAttribute('aria-valuenow',String(count));
+      if(fill)fill.style.width=(100*count/boxes.length)+'%';
+      if(primary)primary.textContent=count>0?count+'項目のチェック状態を無料で保存する':'チェック状態を無料で保存する';
+      if(window.AkiyaAnalytics&&window.AkiyaAnalytics.publicTrack){
+        AkiyaAnalytics.publicTrack('checklist_progress',{contentCategory:'value_first',contentId:'aomori_vacant_house_checklist',actionLabel:firstTracked?'progress_changed':'first_check',value:String(count)});
+        firstTracked=true;
+      }
+    };
+    boxes.forEach(b=>b.addEventListener('change',update));
+  });
+})();
