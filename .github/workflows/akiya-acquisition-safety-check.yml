@@ -29,16 +29,23 @@ jobs:
           register_js='akiya-pocket/assets/pages/register-inline-1.js'
           request='akiya-pocket/request.html'
           home='akiya-pocket/index.html'
+          site_js='akiya-pocket/assets/site.js'
 
-          grep -Fq '物件情報は現地確認を依頼するときに入力できます' "$register"
+          grep -Fq '入力は3項目です' "$register"
+          grep -Fq 'name="name"' "$register"
+          grep -Fq 'name="email"' "$register"
+          grep -Fq 'name="password"' "$register"
           grep -Fq 'name="requiredConsent"' "$register"
-          grep -Fq 'name="marketingOptIn"' "$register"
+          ! grep -Fq 'name="marketingOptIn"' "$register"
+          ! grep -Fq 'passwordConfirm' "$register"
           ! grep -Fq 'id="propertyPrefecture"' "$register"
           ! grep -Fq 'id="propertyCity"' "$register"
           ! grep -Fq 'id="relationship"' "$register"
           ! grep -Fq 'id="propertyStatus"' "$register"
           ! grep -Fq 'property_location_missing' "$register_js"
           ! grep -Fq 'property_context_missing' "$register_js"
+          grep -Fq 'register_start' "$register_js"
+          grep -Fq 'register_submit_attempt' "$register_js"
 
           grep -Fq 'id="propertyAddress"' "$request"
           grep -Fq 'id="requestRelationship"' "$request"
@@ -46,7 +53,11 @@ jobs:
           grep -Fq 'name="requestConsent"' "$request"
           grep -Fq '3,480円のカード前払い' "$request"
 
-          grep -Fq '継続管理や次の対応を決める前に' "$home"
-          grep -Fq '会員登録→依頼→カード支払いまでオンライン' "$home"
+          grep -Fq '無料チェックリストで「分かっていること・未確認のこと」から整理できます。' "$home"
+          grep -Fq '最初から「申し込む・申し込まない」の二択にしません。' "$home"
+          grep -Fq 'aomori-vacant-house-checklist.html' "$home"
+          grep -Fq 'aomori-vacant-house-photo-report.html' "$home"
+          grep -Fq 'aomori-vacant-house-one-time-check.html' "$home"
+          ! grep -Fq 'AKIYA_REGISTRATION_FIRST_HOME_CTA_V1' "$site_js"
 
           ! grep -R -Eiq '補助金|助成金|給付金|申請代行' akiya-pocket/index.html akiya-pocket/remote-home-aomori.html akiya-pocket/inherited-home-aomori.html akiya-pocket/parent-facility-home-aomori.html akiya-pocket/snow-vacant-home-aomori.html
