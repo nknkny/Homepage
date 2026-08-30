@@ -7,8 +7,28 @@ const publicTrack=(type,label,value)=>{
 const paidIntentCampaign=()=>/^aomori_paid_intent_/.test(new URLSearchParams(location.search).get('utm_campaign')||'');
 document.addEventListener('DOMContentLoaded',()=>{
   const hero=document.querySelector('.page-hero');
+  const formSection=document.getElementById('free-register');
   const heroCta=document.querySelector('.page-hero a[href="#free-register"]');
   const heroSecondary=document.querySelector('.page-hero a.btn-ghost[href="aomori-vacant-house-checklist.html"]');
+
+  // Registration-page visitors were reaching the page but not starting the form.
+  // Keep the value proposition in the hero, then place the 3-field form immediately after it.
+  // Preview/proof content remains on the same page below the form.
+  if(hero&&formSection&&hero.nextElementSibling!==formSection){
+    hero.insertAdjacentElement('afterend',formSection);
+  }
+
+  if(formSection&&'IntersectionObserver' in window){
+    let seen=false;
+    const observer=new IntersectionObserver(entries=>{
+      if(!seen&&entries.some(entry=>entry.isIntersecting&&entry.intersectionRatio>=0.25)){
+        seen=true;
+        publicTrack('register_form_view','form_visible');
+        observer.disconnect();
+      }
+    },{threshold:[0.25]});
+    observer.observe(formSection);
+  }
 
   if(heroCta){
     heroCta.textContent='3項目で無料チェックリストを使う';
