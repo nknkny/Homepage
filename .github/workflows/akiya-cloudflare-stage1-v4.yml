@@ -1,0 +1,164 @@
+name: Akiya Cloudflare stage1 v4
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  deploy:
+    if: >-
+      github.event.issue.number == 42 &&
+      contains(github.event.comment.body, 'START_AKIYA_CF_STAGE1_V4')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 50
+
+      - name: Resolve source SHA
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_sha=$(git log -1 --format=%H -- akiya-pocket scripts/build-akiya-cloudflare-pages.mjs)
+          test -n "$source_sha"
+          echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "Source SHA: $source_sha"
+
+      - name: Cloudflare device authorization
+        id: auth
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/wrangler-login.log"
+          clean="$RUNNER_TEMP/wrangler-login-clean.log"
+          : > "$log"
+          (CI='' npx --yes wrangler@4.119.0 login --device --browser=false >"$log" 2>&1) &
+          pid=$!
+          url=''; code=''
+          for n in $(seq 1 30); do
+            perl -pe 's/\e\[[0-9;]*[mK]//g' "$log" > "$clean" || true
+            url=$(grep -Eo 'https://dash\.cloudflare\.com/oauth2/device(/verify)?' "$clean" | tail -1 || true)
+            code=$(grep -Eo '([A-Za-z0-9]{4}-[A-Za-z0-9]{4}|[A-Za-z0-9]{8})' "$clean" | tail -1 || true)
+            if [ -n "$url" ] && [ -n "$code" ]; then break; fi
+            if ! kill -0 "$pid" 2>/dev/null; then break; fi
+            sleep 1
+          done
+          if [ -z "$url" ] || [ -z "$code" ]; then
+            cat "$clean" || true
+            kill "$pid" 2>/dev/null || true
+            wait "$pid" 2>/dev/null || true
+            exit 1
+          fi
+          complete_url="${url}?user_code=${code}"
+          body=$(jq -n --arg complete "$complete_url" --arg code "$code" --arg run "$GITHUB_RUN_ID" '{body:("AKIYA_CF_AUTH_NOW_V4\nVERIFY_URL_COMPLETE="+$complete+"\nCODE="+$code+"\nRUN_ID="+$run)}')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
+          wait "$pid"
+
+      - name: Resolve canonical Pages project
+        id: project
+        shell: bash
+        run: |
+          set -euo pipefail
+          origin=$(tr -d '[:space:]' < akiya-pocket/CLOUDFLARE_CANONICAL.txt)
+          case "$origin" in https://*.pages.dev) ;; *) echo "Invalid canonical Pages origin: $origin" >&2; exit 1;; esac
+          project=$(node -e 'const u=new URL(process.argv[1]); console.log(u.hostname.replace(/\.pages\.dev$/,""))' "$origin")
+          test -n "$project"
+          echo "name=$project" >> "$GITHUB_OUTPUT"
+          echo "origin=$origin" >> "$GITHUB_OUTPUT"
+
+      - name: Build Cloudflare Pages artifact
+        env:
+          AKIYA_CANONICAL_ORIGIN: ${{ steps.project.outputs.origin }}
+          AKIYA_DEPLOYMENT_URL: ${{ steps.project.outputs.origin }}
+          AKIYA_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: node scripts/build-akiya-cloudflare-pages.mjs
+
+      - name: Validate acquisition artifact
+        env:
+          ORIGIN: ${{ steps.project.outputs.origin }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f dist/DEPLOYMENT.json
+          jq -e --arg o "$ORIGIN" --arg s "$SOURCE_SHA" '.canonicalOrigin==$o and .build=="2026-08-31-acquisition-r3" and .sourceSha==$s' dist/DEPLOYMENT.json >/dev/null
+          grep -Fq "<link rel=\"canonical\" href=\"${ORIGIN}/\">" dist/index.html
+          grep -Fq '新規無料会員登録' dist/index.html
+          grep -Fq '現地確認を依頼する' dist/index.html
+          grep -Fq '登録なしで無料チェック' dist/index.html
+          grep -Fq '先に報告見本を見る' dist/index.html
+          grep -Fq 'data-akiya-intent="request"' dist/index.html
+          grep -Fq 'og:title' dist/index.html
+          grep -Fq 'assets/navigation-r1.css' dist/index.html
+          test -f dist/assets/navigation-r1.css
+          grep -Fq '.header-actions .btn-primary' dist/assets/navigation-r1.css
+          grep -Fq 'display:inline-flex!important' dist/assets/navigation-r1.css
+          ! grep -R -F 'https://nknkny.github.io/Homepage/akiya-pocket' dist --include='*.html' --include='*.js' --include='*.xml' --include='*.txt'
+          test ! -d dist/control-center
+
+      - name: Deploy Cloudflare Pages
+        id: pages_deploy
+        env:
+          PROJECT: ${{ steps.project.outputs.name }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: npx --yes wrangler@4.119.0 pages deploy dist --project-name "$PROJECT" --branch main --commit-hash "$SOURCE_SHA" --commit-message 'Akiya Pocket acquisition and awareness optimization'
+
+      - name: Verify live production
+        id: verify
+        env:
+          ORIGIN: ${{ steps.project.outputs.origin }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          API: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-api
+          PAY: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-payment-api
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=0
+          for attempt in $(seq 1 12); do
+            marker="$RUNNER_TEMP/deployment.json"
+            home="$RUNNER_TEMP/home.html"
+            css="$RUNNER_TEMP/navigation.css"
+            if curl -fsSL --max-time 20 "$ORIGIN/DEPLOYMENT.json?v=$GITHUB_RUN_ID-$attempt" -o "$marker" \
+              && jq -e --arg o "$ORIGIN" --arg s "$SOURCE_SHA" '.canonicalOrigin==$o and .build=="2026-08-31-acquisition-r3" and .sourceSha==$s' "$marker" >/dev/null \
+              && curl -fsSL --max-time 20 "$ORIGIN/?v=$GITHUB_RUN_ID-$attempt" -o "$home" \
+              && grep -Fq '新規無料会員登録' "$home" \
+              && grep -Fq '現地確認を依頼する' "$home" \
+              && grep -Fq '登録なしで無料チェック' "$home" \
+              && grep -Fq '先に報告見本を見る' "$home" \
+              && curl -fsSL --max-time 20 "$ORIGIN/assets/navigation-r1.css?v=$GITHUB_RUN_ID-$attempt" -o "$css" \
+              && grep -Fq 'display:inline-flex!important' "$css"; then
+                ok=1; break
+            fi
+            sleep 5
+          done
+          test "$ok" = 1
+          curl -fsSL -H "Origin: $ORIGIN" "$API" -o "$RUNNER_TEMP/api.json"
+          jq -e '.ok==true and .ready==true and .accountDeletionAnonymizes==true' "$RUNNER_TEMP/api.json" >/dev/null
+          curl -fsSL -H "Origin: $ORIGIN" "$PAY" -o "$RUNNER_TEMP/pay.json"
+          jq -e '.ok==true and .ready==true and .amountJpy==3480 and .paymentLinkReady==true' "$RUNNER_TEMP/pay.json" >/dev/null
+
+      - name: Report result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ORIGIN: ${{ steps.project.outputs.origin }}
+          PROJECT: ${{ steps.project.outputs.name }}
+          AUTH: ${{ steps.auth.outcome }}
+          DEPLOY: ${{ steps.pages_deploy.outcome }}
+          VERIFY: ${{ steps.verify.outcome }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$AUTH" = success ] && [ "$DEPLOY" = success ] && [ "$VERIFY" = success ]; then overall=PASS; else overall=FAIL; fi
+          body=$(jq -n --arg o "$overall" --arg u "$ORIGIN" --arg p "$PROJECT" --arg r "$GITHUB_RUN_ID" --arg a "$AUTH" --arg d "$DEPLOY" --arg v "$VERIFY" --arg s "$SOURCE_SHA" '{body:("AKIYA_CF_STAGE1_V4="+$o+"\nRUN_ID="+$r+"\nSOURCE_SHA="+$s+"\nPROJECT="+$p+"\nURL="+$u+"/\nAUTH="+$a+"\nDEPLOY="+$d+"\nPUBLIC_VERIFY="+$v)}')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
