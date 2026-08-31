@@ -105,6 +105,48 @@ jobs:
           ! grep -R -F 'https://nknkny.github.io/Homepage/akiya-pocket' dist --include='*.html' --include='*.js' --include='*.xml' --include='*.txt'
           test ! -d dist/control-center
 
+          while IFS= read -r path; do
+            case "$path" in ''|'#'*) continue ;; esac
+            test -f "dist/$path" || { echo "PUBLIC_URL_MISSING=$path"; exit 1; }
+          done < akiya-pocket/PUBLIC_URLS.txt
+
+          for page in \
+            remote-home-aomori.html \
+            inherited-home-aomori.html \
+            parent-facility-home-aomori.html \
+            vacant-home-notice-aomori.html \
+            vacant-home-weeds-aomori.html \
+            vacant-home-after-storm-aomori.html \
+            snow-vacant-home-aomori.html; do
+            grep -Fq 'assets/config.js' "dist/$page"
+            grep -Fq 'assets/api.js' "dist/$page"
+            grep -Fq 'assets/site.js' "dist/$page"
+          done
+
+          python - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+          class Audit(HTMLParser):
+              def __init__(self, name):
+                  super().__init__(); self.name=name; self.href=''; self.text=[]; self.in_a=False; self.bad=[]
+              def handle_starttag(self, tag, attrs):
+                  if tag=='a': self.in_a=True; self.href=dict(attrs).get('href',''); self.text=[]
+              def handle_data(self, data):
+                  if self.in_a: self.text.append(data)
+              def handle_endtag(self, tag):
+                  if tag=='a' and self.in_a:
+                      label=''.join(self.text).strip().replace('\n',' ')
+                      if self.href.startswith('register.html') and any(x in label for x in ('無料チェックリスト','登録なしで無料チェック','無料チェックを使う')):
+                          self.bad.append((label,self.href))
+                      self.in_a=False; self.href=''; self.text=[]
+          fail=[]
+          for p in Path('dist').glob('*.html'):
+              a=Audit(p.name); a.feed(p.read_text(encoding='utf-8')); fail += [(p.name,*x) for x in a.bad]
+          if fail:
+              for row in fail: print('CTA_SEMANTIC_MISMATCH', *row)
+              raise SystemExit(1)
+          PY
+
       - name: Deploy Cloudflare Pages
         id: pages_deploy
         env:
@@ -141,6 +183,20 @@ jobs:
             sleep 5
           done
           test "$ok" = 1
+
+          for page in \
+            remote-home-aomori.html \
+            inherited-home-aomori.html \
+            parent-facility-home-aomori.html \
+            vacant-home-notice-aomori.html \
+            vacant-home-weeds-aomori.html \
+            vacant-home-after-storm-aomori.html \
+            snow-vacant-home-aomori.html; do
+            live="$RUNNER_TEMP/$page"
+            curl -fsSL --max-time 20 "$ORIGIN/$page?v=$GITHUB_RUN_ID" -o "$live"
+            grep -Fq 'assets/site.js' "$live"
+          done
+
           curl -fsSL -H "Origin: $ORIGIN" "$API" -o "$RUNNER_TEMP/api.json"
           jq -e '.ok==true and .ready==true and .accountDeletionAnonymizes==true' "$RUNNER_TEMP/api.json" >/dev/null
           curl -fsSL -H "Origin: $ORIGIN" "$PAY" -o "$RUNNER_TEMP/pay.json"
