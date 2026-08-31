@@ -50,6 +50,55 @@ jobs:
           grep -Fq '青森市は全域が特別豪雪地帯' dist/index.html
           grep -Fq 'display:inline-flex!important' dist/assets/navigation-r1.css
           test ! -d dist/control-center
+
+          # Every existing public URL is a compatibility contract.
+          while IFS= read -r path; do
+            case "$path" in ''|'#'*) continue ;; esac
+            test -f "dist/$path" || { echo "PUBLIC_URL_MISSING=$path"; exit 1; }
+          done < akiya-pocket/PUBLIC_URLS.txt
+
+          # High-intent life-event pages must participate in the full attribution funnel.
+          for page in \
+            remote-home-aomori.html \
+            inherited-home-aomori.html \
+            parent-facility-home-aomori.html \
+            vacant-home-notice-aomori.html \
+            vacant-home-weeds-aomori.html \
+            vacant-home-after-storm-aomori.html \
+            snow-vacant-home-aomori.html; do
+            grep -Fq 'assets/config.js' "dist/$page"
+            grep -Fq 'assets/api.js' "dist/$page"
+            grep -Fq 'assets/site.js' "dist/$page"
+          done
+
+          # A visible "free checklist" promise must never silently route to membership registration.
+          python - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+
+          class AnchorAudit(HTMLParser):
+              def __init__(self, path):
+                  super().__init__(); self.path=path; self.href=''; self.text=[]; self.in_a=False; self.bad=[]
+              def handle_starttag(self, tag, attrs):
+                  if tag=='a':
+                      self.in_a=True; self.text=[]; self.href=dict(attrs).get('href','')
+              def handle_data(self, data):
+                  if self.in_a: self.text.append(data)
+              def handle_endtag(self, tag):
+                  if tag=='a' and self.in_a:
+                      label=''.join(self.text).strip().replace('\n',' ')
+                      if self.href.startswith('register.html') and any(x in label for x in ('無料チェックリスト','登録なしで無料チェック','無料チェックを使う')):
+                          self.bad.append((label,self.href))
+                      self.in_a=False; self.text=[]; self.href=''
+
+          failures=[]
+          for p in Path('dist').glob('*.html'):
+              a=AnchorAudit(p.name); a.feed(p.read_text(encoding='utf-8'))
+              failures.extend((p.name,*x) for x in a.bad)
+          if failures:
+              for f in failures: print('CTA_SEMANTIC_MISMATCH', *f)
+              raise SystemExit(1)
+          PY
       - name: Report
         if: always()
         env:
