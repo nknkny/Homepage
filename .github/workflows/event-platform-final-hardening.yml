@@ -1,57 +1,14 @@
-name: Event Platform Final Hardening
+name: Event Platform Hardening STOPPED
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'event-platform/apply-final-hardening.mjs'
-      - '.github/workflows/event-platform-final-hardening.yml'
   workflow_dispatch:
 
 permissions:
-  contents: write
-
-concurrency:
-  group: event-platform-final-hardening
-  cancel-in-progress: false
+  contents: read
 
 jobs:
-  apply:
-    if: github.actor != 'github-actions[bot]'
+  stopped:
+    if: ${{ false }}
     runs-on: ubuntu-latest
-    timeout-minutes: 8
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-      - name: Validate and apply deterministic patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          node --check event-platform/apply-final-hardening.mjs
-          node event-platform/apply-final-hardening.mjs
-          sed -i 's/[[:space:]]\+$//' event-platform/*.md
-          git checkout -- .github/workflows/event-platform-autopilot.yml
-          node --check event-platform/app.js
-          node --check event-platform/app-form.js
-          node --check event-platform/app-dashboard.js
-          node --check event-platform/app-init.js
-          node --check event-platform/browser-e2e.mjs
-          test -f event-platform/legal.css
-          test -f event-platform/_headers
-          git diff --check
-      - name: Commit hardened platform
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm event-platform/apply-final-hardening.mjs
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git diff --cached --check
-          if git diff --cached --quiet; then
-            echo 'No changes to commit.'
-            exit 0
-          fi
-          git commit -m 'Harden event platform for production handoff'
-          git push
+      - run: echo "Event platform is intentionally stopped."
