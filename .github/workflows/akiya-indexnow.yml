@@ -2,7 +2,7 @@ name: Akiya IndexNow submission
 
 on:
   workflow_run:
-    workflows: ["Akiya Cloudflare stage1 v3"]
+    workflows: ["Akiya Cloudflare stage1 v4"]
     types: [completed]
   issue_comment:
     types: [created]
