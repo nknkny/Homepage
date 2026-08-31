@@ -1,0 +1,71 @@
+name: Akiya account navigation UX fix
+
+on:
+  push:
+    paths:
+      - '.github/workflows/akiya-account-nav-ux-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch homepage account navigation
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          index = Path('akiya-pocket/index.html')
+          css = Path('akiya-pocket/assets/home-r5.css')
+
+          s = index.read_text(encoding='utf-8')
+          old = '''<header class="site-header home-header"><div class="wrap head"><a class="brand home-brand" href="index.html" aria-label="空家ポケット トップ"><span class="brand-text">空家ポケット<small>青森市・一回現地確認</small></span></a><nav aria-label="主要メニュー" class="nav home-nav"><a href="#situations">こんなとき</a><a href="#proof">報告内容</a><a href="#flow">流れ</a><a href="#price">料金</a><a href="about.html">事業者情報</a></nav><div class="header-actions"><a class="btn btn-primary home-cta" href="aomori-vacant-house-checklist.html?utm_source=homepage&utm_medium=owned&utm_campaign=home_header_checklist&utm_content=header_primary">無料で状況を整理</a><a class="btn btn-ghost" href="member-login.html">ログイン</a></div></div></header>'''
+          new = '''<header class="site-header home-header"><div class="wrap head"><a class="brand home-brand" href="index.html" aria-label="空家ポケット トップ"><span class="brand-text">空家ポケット<small>青森市・一回現地確認</small></span></a><nav aria-label="主要メニュー" class="nav home-nav"><a href="#situations">こんなとき</a><a href="#proof">報告内容</a><a href="#price">料金</a><a href="aomori-vacant-house-checklist.html?utm_source=homepage&utm_medium=owned&utm_campaign=home_header&utm_content=free_check">無料チェック</a><a href="about.html">事業者情報</a></nav><div class="header-actions account-actions" aria-label="会員メニュー"><a class="btn btn-primary account-register" href="register.html?utm_source=homepage&utm_medium=owned&utm_campaign=home_header&utm_content=register">新規無料会員登録</a><a class="btn btn-ghost account-login" href="member-login.html">ログイン</a></div></div></header>'''
+          if old not in s:
+              raise SystemExit('expected homepage header not found; aborting without changes')
+          s = s.replace(old, new, 1)
+
+          old_secure = '無料チェックは登録不要です。保存して続けたい場合だけ無料会員登録へ進めます。無料会員は登録料0円・月額0円です。'
+          new_secure = '無料チェックは登録不要です。無料会員になりたい方は、上部の「新規無料会員登録」からいつでも登録できます。登録料0円・月額0円です。'
+          if old_secure in s:
+              s = s.replace(old_secure, new_secure, 1)
+
+          old_membership = '>無料会員でチェックを保存する</a>'
+          if old_membership in s:
+              s = s.replace(old_membership, '>新規無料会員登録</a>', 1)
+
+          index.write_text(s, encoding='utf-8')
+
+          c = css.read_text(encoding='utf-8')
+          marker = '/* Account navigation clarity: registration and login are separate persistent tasks. */'
+          if marker not in c:
+              c += '''\n\n/* Account navigation clarity: registration and login are separate persistent tasks. */\n.home-v5 .account-actions{margin-left:0;gap:8px}.home-v5 .account-register{min-height:44px;padding:8px 15px;white-space:nowrap}.home-v5 .account-login{min-height:44px;padding:8px 13px;white-space:nowrap}.home-v5 .home-nav a[href*="checklist"]{color:#2f6665}\n@media(max-width:960px){.home-v5 .home-header .head{flex-wrap:wrap;padding:8px 0 10px}.home-v5 .home-brand{flex:1 1 auto}.home-v5 .home-header .account-actions{margin-left:auto}.home-v5 .home-header .account-register{display:inline-flex!important}}\n@media(max-width:680px){.home-v5 .home-header .head{gap:7px 10px}.home-v5 .home-brand{width:100%;flex:1 0 100%}.home-v5 .home-header .account-actions{display:grid;width:100%;grid-template-columns:minmax(0,1.35fr) minmax(0,.65fr);gap:8px;margin:0}.home-v5 .home-header .account-actions .btn{display:inline-flex!important;width:100%;min-height:42px;padding:7px 8px;font-size:.84rem}.home-v5 .home-header .account-register{font-weight:900}.home-v5 .home-header .account-login{font-weight:800}.home-hero-copy{padding-top:34px}}\n'''
+              css.write_text(c, encoding='utf-8')
+
+          # Contract checks before commit.
+          out = index.read_text(encoding='utf-8')
+          assert '新規無料会員登録' in out
+          assert 'member-login.html' in out
+          assert 'aomori-vacant-house-checklist.html' in out
+          assert 'register.html' in out
+          PY
+      - name: Show diff
+        run: git diff --check && git diff -- akiya-pocket/index.html akiya-pocket/assets/home-r5.css
+      - name: Commit fix
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo 'No changes needed.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add akiya-pocket/index.html akiya-pocket/assets/home-r5.css
+          git commit -m 'Akiya: clarify signup login and free-check navigation'
+          git push origin HEAD:main
