@@ -2,178 +2,18 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="robots" content="noindex,nofollow,noarchive">
-<meta name="description" content="地域のイベントを探す・告知する・開催場所を探す・場所を貸すを一つにつなぐイベント告知・マッチングプラットフォーム。青森市で実証中。">
-<meta name="theme-color" content="#ff5a36">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://fpgtwgtoqtokpitzlbie.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
-<title>イベント告知・マッチング｜地域のイベントと場所をつなぐ</title>
-<link rel="stylesheet" href="styles.css">
-<link rel="stylesheet" href="enterprise.css" data-enterprise-layer>
-<script defer src="app.js"></script>
-<script defer src="app-data.js"></script>
-<script defer src="app-render.js"></script>
-<script defer src="app-form.js"></script>
-<script defer src="app-dashboard.js"></script>
-<script defer src="app-init.js"></script>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow,noarchive,nosnippet">
+<meta name="description" content="このサービスは運営者の判断により停止しました。">
+<title>サービス停止中</title>
+<style>
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#f7f7f7;color:#222;display:grid;min-height:100vh;place-items:center}.box{max-width:640px;margin:24px;padding:32px;background:#fff;border:1px solid #ddd;border-radius:12px}h1{font-size:1.6rem;margin:0 0 16px}p{line-height:1.8;margin:0}
+</style>
 </head>
 <body>
-<a class="skip-link" href="#main">本文へ移動</a>
-<div class="preview-banner" id="previewBanner">
-  <strong>開発プレビュー</strong>
-  <span>青森市で実証中。現在は無料の情報掲載・検索・イベント告知・公開条件による候補比較のみ。予約・契約・決済・成功報酬は停止中です。</span>
-</div>
-<header class="site-header">
-  <div class="wrap nav">
-    <button class="brand" data-nav="discover" type="button" aria-label="イベント告知・マッチング ホーム">
-      <span class="brand-mark" aria-hidden="true">●</span><span>イベント告知・マッチング</span>
-    </button>
-    <nav aria-label="メインナビゲーション">
-      <button data-nav="discover" class="active" type="button">ホーム</button>
-      <button data-nav="calendar" type="button">イベント</button>
-      <button data-nav="post" type="button">掲載する</button>
-      <button data-nav="dashboard" type="button">管理</button>
-      <button data-nav="favorites" type="button">お気に入り</button>
-    </nav>
-  </div>
-</header>
-<div class="statusbar"><div class="wrap status-row"><div><span id="storageStatus" class="status">接続確認中</span><span id="storageNote" class="muted"></span></div><button id="healthBtn" class="text-btn" type="button">システム状態</button></div></div>
-
-<main id="main">
-<section id="discover" class="view active">
-  <section class="hero">
-    <div class="wrap hero-grid">
-      <div class="hero-copy">
-        <div class="pilot-chip">青森市から実証中</div>
-        <span class="eyebrow">LOCAL EVENT MATCHING PLATFORM</span>
-        <h1>イベントを見つける。<br>イベントを開く。<br><em>場所とつながる。</em></h1>
-        <p>地域の小さな催しまで見つけられるイベントカレンダーと、主催者が開催場所を探し、場所の提供者が企画と出会えるマッチング機能を一つにまとめます。</p>
-        <div class="actions hero-actions">
-          <button class="btn primary large" data-nav="calendar" type="button">開催イベントを見る</button>
-          <button class="btn secondary large" data-quick-post="want" type="button">イベントを開きたい</button>
-        </div>
-        <p class="hero-note">連絡・条件調整・契約・支払いはサイト外で当事者同士が直接行います。</p>
-      </div>
-      <aside class="hero-visual" aria-label="プラットフォームの流れ">
-        <div class="poster poster-main"><span class="poster-date">EVENT</span><strong>地域の小さな催しも<br>ひとつのカレンダーへ</strong><span>POP-UP / LIVE / FOOD / ART / WORKSHOP</span></div>
-        <div class="poster poster-space"><span>SPACE</span><b>空いている場所</b></div>
-        <div class="poster poster-match"><span>MATCH</span><b>開催したい企画</b></div>
-      </aside>
-    </div>
-  </section>
-
-  <section class="journey-section">
-    <div class="wrap">
-      <div class="section-heading centered"><span class="eyebrow dark">CHOOSE YOUR PATH</span><h2>あなたは何をしたいですか？</h2><p>目的ごとに入口を分けています。複雑な操作をせず、必要な画面へ直接進めます。</p></div>
-      <div class="journey-grid">
-        <article class="journey-card journey-event"><div class="journey-icon">01</div><span class="journey-label">VISITOR</span><h3>イベントを探したい</h3><p>開催日・地域・カテゴリから、地域のイベントを探します。</p><button class="btn primary" data-nav="calendar" type="button">イベントカレンダーへ</button></article>
-        <article class="journey-card journey-organizer"><div class="journey-icon">02</div><span class="journey-label">ORGANIZER</span><h3>イベントを開きたい</h3><p>企画を掲載し、条件の近い開催場所を比較します。開催決定後はイベント告知へ変換できます。</p><button class="btn primary" data-quick-post="want" type="button">企画を無料掲載</button></article>
-        <article class="journey-card journey-space"><div class="journey-icon">03</div><span class="journey-label">SPACE OWNER</span><h3>場所を貸したい</h3><p>店先、軒先、空き地、駐車場の一部、小さな屋内スペースなどの一時利用情報を掲載します。</p><button class="btn primary" data-quick-post="space" type="button">場所を無料掲載</button></article>
-      </div>
-    </div>
-  </section>
-
-  <section class="upcoming-section">
-    <div class="wrap">
-      <div class="section-heading split"><div><span class="eyebrow dark">UPCOMING EVENTS</span><h2>これから開催されるイベント</h2><p>青森市の公開イベントを開催日順で表示します。</p></div><button class="btn ghost" data-nav="calendar" type="button">イベントをすべて見る</button></div>
-      <div id="homeEventGrid" class="grid event-preview-grid"><div class="empty">イベントを読み込んでいます。</div></div>
-    </div>
-  </section>
-
-  <section class="matching-section">
-    <div class="wrap">
-      <div class="section-heading split"><div><span class="eyebrow dark">SPACE × PLAN MATCHING</span><h2>開催場所と企画を探す</h2><p>公開条件を比較し、近い候補には一致度と理由を表示します。候補を自動で絞り込みますが、他の掲載も自由に検索できます。</p></div><div class="match-summary"><b id="kMatch">0</b><span>高一致候補</span></div></div>
-      <div class="kpis" aria-label="現在の公開数"><div class="kpi"><b id="kSpace">0</b><span>使える場所</span></div><div class="kpi"><b id="kWant">0</b><span>開催場所を探す企画</span></div><div class="kpi"><b id="kEvent">0</b><span>開催イベント</span></div></div>
-      <div class="discover-tabs" aria-label="掲載種別"><button data-discover-type="space" class="active" type="button">使える場所</button><button data-discover-type="want" type="button">場所を探す企画</button><button data-discover-type="" type="button">すべて</button></div>
-      <div class="toolbar filter-panel">
-        <div><label for="prefectureFilter">都道府県</label><select id="prefectureFilter"></select></div>
-        <div><label for="municipalityFilter">市区町村</label><input id="municipalityFilter" value="青森市" maxlength="40" placeholder="例：青森市"></div>
-        <div><label for="q">キーワード</label><input id="q" maxlength="80" placeholder="例：店先 電源 ハンドメイド"></div>
-        <div><label for="categoryFilter">用途</label><select id="categoryFilter"><option value="">用途すべて</option><option>ポップアップ・物販</option><option>音楽・ライブ</option><option>展示・アート</option><option>飲食・フード</option><option>ワークショップ</option><option>撮影</option><option>地域活動</option><option>その他</option></select></div>
-        <div><label for="sort">並び順</label><select id="sort"><option value="new">新着順</option><option value="date">日付順</option><option value="price">料金・予算順</option></select></div>
-        <div class="filter-actions"><button id="searchBtn" class="btn primary small" type="button">検索</button><button id="resetSearchBtn" class="btn ghost small" type="button">リセット</button></div>
-      </div>
-      <div id="resultMeta" class="result-meta" aria-live="polite"></div>
-      <div id="listingGrid" class="grid"></div>
-      <div class="center"><button id="loadMoreBtn" class="btn ghost" type="button" hidden>さらに表示</button></div>
-    </div>
-  </section>
-
-  <section class="how-section"><div class="wrap"><div class="section-heading centered"><span class="eyebrow dark">HOW IT WORKS</span><h2>企画から開催までを一本につなぐ</h2></div><div class="how-grid"><article><span>STEP 1</span><h3>企画・場所を掲載</h3><p>主催者は企画を、場所の提供者は一時利用できる場所を無料で公開します。</p></article><article><span>STEP 2</span><h3>公開条件で比較</h3><p>地域、用途、日程、人数、予算、タグなどから条件の近い候補を比較します。</p></article><article><span>STEP 3</span><h3>開催決定後に告知</h3><p>開催が決まった企画はイベントへ変換し、地域カレンダーに掲載できます。</p></article></div></div></section>
-
-  <section class="boundary-section"><div class="wrap boundary-card"><div><span class="eyebrow dark">CURRENT SCOPE</span><h2>現在は「情報掲載・検索・候補比較」に限定</h2><p>本サイト内で予約、利用契約、決済、成功報酬の徴収、私信、雇用仲介、不動産取引の仲介は行いません。外部問い合わせ先で当事者同士が条件を確認します。</p></div><a class="btn ghost" href="legal-boundaries.html">現在の機能境界を見る</a></div></section>
-</section>
-
-<section id="calendar" class="view" aria-labelledby="calendarHeading">
-  <div class="page-hero event-page-hero"><div class="wrap"><span class="eyebrow">EVENT CALENDAR</span><h1 id="calendarHeading">地域のイベントを見つける</h1><p>ポップアップ、個人展示、小さなライブ、ワークショップなどもまとめて探せる地域カレンダーです。</p><button class="btn light" data-post-event type="button">イベントを無料告知</button></div></div>
-  <div class="wrap page-body">
-    <div class="toolbar filter-panel calendar-filter"><div><label for="calendarPrefecture">都道府県</label><select id="calendarPrefecture"></select></div><div><label for="calendarMunicipality">市区町村</label><input id="calendarMunicipality" value="青森市" maxlength="40"></div><div><label for="calendarQ">検索</label><input id="calendarQ" maxlength="80" placeholder="イベント名・内容"></div><div><label for="calendarCategory">カテゴリ</label><select id="calendarCategory"><option value="">カテゴリすべて</option><option>ポップアップ・物販</option><option>音楽・ライブ</option><option>展示・アート</option><option>飲食・フード</option><option>ワークショップ</option><option>撮影</option><option>地域活動</option><option>その他</option></select></div><div class="filter-actions"><button id="calendarSearchBtn" class="btn primary small" type="button">カレンダー更新</button></div></div>
-    <div id="calendarList" class="calendar-list" aria-live="polite"></div>
-  </div>
-</section>
-
-<section id="post" class="view" aria-labelledby="postHeading">
-  <div class="page-hero post-page-hero"><div class="wrap"><span class="eyebrow">FREE LISTING</span><h1 id="postHeading">イベント・企画・場所を掲載する</h1><p>掲載料は現在0円。掲載内容は自動チェックを通して公開します。</p></div></div>
-  <div class="wrap page-body"><div class="panel post-panel">
-    <div class="type-tabs"><button data-post-type="want" type="button">イベントを開きたい</button><button data-post-type="space" class="active" type="button">場所を貸したい</button><button data-post-type="event" type="button">開催イベントを告知</button></div>
-    <div id="postExplainer" class="notice"></div>
-    <form id="postForm" class="form" novalidate>
-      <input type="hidden" id="postType" value="space"><input type="hidden" id="editId"><input type="hidden" id="convertedFromId">
-      <div class="form-grid">
-        <div class="full"><label for="title">タイトル *</label><input id="title" required maxlength="100"></div>
-        <div><label for="prefecture">都道府県 *</label><select id="prefecture" required></select></div>
-        <div><label for="municipality">市区町村 *</label><input id="municipality" required maxlength="40" value="青森市" placeholder="例：青森市"></div>
-        <div class="full"><label for="areaDetail">詳細エリア</label><input id="areaDetail" maxlength="80" placeholder="例：古川 / 青森駅徒歩5分圏内（正確な住所は不要）"></div>
-        <div><label for="category">用途・カテゴリ *</label><select id="category" required><option value="">選択してください</option><option>ポップアップ・物販</option><option>音楽・ライブ</option><option>展示・アート</option><option>飲食・フード</option><option>ワークショップ</option><option>撮影</option><option>地域活動</option><option>その他</option></select></div>
-        <div class="space-only"><label for="spaceKind">場所の種類 *</label><select id="spaceKind"><option value="">選択してください</option><option>店先・軒先</option><option>空き地</option><option>駐車場の一部</option><option>店舗・施設の一部</option><option>屋内レンタルスペース</option><option>庭・屋外スペース</option><option>その他の私有スペース</option></select></div>
-        <div class="space-only"><label for="indoorOutdoor">屋内・屋外</label><select id="indoorOutdoor"><option value="">指定なし</option><option>屋外</option><option>屋内</option><option>半屋外</option></select></div>
-        <div class="want-only event-only" hidden><label for="dateStart">希望・開催開始日 *</label><input id="dateStart" type="date"></div>
-        <div class="want-only event-only" hidden><label for="dateEnd">希望・開催終了日 *</label><input id="dateEnd" type="date"></div>
-        <div class="space-only"><label for="availableFrom">利用可能開始日</label><input id="availableFrom" type="date"></div>
-        <div class="space-only"><label for="availableTo">利用可能終了日</label><input id="availableTo" type="date"></div>
-        <div class="space-only want-only event-only"><label for="capacity">目安人数</label><input id="capacity" type="number" min="0" max="100000" inputmode="numeric"></div>
-        <div class="space-only"><label for="sizeSqm">広さ（㎡・概算可）</label><input id="sizeSqm" type="number" min="0" max="1000000" step="0.1" inputmode="decimal"></div>
-        <div class="space-only"><label for="priceAmount">1日料金目安（円）</label><input id="priceAmount" type="number" min="0" max="100000000" inputmode="numeric" placeholder="例：2000"></div>
-        <div class="want-only" hidden><label for="budgetMax">1日予算上限（円）</label><input id="budgetMax" type="number" min="0" max="100000000" inputmode="numeric" placeholder="例：5000"></div>
-        <div class="event-only" hidden><label for="placeName">開催場所名 *</label><input id="placeName" maxlength="120" placeholder="例：○○商店前"></div>
-        <div class="event-only" hidden><label for="eventPrice">来場料金</label><input id="eventPrice" maxlength="80" placeholder="例：無料 / 500円"></div>
-        <div class="full"><label for="description">説明 *</label><textarea id="description" required maxlength="2500" placeholder="何ができる場所か／どんなイベントを開きたいか／開催イベントの内容などを具体的に。電話番号・メールアドレスは直接書かず、公開URLを使ってください。"></textarea><div class="counter"><span id="descriptionCount">0</span>/2500</div></div>
-        <div class="full space-only"><label for="allowedUses">利用できること</label><input id="allowedUses" maxlength="800" placeholder="例：物販、展示、小音量ライブ、キッチンカー"></div>
-        <div class="full space-only"><label for="prohibitedUses">できないこと・注意事項</label><input id="prohibitedUses" maxlength="800" placeholder="例：火気不可、22時以降不可"></div>
-        <div class="full"><label for="tags">タグ</label><input id="tags" maxlength="200" placeholder="例：親子, 屋外, ハンドメイド"></div>
-        <div class="full"><label for="contactUrl">公開用問い合わせURL *</label><input id="contactUrl" required maxlength="500" inputmode="url" placeholder="https://..."><p class="field-note">公式サイト、問い合わせフォーム、公開SNSなど。HTTPSの公開URLのみ。</p></div>
-        <div class="full image-field"><label for="images">写真（最大3枚）</label><input id="images" type="file" accept="image/jpeg,image/png,image/webp" multiple><div id="imagePreview" class="image-preview"></div><div id="existingImages" class="image-preview"></div><label class="check"><input id="imageRightsConfirmed" type="checkbox"> 写真を掲載する権利を確認しました</label></div>
-        <div class="full checks space-only"><label class="check"><input id="spaceAuthority" type="checkbox"> この場所を掲載できる権限があります *</label><label class="check"><input id="spaceInfoOnly" type="checkbox"> 本サイトは情報掲載・検索のみで、予約・契約・決済を仲介しないことを確認しました *</label></div>
-        <div class="full checks want-only" hidden><label class="check"><input id="temporaryUseOnly" type="checkbox"> 長期賃貸ではなくイベント等の一時利用を探しています *</label></div>
-        <div class="full checks event-only" hidden><label class="check"><input id="eventRightsConfirmed" type="checkbox"> このイベントを告知できる権限があります *</label></div>
-        <div class="full checks"><label class="check"><input id="promoOptIn" type="checkbox"> 公開情報を本サービスの告知・紹介に利用してよい</label><label class="check"><input id="terms" type="checkbox"> <a href="terms.html" target="_blank" rel="noopener noreferrer">利用規約</a>・<a href="privacy.html" target="_blank" rel="noopener noreferrer">プライバシー</a>等に同意します *</label></div>
-      </div>
-      <div id="validationBox"></div>
-      <div class="form-actions"><button id="submitBtn" class="btn primary large" type="submit" data-write-action>自動審査して掲載</button><button id="resetBtn" class="btn ghost" type="button">入力をクリア</button></div>
-    </form>
-  </div></div>
-</section>
-
-<section id="dashboard" class="view" aria-labelledby="dashboardHeading">
-  <div class="page-hero dashboard-page-hero"><div class="wrap"><span class="eyebrow">MY DASHBOARD</span><h1 id="dashboardHeading">掲載と候補を管理する</h1><p>この端末の管理鍵に紐づく掲載・候補・通知を確認します。</p></div></div>
-  <div class="wrap page-body">
-    <div class="dash-tabs"><button data-dash="myListings" class="active" type="button">自分の掲載</button><button data-dash="recommendations" type="button">おすすめ候補</button><button data-dash="notifications" type="button">通知</button><button data-dash="settings" type="button">管理鍵</button></div>
-    <div id="myListings" class="dash-panel active"><div id="mineGrid" class="grid"></div></div>
-    <div id="recommendations" class="dash-panel"><div id="recommendationGrid"></div></div>
-    <div id="notifications" class="dash-panel"><div class="section-heading split compact"><h2>通知</h2><button id="markReadBtn" class="btn ghost small" type="button" data-write-action>すべて既読</button></div><div id="notificationList" class="notification-list"></div></div>
-    <div id="settings" class="dash-panel"><div id="identityBox" class="notice"></div><div class="key-actions"><button id="exportBtn" class="btn primary small" type="button">管理鍵をバックアップ</button><button id="importBtn" class="btn ghost small" type="button">管理鍵を復元</button><input id="importFile" type="file" accept="application/json" hidden></div></div>
-  </div>
-</section>
-
-<section id="favorites" class="view" aria-labelledby="favoritesHeading">
-  <div class="page-hero favorites-page-hero"><div class="wrap"><span class="eyebrow">SAVED</span><h1 id="favoritesHeading">お気に入り</h1><p>気になるイベント・場所・企画をこの端末に保存します。</p></div></div>
-  <div class="wrap page-body"><div id="favGrid" class="grid"></div></div>
-</section>
+<main class="box">
+<h1>サービスは停止しています</h1>
+<p>このイベント告知・場所マッチングサービスは、運営者の判断により停止しました。現在、イベント掲載、場所掲載、検索、投稿、編集、画像登録、問い合わせ連携その他のサービス機能は提供していません。</p>
 </main>
-
-<footer class="site-footer"><div class="wrap footer-grid"><div><strong>イベント告知・マッチング</strong><p>地域の小さなイベントと開催場所を、公開情報でつなぐ実証プラットフォーム。</p></div><nav aria-label="フッターナビ"><a href="terms.html">利用規約</a><a href="privacy.html">プライバシー</a><a href="legal-boundaries.html">機能・法的境界</a></nav></div></footer>
-
-<div id="modal" class="modal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="modalTitle"><div class="modal-card"><button id="modalClose" class="modal-close" type="button" aria-label="閉じる">×</button><div id="modalBody"><h2 id="modalTitle">詳細</h2></div></div></div>
-<div id="toast" class="toast" role="status" aria-live="polite"></div>
 </body>
 </html>
