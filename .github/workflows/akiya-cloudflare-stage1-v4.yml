@@ -15,6 +15,9 @@ jobs:
       contains(github.event.comment.body, 'START_AKIYA_CF_STAGE1_V4')
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,37 +34,20 @@ jobs:
           echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
           echo "Source SHA: $source_sha"
 
-      - name: Cloudflare device authorization
+      - name: Verify Cloudflare CI credentials
         id: auth
-        env:
-          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          log="$RUNNER_TEMP/wrangler-login.log"
-          clean="$RUNNER_TEMP/wrangler-login-clean.log"
-          : > "$log"
-          (CI='' npx --yes wrangler@4.119.0 login --device --browser=false >"$log" 2>&1) &
-          pid=$!
-          url=''; code=''
-          for n in $(seq 1 30); do
-            perl -pe 's/\e\[[0-9;]*[mK]//g' "$log" > "$clean" || true
-            url=$(grep -Eo 'https://dash\.cloudflare\.com/oauth2/device(/verify)?' "$clean" | tail -1 || true)
-            code=$(grep -Eo '([A-Za-z0-9]{4}-[A-Za-z0-9]{4}|[A-Za-z0-9]{8})' "$clean" | tail -1 || true)
-            if [ -n "$url" ] && [ -n "$code" ]; then break; fi
-            if ! kill -0 "$pid" 2>/dev/null; then break; fi
-            sleep 1
-          done
-          if [ -z "$url" ] || [ -z "$code" ]; then
-            cat "$clean" || true
-            kill "$pid" 2>/dev/null || true
-            wait "$pid" 2>/dev/null || true
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            echo 'CLOUDFLARE_API_TOKEN secret is missing' >&2
             exit 1
           fi
-          complete_url="${url}?user_code=${code}"
-          body=$(jq -n --arg complete "$complete_url" --arg code "$code" --arg run "$GITHUB_RUN_ID" '{body:("AKIYA_CF_AUTH_NOW_V4\nVERIFY_URL_COMPLETE="+$complete+"\nCODE="+$code+"\nRUN_ID="+$run)}')
-          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
-          wait "$pid"
+          if [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo 'CLOUDFLARE_ACCOUNT_ID secret is missing' >&2
+            exit 1
+          fi
+          npx --yes wrangler@4.119.0 whoami >/dev/null
 
       - name: Resolve canonical Pages project
         id: project
