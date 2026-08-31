@@ -1,0 +1,62 @@
+name: Akiya acquisition predeploy validation
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  validate:
+    if: github.event.issue.number == 42 && contains(github.event.comment.body, 'VALIDATE_AKIYA_ACQUISITION_V1')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 50
+      - name: Resolve source SHA
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_sha=$(git log -1 --format=%H -- akiya-pocket scripts/build-akiya-cloudflare-pages.mjs)
+          echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
+      - name: Build
+        env:
+          AKIYA_CANONICAL_ORIGIN: https://akiya-pocket-aomori.pages.dev
+          AKIYA_DEPLOYMENT_URL: https://akiya-pocket-aomori.pages.dev
+          AKIYA_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: node scripts/build-akiya-cloudflare-pages.mjs
+      - name: Validate
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e --arg s "$SOURCE_SHA" '.build=="2026-08-31-acquisition-r3" and .sourceSha==$s and .canonicalOrigin=="https://akiya-pocket-aomori.pages.dev"' dist/DEPLOYMENT.json >/dev/null
+          test -f dist/assets/navigation-r1.css
+          grep -Fq 'assets/navigation-r1.css' dist/index.html
+          grep -Fq '新規無料会員登録' dist/index.html
+          grep -Fq '現地確認を依頼する' dist/index.html
+          grep -Fq '登録なしで無料チェック' dist/index.html
+          grep -Fq '先に報告見本を見る' dist/index.html
+          grep -Fq 'data-akiya-intent="request"' dist/index.html
+          grep -Fq 'og:title' dist/index.html
+          grep -Fq '空き家の取得は「相続」が57.9%' dist/index.html
+          grep -Fq '青森市は全域が特別豪雪地帯' dist/index.html
+          grep -Fq 'display:inline-flex!important' dist/assets/navigation-r1.css
+          test ! -d dist/control-center
+      - name: Report
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        shell: bash
+        run: |
+          if [ "${{ job.status }}" = success ]; then result=PASS; else result=FAIL; fi
+          body=$(jq -n --arg r "$result" --arg run "$GITHUB_RUN_ID" --arg s "$SOURCE_SHA" '{body:("AKIYA_ACQUISITION_VALIDATE="+$r+"\nRUN_ID="+$run+"\nSOURCE_SHA="+$s)}')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
