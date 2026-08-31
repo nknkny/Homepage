@@ -37,6 +37,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          exec > >(tee "$RUNNER_TEMP/akiya-validation.log") 2>&1
+          trap 'echo "VALIDATION_FAIL_LINE=$LINENO"' ERR
           jq -e --arg s "$SOURCE_SHA" '.build=="2026-08-31-acquisition-r3" and .sourceSha==$s and .canonicalOrigin=="https://akiya-pocket-aomori.pages.dev"' dist/DEPLOYMENT.json >/dev/null
           test -f dist/assets/navigation-r1.css
           grep -Fq 'assets/navigation-r1.css' dist/index.html
@@ -51,13 +53,11 @@ jobs:
           grep -Fq 'display:inline-flex!important' dist/assets/navigation-r1.css
           test ! -d dist/control-center
 
-          # Every existing public URL is a compatibility contract.
           while IFS= read -r path; do
             case "$path" in ''|'#'*) continue ;; esac
             test -f "dist/$path" || { echo "PUBLIC_URL_MISSING=$path"; exit 1; }
           done < akiya-pocket/PUBLIC_URLS.txt
 
-          # High-intent life-event pages must participate in the full attribution funnel.
           for page in \
             remote-home-aomori.html \
             inherited-home-aomori.html \
@@ -66,12 +66,11 @@ jobs:
             vacant-home-weeds-aomori.html \
             vacant-home-after-storm-aomori.html \
             snow-vacant-home-aomori.html; do
-            grep -Fq 'assets/config.js' "dist/$page"
-            grep -Fq 'assets/api.js' "dist/$page"
-            grep -Fq 'assets/site.js' "dist/$page"
+            grep -Fq 'assets/config.js' "dist/$page" || { echo "ANALYTICS_CONFIG_MISSING=$page"; exit 1; }
+            grep -Fq 'assets/api.js' "dist/$page" || { echo "ANALYTICS_API_MISSING=$page"; exit 1; }
+            grep -Fq 'assets/site.js' "dist/$page" || { echo "ANALYTICS_SITE_MISSING=$page"; exit 1; }
           done
 
-          # A visible "free checklist" promise must never silently route to membership registration.
           python - <<'PY'
           from html.parser import HTMLParser
           from pathlib import Path
@@ -106,6 +105,11 @@ jobs:
           SOURCE_SHA: ${{ steps.source.outputs.sha }}
         shell: bash
         run: |
+          set -euo pipefail
           if [ "${{ job.status }}" = success ]; then result=PASS; else result=FAIL; fi
-          body=$(jq -n --arg r "$result" --arg run "$GITHUB_RUN_ID" --arg s "$SOURCE_SHA" '{body:("AKIYA_ACQUISITION_VALIDATE="+$r+"\nRUN_ID="+$run+"\nSOURCE_SHA="+$s)}')
+          diagnostic=''
+          if [ "$result" = FAIL ] && [ -f "$RUNNER_TEMP/akiya-validation.log" ]; then
+            diagnostic=$(tail -n 20 "$RUNNER_TEMP/akiya-validation.log" | head -c 2500)
+          fi
+          body=$(jq -n --arg r "$result" --arg run "$GITHUB_RUN_ID" --arg s "$SOURCE_SHA" --arg d "$diagnostic" '{body:("AKIYA_ACQUISITION_VALIDATE="+$r+"\nRUN_ID="+$run+"\nSOURCE_SHA="+$s+(if $d=="" then "" else "\nDIAGNOSTIC<<EOF\n"+$d+"\nEOF" end))}')
           curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
