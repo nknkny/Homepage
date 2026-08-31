@@ -114,7 +114,7 @@ jobs:
           test -f dist/_headers
           test -f dist/_redirects
           test -f dist/DEPLOYMENT.json
-          jq -e --arg o "$ORIGIN" --arg s "$SOURCE_SHA" '.canonicalOrigin==$o and .build=="2026-08-21-cloudflare-pages-r1" and .sourceSha==$s' dist/DEPLOYMENT.json >/dev/null
+          jq -e --arg o "$ORIGIN" --arg s "$SOURCE_SHA" '.canonicalOrigin==$o and .build=="2026-08-31-acquisition-r3" and .sourceSha==$s' dist/DEPLOYMENT.json >/dev/null
           grep -Fq '/DEPLOYMENT.json' dist/_headers
           grep -Fq '/assets/site.js' dist/_headers
           grep -Fq '/assets/style.css' dist/_headers
@@ -148,7 +148,7 @@ jobs:
               echo 'LIVE_MISSING DEPLOYMENT.json'
               return 1
             fi
-            if ! jq -e --arg o "$ORIGIN" --arg s "$SOURCE_SHA" '.canonicalOrigin==$o and .build=="2026-08-21-cloudflare-pages-r1" and .sourceSha==$s' "$marker" >/dev/null; then
+            if ! jq -e --arg o "$ORIGIN" --arg s "$SOURCE_SHA" '.canonicalOrigin==$o and .build=="2026-08-31-acquisition-r3" and .sourceSha==$s' "$marker" >/dev/null; then
               echo 'LIVE_MISMATCH DEPLOYMENT.json metadata'
               return 1
             fi
