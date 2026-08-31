@@ -1,2 +1,11 @@
 'use strict';
-if(!AkiyaAPI.token())location.replace('member-login.html');else if(window.AkiyaAnalytics)AkiyaAnalytics.track('request_started',{contentCategory:'field_check',contentId:'request_form',actionLabel:'view'});requestForm.addEventListener('submit',async e=>{e.preventDefault();const btn=e.submitter;AkiyaUI.busy(btn,true);try{const d=AkiyaUI.formData(requestForm);const attendance=String(d.attendancePreference||'立会いなし（通常）');delete d.attendancePreference;const note=String(d.requestNotes||'').trim();d.requestNotes=('[現地立会い] '+attendance+(note?'\n'+note:'')).slice(0,1000);d.sessionToken=AkiyaAPI.token();const r=await AkiyaAPI.submit('create_inspection_request',d);if(!r.ok)return AkiyaUI.show(requestStatus,r.message||'送信できませんでした。');AkiyaUI.show(requestStatus,'受付番号 '+r.requestId+' で受け付けました。カード払い前の最終確認画面へ進みます。',true);requestForm.reset();setTimeout(()=>location.href='checkout.html?request_id='+encodeURIComponent(r.requestId),500)}catch(err){AkiyaUI.show(requestStatus,err.message)}finally{AkiyaUI.busy(btn,false)}});
+if(!AkiyaAPI.token())location.replace('member-login.html');
+else if(window.AkiyaAnalytics)AkiyaAnalytics.track('request_started',{contentCategory:'field_check',contentId:'request_form',actionLabel:'view',audienceJob:AkiyaAnalytics.audienceJob()});
+requestForm.addEventListener('submit',async e=>{
+ e.preventDefault();const btn=e.submitter;AkiyaUI.busy(btn,true);
+ try{
+   const d=AkiyaUI.formData(requestForm);const attendance=String(d.attendancePreference||'立会いなし（通常）');delete d.attendancePreference;const note=String(d.requestNotes||'').trim();d.requestNotes=('[現地立会い] '+attendance+(note?'\n'+note:'')).slice(0,1000);d.sessionToken=AkiyaAPI.token();
+   if(window.AkiyaAnalytics)Object.assign(d,AkiyaAnalytics.acquisitionPayload(),{audienceJob:AkiyaAnalytics.audienceJob(),contentCategory:'field_check',contentId:'request_form',actionLabel:'submit'});
+   const r=await AkiyaAPI.submit('create_inspection_request',d);if(!r.ok)return AkiyaUI.show(requestStatus,r.message||'送信できませんでした。');AkiyaUI.show(requestStatus,'受付番号 '+r.requestId+' で受け付けました。カード払い前の最終確認画面へ進みます。',true);requestForm.reset();setTimeout(()=>location.href='checkout.html?request_id='+encodeURIComponent(r.requestId),500)
+ }catch(err){AkiyaUI.show(requestStatus,err.message)}finally{AkiyaUI.busy(btn,false)}
+});
