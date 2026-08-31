@@ -1,61 +1,14 @@
-name: Event Platform Zero-License E2E
+name: Event Platform E2E STOPPED
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/event-platform-zero-license-e2e.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  e2e:
+  stopped:
+    if: ${{ false }}
     runs-on: ubuntu-latest
-    timeout-minutes: 6
     steps:
-      - name: Exercise legal boundaries against live API
-        env:
-          API: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/event-platform-api
-        run: |
-          python3 - <<'PY'
-          import json, os, secrets, urllib.request, urllib.error, uuid
-          API=os.environ['API']
-          owner=str(uuid.uuid4()); key=secrets.token_hex(32)
-          headers={'Content-Type':'application/json','x-owner-id':owner,'x-owner-key':key,'Origin':'https://nknkny.github.io'}
-          def call(action, method='GET', body=None, auth=False):
-              h={'Content-Type':'application/json','Origin':'https://nknkny.github.io'}
-              if auth: h.update({'x-owner-id':owner,'x-owner-key':key})
-              data=None if body is None else json.dumps(body,ensure_ascii=False).encode()
-              req=urllib.request.Request(API+'?action='+action,data=data,headers=h,method=method)
-              try:
-                  with urllib.request.urlopen(req,timeout=30) as r: return r.status,json.loads(r.read())
-              except urllib.error.HTTPError as e:
-                  raw=e.read().decode(); return e.code,json.loads(raw or '{}')
-          s,h=call('health'); assert s==200 and h['commercialPayments'] is False and h['privateMessaging'] is False and h['employmentMatching'] is False and h['venueBrokerage'] is False and h['underlyingPayments'] is False
-          s,b=call('bootstrap','POST',{},True); assert s==200 and b['ok']
-          base={'area':'青森市','category':'文化・アート','description':'イベント利用を想定した公開情報です。詳細条件と契約は外部窓口で直接確認してください。','contactUrl':'https://example.com/contact','availableFrom':'2026-09-01','availableTo':'2026-12-31','priceGuide':'応相談','tags':['青森','屋内']}
-          venue=dict(base,type='venue',title='E2E会場情報テスト',capacity=120,venueInfoOnly=False)
-          s,b=call('save_listing','POST',venue,True); assert s==422 and b['error']=='MODERATION_REJECTED', (s,b)
-          venue['venueInfoOnly']=True
-          s,b=call('save_listing','POST',venue,True); assert s==200 and b['listing']['type']=='venue', (s,b); ids=[b['listing']['id']]
-          contractor=dict(base,type='contractor',title='E2E運営業務サービス',description='独立事業者としてイベント受付運営を業務委託で提供します。契約と支払いは外部窓口で直接行います。',contractorBusinessOnly=True)
-          s,b=call('save_listing','POST',contractor,True); assert s==200 and b['listing']['type']=='contractor', (s,b); ids.append(b['listing']['id'])
-          bad=dict(contractor,title='E2Eアルバイト募集テスト',description='イベントスタッフをアルバイトとして募集します。時給1200円で勤務する求人情報です。')
-          s,b=call('save_listing','POST',bad,True); assert s==422 and b['error']=='MODERATION_REJECTED' and any('雇用' in x for x in b.get('errors',[])), (s,b)
-          event={'type':'event','title':'E2Eイベントテスト','area':'青森市','category':'文化・アート','description':'公開イベント情報のE2E確認です。必要な事業者には外部公開窓口から直接連絡します。','dateStart':'2026-10-10','dateEnd':'2026-10-11','needs':['venue','contractor'],'tags':['青森','屋内'],'contactUrl':'https://example.com/event'}
-          s,b=call('save_listing','POST',event,True); assert s==200 and b['listing']['type']=='event', (s,b); ids.append(b['listing']['id'])
-          s,p=call('public_listings'); assert s==200; types={x['type'] for x in p['listings'] if x['id'] in ids}; assert types=={'event','venue','contractor'}, types
-          for action in ('create_interest','request_action','prepare_pro_purchase'):
-              s,b=call(action,'POST',{},True); assert s==404 and b['error']=='UNKNOWN_ACTION', (action,s,b)
-          for i in ids:
-              s,b=call('delete_listing','POST',{'id':i},True); assert s==200 and b['ok']
-          print('ZERO_LICENSE_E2E_SUCCESS owner='+owner+' ids='+','.join(ids))
-          with open('/tmp/e2e-owner.txt','w') as f: f.write(owner)
-          PY
-      - uses: actions/upload-artifact@v4
-        with:
-          name: zero-license-e2e-owner-${{ github.run_id }}
-          path: /tmp/e2e-owner.txt
-          retention-days: 1
+      - run: echo "Event platform is intentionally stopped."
