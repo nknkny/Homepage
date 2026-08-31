@@ -1,0 +1,49 @@
+name: Akiya URL contract and attribution gate
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'akiya-pocket/**'
+      - 'scripts/build-akiya-cloudflare-pages.mjs'
+      - '.github/workflows/akiya-url-contract.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build customer artifact
+        env:
+          AKIYA_CANONICAL_ORIGIN: https://akiya-pocket-aomori.pages.dev
+          AKIYA_DEPLOYMENT_URL: https://akiya-pocket-aomori.pages.dev
+          AKIYA_SOURCE_SHA: ${{ github.sha }}
+        run: node scripts/build-akiya-cloudflare-pages.mjs
+      - name: JavaScript syntax
+        run: |
+          node --check dist/assets/api.js
+          node --check dist/assets/site.js
+          for f in dist/assets/pages/*.js; do node --check "$f"; done
+      - name: URL contract and internal link integrity
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs=require('fs'),path=require('path');
+          const root='dist';
+          const contract=fs.readFileSync(path.join(root,'PUBLIC_URLS.txt'),'utf8').split(/\r?\n/).map(x=>x.trim()).filter(x=>x&&!x.startsWith('#'));
+          const missing=contract.filter(x=>!fs.existsSync(path.join(root,x)));
+          if(missing.length)throw new Error('Missing contracted URLs: '+missing.join(', '));
+          const html=contract.filter(x=>x.endsWith('.html'));
+          const broken=[];
+          for(const rel of html){const body=fs.readFileSync(path.join(root,rel),'utf8');const re=/\bhref=["']([^"'#?]+)(?:[?#][^"']*)?["']/gi;let m;while((m=re.exec(body))){const h=m[1];if(/^(https?:|mailto:|tel:|javascript:|\/\/)/i.test(h)||h.startsWith('/control-center'))continue;const target=h.startsWith('/')?path.join(root,h.slice(1)):path.resolve(path.dirname(path.join(root,rel)),h);if(!fs.existsSync(target))broken.push(rel+' -> '+h)}}
+          if(broken.length)throw new Error('Broken internal links:\n'+broken.join('\n'));
+          console.log(`URL_CONTRACT=PASS paths=${contract.length} html=${html.length}`);
+          NODE
+      - name: API build contract
+        shell: bash
+        run: |
+          curl -fsS --max-time 30 https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-api -o api.json
+          jq -e '.ok == true and .ready == true and .buildVersion == "2026-08-31-attribution-v12" and .fullAttributionTracking == true' api.json >/dev/null
+          grep -q 'REQUIRED_API_BUILD: "2026-08-31-attribution-v12"' dist/assets/config.js
+          echo API_CONTRACT=PASS
