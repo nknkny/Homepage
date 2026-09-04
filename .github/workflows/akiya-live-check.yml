@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 env:
-  EXPECTED_FRONTEND_BUILD: 2026-08-31-trust-attribution-r2
+  EXPECTED_FRONTEND_BUILD: 2026-08-31-acquisition-r3
   SITE_ORIGIN: https://akiya-pocket-aomori.pages.dev
   ADMIN_URL: https://nknkny.github.io/Homepage/akiya-pocket/control-center/
   API_URL: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-api
