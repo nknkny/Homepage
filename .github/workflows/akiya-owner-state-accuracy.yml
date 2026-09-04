@@ -43,8 +43,8 @@ jobs:
 
           acquisition='akiya-pocket/control-center/acquisition.html'
           test -s "$acquisition"
-          grep -Fq '外部流入→登録→依頼→支払→売上' "$acquisition"
-          grep -Fq 'direct・内部・E2Eテスト' "$acquisition"
+          grep -Fq '流入→価値閲覧→登録→依頼→支払で判定。' "$acquisition"
+          grep -Fq '内部/テスト流入を除いた外部集客セッション' "$acquisition"
 
           business='akiya-pocket/control-center/business.html'
           test -s "$business"
