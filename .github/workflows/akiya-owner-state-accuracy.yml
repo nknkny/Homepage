@@ -44,7 +44,7 @@ jobs:
           acquisition='akiya-pocket/control-center/acquisition.html'
           test -s "$acquisition"
           grep -Fq '流入→価値閲覧→登録→依頼→支払で判定。' "$acquisition"
-          grep -Fq '内部/テスト流入を除いた外部集客セッション' "$acquisition"
+          grep -Fq '外部適格セッション 7日' "$acquisition"
 
           business='akiya-pocket/control-center/business.html'
           test -s "$business"
