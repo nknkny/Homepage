@@ -1,21 +1,13 @@
-name: Akiya Pocket diversified strategy creatives v8
+name: Akiya Pocket diversified strategy creatives v8 (manual legacy)
 
 on:
-  issue_comment:
-    types: [created]
   workflow_dispatch:
 
 permissions:
   contents: write
-  issues: write
 
 jobs:
   generate:
-    if: >-
-      ${{ github.event_name == 'workflow_dispatch' ||
-          (github.event_name == 'issue_comment' &&
-           github.event.issue.number == 42 &&
-           contains(github.event.comment.body, 'GENERATE_AKIYA_STRATEGY_V8')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -23,15 +15,19 @@ jobs:
         with:
           ref: main
           fetch-depth: 5
+
       - name: Install renderer
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg fonts-noto-cjk >/dev/null
           python -m pip install -q pillow
+
       - name: Render and validate 18 creatives
         run: python .github/scripts/akiya_strategy_v8.py
+
       - name: Commit generated assets
         run: |
+          set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add akiya-pocket/assets/social/generated-v8
@@ -41,17 +37,5 @@ jobs:
             git commit -m 'Generate diversified v8 acquisition creatives'
             git push origin HEAD:main
           fi
-          echo "AKIYA_STRATEGY_V8=PASS" > /tmp/result
-          echo "SHA=$(git rev-parse HEAD)" >> /tmp/result
-      - name: Report result
-        if: >-
-          ${{ always() &&
-              github.event_name == 'issue_comment' &&
-              github.event.issue.number == 42 }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if [ -f /tmp/result ]; then body=$(cat /tmp/result); else body='AKIYA_STRATEGY_V8=FAIL'; fi
-          body="$body
-RUN_ID=${{ github.run_id }}"
-          gh issue comment 42 --body "$body"
+          echo 'AKIYA_STRATEGY_V8=PASS' >> "$GITHUB_STEP_SUMMARY"
+          echo "SHA=$(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
