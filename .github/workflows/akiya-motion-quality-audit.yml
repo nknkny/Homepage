@@ -9,20 +9,13 @@ on:
       - 'akiya-pocket/assets/social/generated-v6/*.mp4'
       - 'akiya-pocket/assets/social/generated-v7/*.mp4'
       - '.github/workflows/akiya-motion-quality-audit.yml'
-  issue_comment:
-    types: [created]
+  workflow_dispatch:
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
   audit:
-    if: >-
-      ${{ github.event_name == 'push' ||
-          (github.event_name == 'issue_comment' &&
-           github.event.issue.number == 42 &&
-           contains(github.event.comment.body, 'RUN_AKIYA_MOTION_QUALITY_AUDIT')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -73,23 +66,11 @@ PY
               echo "ERROR: $f has too few sampled frames: $total" >&2
               exit 1
             fi
-            min_unique=6
-            if [ "$unique" -lt "$min_unique" ]; then
+            if [ "$unique" -lt 6 ]; then
               echo "ERROR: $f behaves like static/card media: only $unique unique 1fps frames out of $total" >&2
               exit 1
             fi
             echo "PASS $f duration=${dur}s ${width}x${height} unique_sampled_frames=${unique}/${total}"
             checked=$((checked+1))
           done
-          echo "AKIYA_MOTION_QUALITY_AUDIT=PASS checked=$checked"
-
-      - name: Report audit
-        if: >-
-          ${{ always() && github.event_name == 'issue_comment' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          if [ "${{ job.status }}" = 'success' ]; then overall=PASS; else overall=FAIL; fi
-          body=$(jq -n --arg o "$overall" '{body:("AKIYA_MOTION_QUALITY_AUDIT="+$o)}')
-          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
+          echo "AKIYA_MOTION_QUALITY_AUDIT=PASS checked=$checked" >> "$GITHUB_STEP_SUMMARY"
