@@ -53,8 +53,14 @@ jobs:
           grep -Fq 'name="requestConsent"' "$request"
           grep -Fq '3,480円のカード前払い' "$request"
 
-          grep -Fq '無料チェックリストで「分かっていること・未確認のこと」から整理できます。' "$home"
-          grep -Fq '最初から「申し込む・申し込まない」の二択にしません。' "$home"
+          # Home copy evolves during acquisition experiments. Guard the funnel semantics,
+          # not obsolete exact sentences: direct request, free no-registration option,
+          # membership discovery, and the three distinct next-step routes must remain present.
+          grep -Fq '目的が違う3つの入口を、分けています' "$home"
+          grep -Fq '登録なしの無料チェック' "$home"
+          grep -Fq '新規無料会員登録' "$home"
+          grep -Fq '現地確認を依頼する' "$home"
+          grep -Fq 'data-akiya-intent="request"' "$home"
           grep -Fq 'aomori-vacant-house-checklist.html' "$home"
           grep -Fq 'aomori-vacant-house-photo-report.html' "$home"
           grep -Fq 'aomori-vacant-house-one-time-check.html' "$home"
