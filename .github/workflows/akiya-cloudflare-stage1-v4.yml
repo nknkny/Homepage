@@ -1,6 +1,13 @@
 name: Akiya Cloudflare stage1 v4
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'akiya-pocket/**'
+      - 'scripts/build-akiya-cloudflare-pages.mjs'
+      - '.github/workflows/akiya-cloudflare-stage1-v4.yml'
+  workflow_dispatch:
   issue_comment:
     types: [created]
 
@@ -8,11 +15,18 @@ permissions:
   contents: read
   issues: write
 
+concurrency:
+  group: akiya-cloudflare-production
+  cancel-in-progress: true
+
 jobs:
   deploy:
     if: >-
-      github.event.issue.number == 42 &&
-      contains(github.event.comment.body, 'START_AKIYA_CF_STAGE1_V4')
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.number == 42 &&
+       contains(github.event.comment.body, 'START_AKIYA_CF_STAGE1_V4'))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
