@@ -11,11 +11,15 @@ permissions:
 
 jobs:
   generate:
-    if: github.event_name == 'workflow_dispatch' || (github.event.issue.number == 42 && contains(github.event.comment.body, 'GENERATE_AKIYA_STRATEGY_V8'))
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' ||
+          (github.event_name == 'issue_comment' &&
+           github.event.issue.number == 42 &&
+           contains(github.event.comment.body, 'GENERATE_AKIYA_STRATEGY_V8')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: main
           fetch-depth: 5
@@ -40,7 +44,10 @@ jobs:
           echo "AKIYA_STRATEGY_V8=PASS" > /tmp/result
           echo "SHA=$(git rev-parse HEAD)" >> /tmp/result
       - name: Report result
-        if: always() && github.event.issue.number == 42
+        if: >-
+          ${{ always() &&
+              github.event_name == 'issue_comment' &&
+              github.event.issue.number == 42 }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
