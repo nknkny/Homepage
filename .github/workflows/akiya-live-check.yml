@@ -20,9 +20,21 @@ env:
 jobs:
   production-check:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 50
+
+      - name: Resolve expected public-site source SHA
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_sha=$(git log -1 --format=%H -- akiya-pocket scripts/build-akiya-cloudflare-pages.mjs)
+          test -n "$source_sha"
+          echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "Expected public-site source SHA: $source_sha"
 
       - name: Verify current Supabase APIs
         shell: bash
@@ -34,12 +46,42 @@ jobs:
           curl --fail --silent --show-error --max-time 30 -H "Origin: $SITE_ORIGIN" "$PAYMENT_API_URL" -o evidence/payment.json
           jq -e '.ok==true and .ready==true and .amountJpy==3480 and .paymentLinkReady==true' evidence/payment.json >/dev/null
 
+      - name: Wait for expected Cloudflare production source
+        if: github.event_name == 'push'
+        env:
+          EXPECTED_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          matched=0
+          for attempt in $(seq 1 30); do
+            if curl --fail --location --silent --show-error --max-time 20 \
+              "$SITE_ORIGIN/DEPLOYMENT.json?wait=$GITHUB_RUN_ID-$attempt" \
+              -o evidence/deployment.json; then
+              actual=$(jq -r '.sourceSha // ""' evidence/deployment.json)
+              echo "attempt=$attempt expected=$EXPECTED_SOURCE_SHA actual=$actual"
+              if jq -e --arg b "$EXPECTED_FRONTEND_BUILD" --arg o "$SITE_ORIGIN" --arg s "$EXPECTED_SOURCE_SHA" \
+                '.build==$b and .canonicalOrigin==$o and .sourceSha==$s' evidence/deployment.json >/dev/null; then
+                matched=1
+                break
+              fi
+            fi
+            sleep 4
+          done
+          if [ "$matched" != 1 ]; then
+            echo "Expected Cloudflare production source did not appear within the verification window." >&2
+            exit 1
+          fi
+
       - name: Verify live Cloudflare customer site
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --location --silent --show-error --max-time 30 "$SITE_ORIGIN/DEPLOYMENT.json?check=$GITHUB_SHA" -o evidence/deployment.json
-          jq -e --arg b "$EXPECTED_FRONTEND_BUILD" --arg o "$SITE_ORIGIN" '.build==$b and .canonicalOrigin==$o' evidence/deployment.json >/dev/null
+          if [ "${{ github.event_name }}" != push ]; then
+            curl --fail --location --silent --show-error --max-time 30 "$SITE_ORIGIN/DEPLOYMENT.json?check=$GITHUB_SHA" -o evidence/deployment.json
+            jq -e --arg b "$EXPECTED_FRONTEND_BUILD" --arg o "$SITE_ORIGIN" '.build==$b and .canonicalOrigin==$o' evidence/deployment.json >/dev/null
+          fi
           curl --fail --location --silent --show-error --max-time 30 "$SITE_ORIGIN/?check=$GITHUB_SHA" -o evidence/home.html
           grep -Fq '空家ポケット' evidence/home.html
           grep -Fq "<link rel=\"canonical\" href=\"$SITE_ORIGIN/\">" evidence/home.html
@@ -63,9 +105,6 @@ jobs:
             rel=${file#dist/}
             case "$rel" in _headers|_redirects|DEPLOYMENT.json) continue;; esac
             tmp=$(mktemp)
-            # Cloudflare Pages Pretty URLs redirect *.html requests to their
-            # canonical route. Follow redirects before byte comparison so the
-            # check compares the deployed resource rather than a 3xx body.
             if ! curl --fail --location --silent --show-error --max-time 30 "$SITE_ORIGIN/$rel?integrity=$GITHUB_SHA" -o "$tmp"; then
               echo "LIVE_MISSING $rel"
               mismatches=$((mismatches+1))
@@ -93,7 +132,7 @@ jobs:
 
       - name: Upload evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: akiya-live-production-${{ github.run_id }}
           path: evidence/
