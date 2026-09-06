@@ -18,11 +18,15 @@ permissions:
 
 jobs:
   audit:
-    if: github.event_name == 'push' || (github.event.issue.number == 42 && contains(github.event.comment.body, 'RUN_AKIYA_MOTION_QUALITY_AUDIT'))
+    if: >-
+      ${{ github.event_name == 'push' ||
+          (github.event_name == 'issue_comment' &&
+           github.event.issue.number == 42 &&
+           contains(github.event.comment.body, 'RUN_AKIYA_MOTION_QUALITY_AUDIT')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: main
 
@@ -80,7 +84,8 @@ PY
           echo "AKIYA_MOTION_QUALITY_AUDIT=PASS checked=$checked"
 
       - name: Report audit
-        if: always() && github.event_name == 'issue_comment'
+        if: >-
+          ${{ always() && github.event_name == 'issue_comment' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
