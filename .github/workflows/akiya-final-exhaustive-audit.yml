@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || 'main' }}
 
@@ -33,11 +33,15 @@ jobs:
           ! grep -Fq '/Homepage/akiya-pocket/' dist/robots.txt
           grep -Fq 'Sitemap: https://akiya-pocket-aomori.pages.dev/sitemap.xml' dist/robots.txt
 
-      - name: Install Playwright
+      - name: Prepare preinstalled Chrome audit runtime
         run: |
+          set -euo pipefail
           npm init -y >/dev/null 2>&1
-          npm install playwright@latest >/dev/null 2>&1
-          npx playwright install --with-deps chromium >/dev/null 2>&1
+          npm install playwright-core@latest >/dev/null 2>&1
+          chrome=$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)
+          test -n "$chrome"
+          echo "CHROME_PATH=$chrome" >> "$GITHUB_ENV"
+          "$chrome" --version
 
       - name: Start local artifact server
         run: |
@@ -51,14 +55,16 @@ jobs:
         run: |
           set -euo pipefail
           cat > audit.mjs <<'EOF'
-          import { chromium, request as playwrightRequest } from 'playwright';
+          import { chromium, request as playwrightRequest } from 'playwright-core';
           const local='http://127.0.0.1:4173';
           const canonical='https://akiya-pocket-aomori.pages.dev';
           const functional=['/register.html','/member-login.html','/member.html','/profile.html','/request.html','/checkout.html','/payment-success.html','/delete-account.html','/account-recovery.html','/reset-password.html','/unsubscribe.html','/newsletter-unsubscribe.html','/checklist.html','/member-survey.html'];
           const sx=await fetch(local+'/sitemap.xml').then(r=>r.text());
           const sitemapPaths=[...sx.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m=>new URL(m[1]).pathname);
           const paths=[...new Set(['/',...sitemapPaths,...functional])];
-          const browser=await chromium.launch({headless:true});
+          const chrome=process.env.CHROME_PATH;
+          if(!chrome) throw new Error('CHROME_PATH missing');
+          const browser=await chromium.launch({headless:true,executablePath:chrome,args:['--no-sandbox']});
           const api=await playwrightRequest.newContext();
           const errors=[]; const checked=[]; const links=new Set();
           const vps=[{name:'desktop',width:1440,height:900},{name:'mobile',width:390,height:844}];
