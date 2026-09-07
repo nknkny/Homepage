@@ -64,6 +64,7 @@ jobs:
             sleep 5
           done
           test "$ok" = 1
+          echo "DEPLOYMENT_MARKER_PASS source=$SOURCE_SHA"
 
       - name: Verify every deployed file with propagation retry
         id: parity
@@ -119,23 +120,48 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          url_count=0
           while IFS= read -r path; do
             case "$path" in ''|'#'*) continue ;; esac
-            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$ORIGIN/$path?verify=$GITHUB_RUN_ID")
-            test "$code" = 200
+            code=$(curl -sSL -o /dev/null -w '%{http_code}' --max-time 20 "$ORIGIN/$path?verify=$GITHUB_RUN_ID")
+            if [ "$code" != 200 ]; then
+              echo "PUBLIC_URL_FAIL path=$path final_http=$code"
+              exit 1
+            fi
+            url_count=$((url_count+1))
           done < akiya-pocket/PUBLIC_URLS.txt
+          echo "PUBLIC_URL_CONTRACT_PASS count=$url_count"
 
           curl -fsSL -H "Origin: $ORIGIN" "$API" -o "$RUNNER_TEMP/api.json"
-          jq -e '.ok==true and .ready==true and .accountDeletionAnonymizes==true' "$RUNNER_TEMP/api.json" >/dev/null
+          if ! jq -e '.ok==true and .ready==true and .accountDeletionAnonymizes==true' "$RUNNER_TEMP/api.json" >/dev/null; then
+            echo 'API_READINESS_FAIL'
+            jq -c '{ok,ready,accountDeletionAnonymizes}' "$RUNNER_TEMP/api.json" || true
+            exit 1
+          fi
+          echo 'API_READINESS_PASS'
+
           curl -fsSL -H "Origin: $ORIGIN" "$PAY" -o "$RUNNER_TEMP/pay.json"
-          jq -e '.ok==true and .ready==true and .amountJpy==3480 and .paymentLinkReady==true' "$RUNNER_TEMP/pay.json" >/dev/null
+          if ! jq -e '.ok==true and .ready==true and .amountJpy==3480 and .paymentLinkReady==true' "$RUNNER_TEMP/pay.json" >/dev/null; then
+            echo 'PAYMENT_READINESS_FAIL'
+            jq -c '{ok,ready,amountJpy,paymentLinkReady}' "$RUNNER_TEMP/pay.json" || true
+            exit 1
+          fi
+          echo 'PAYMENT_READINESS_PASS amountJpy=3480'
 
           curl -fsSL --max-time 30 -D "$RUNNER_TEMP/headers.txt" -o /dev/null "$ORIGIN/?verify=$GITHUB_RUN_ID"
           tr -d '\r' < "$RUNNER_TEMP/headers.txt" > "$RUNNER_TEMP/headers-normalized.txt"
-          grep -Eiq '^strict-transport-security:.*max-age=' "$RUNNER_TEMP/headers-normalized.txt"
-          grep -Eiq '^x-content-type-options:[[:space:]]*nosniff' "$RUNNER_TEMP/headers-normalized.txt"
-          grep -Eiq '^x-frame-options:[[:space:]]*DENY' "$RUNNER_TEMP/headers-normalized.txt"
-          grep -Eiq '^content-security-policy:' "$RUNNER_TEMP/headers-normalized.txt"
+          for check in \
+            '^strict-transport-security:.*max-age=' \
+            '^x-content-type-options:[[:space:]]*nosniff' \
+            '^x-frame-options:[[:space:]]*DENY' \
+            '^content-security-policy:'; do
+            if ! grep -Eiq "$check" "$RUNNER_TEMP/headers-normalized.txt"; then
+              echo "SECURITY_HEADER_FAIL pattern=$check"
+              cat "$RUNNER_TEMP/headers-normalized.txt"
+              exit 1
+            fi
+          done
+          echo 'SECURITY_HEADERS_PASS'
 
       - name: Report production verification
         if: always()
