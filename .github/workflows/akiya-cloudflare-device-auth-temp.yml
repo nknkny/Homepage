@@ -10,8 +10,8 @@ permissions:
   issues: write
 
 concurrency:
-  group: akiya-cloudflare-repair-now
-  cancel-in-progress: true
+  group: akiya-cloudflare-repair-now-${{ github.run_id }}
+  cancel-in-progress: false
 
 jobs:
   repair:
@@ -111,6 +111,16 @@ jobs:
             grep -Fq 'assets/site.js' "dist/$page"
           done
 
+      - name: Inspect Cloudflare Pages project mode
+        id: inspect
+        env:
+          PROJECT: ${{ steps.target.outputs.project }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          CI='' npx --yes wrangler@4.119.0 pages project list > "$RUNNER_TEMP/projects.txt"
+          grep -Fq "$PROJECT" "$RUNNER_TEMP/projects.txt"
+
       - name: Deploy current main to Cloudflare Pages
         id: deploy
         env:
@@ -169,14 +179,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           AUTH: ${{ steps.auth.outcome }}
+          BUILD: ${{ steps.inspect.outcome }}
           DEPLOY: ${{ steps.deploy.outcome }}
           VERIFY: ${{ steps.verify.outcome }}
           SOURCE_SHA: ${{ steps.target.outputs.source_sha }}
         run: |
           set -euo pipefail
-          if [ "$AUTH" = success ] && [ "$DEPLOY" = success ] && [ "$VERIFY" = success ]; then overall=PASS; else overall=FAIL; fi
-          body=$(jq -n --arg o "$overall" --arg r "$GITHUB_RUN_ID" --arg a "$AUTH" --arg d "$DEPLOY" --arg v "$VERIFY" --arg s "$SOURCE_SHA" \
-            '{body:("AKIYA_CF_REPAIR_NOW="+$o+"\nRUN_ID="+$r+"\nSOURCE_SHA="+$s+"\nAUTH="+$a+"\nDEPLOY="+$d+"\nPUBLIC_VERIFY="+$v)}')
+          if [ "$AUTH" = success ] && [ "$BUILD" = success ] && [ "$DEPLOY" = success ] && [ "$VERIFY" = success ]; then overall=PASS; else overall=FAIL; fi
+          body=$(jq -n --arg o "$overall" --arg r "$GITHUB_RUN_ID" --arg a "$AUTH" --arg b "$BUILD" --arg d "$DEPLOY" --arg v "$VERIFY" --arg s "$SOURCE_SHA" \
+            '{body:("AKIYA_CF_REPAIR_NOW="+$o+"\nRUN_ID="+$r+"\nSOURCE_SHA="+$s+"\nAUTH="+$a+"\nBUILD_INSPECT="+$b+"\nDEPLOY="+$d+"\nPUBLIC_VERIFY="+$v)}')
           curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" \
             -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' \
             -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
