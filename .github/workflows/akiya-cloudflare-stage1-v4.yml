@@ -14,10 +14,9 @@ on:
 permissions:
   contents: read
   issues: write
-  id-token: write
 
 concurrency:
-  group: akiya-cloudflare-production
+  group: akiya-cloudflare-stage1-v4
   cancel-in-progress: true
 
 jobs:
@@ -30,9 +29,6 @@ jobs:
        contains(github.event.comment.body, 'START_AKIYA_CF_STAGE1_V4'))
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      CF_BROKER_URL: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-cloudflare-ci-broker
-      CF_BROKER_AUDIENCE: akiya-cloudflare-ci-broker
     steps:
       - uses: actions/checkout@v6
         with:
@@ -53,34 +49,30 @@ jobs:
           echo "origin=$origin" >> "$GITHUB_OUTPUT"
           echo "project=$project" >> "$GITHUB_OUTPUT"
 
-      - name: Restore Cloudflare OAuth credentials from encrypted broker
-        id: auth
+      - name: Resolve safe deployment credential mode
+        id: credentials
         shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          oidc_url="${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${CF_BROKER_AUDIENCE}"
-          jwt=$(curl -fsSL -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "$oidc_url" | jq -r '.value')
-          test -n "$jwt" && test "$jwt" != "null"
-          response="$RUNNER_TEMP/broker-get.json"
-          status=$(curl -sS -o "$response" -w '%{http_code}' \
-            -X POST \
-            -H "Authorization: Bearer $jwt" \
-            -H 'Content-Type: application/json' \
-            --data '{"action":"get"}' \
-            "$CF_BROKER_URL")
-          unset jwt
-          if [ "$status" != 200 ]; then
-            echo "Cloudflare credential broker is not bootstrapped (HTTP $status)" >&2
-            rm -f "$response"
+          token=0; account=0
+          [ -n "${CLOUDFLARE_API_TOKEN:-}" ] && token=1
+          [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ] && account=1
+          if [ "$token" = 1 ] && [ "$account" = 1 ]; then
+            echo 'configured=true' >> "$GITHUB_OUTPUT"
+            echo 'mode=deploy' >> "$GITHUB_OUTPUT"
+            echo 'CLOUDFLARE_CREDENTIAL_MODE=deploy'
+          elif [ "$token" = 0 ] && [ "$account" = 0 ]; then
+            echo 'configured=false' >> "$GITHUB_OUTPUT"
+            echo 'mode=verify-only' >> "$GITHUB_OUTPUT"
+            echo 'CLOUDFLARE_CREDENTIAL_MODE=verify-only'
+            echo 'No Cloudflare secret is stored or copied elsewhere; current production will be verified instead.'
+          else
+            echo 'Partial Cloudflare secret configuration is invalid: both CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are required.' >&2
             exit 1
           fi
-          jq -e '.ok==true and (.credentialBundle|type=="string") and (.credentialBundle|length>=20)' "$response" >/dev/null
-          credential_file="$HOME/.config/.wrangler/config/default.toml"
-          mkdir -p "$(dirname "$credential_file")"
-          jq -r '.credentialBundle' "$response" | base64 -d > "$credential_file"
-          chmod 600 "$credential_file"
-          rm -f "$response"
-          CI='' npx --yes wrangler@4.119.0 whoami >/dev/null
 
       - name: Build Cloudflare Pages artifact
         env:
@@ -148,40 +140,37 @@ jobs:
               raise SystemExit(1)
           PY
 
+      - name: Verify configured Cloudflare API credentials
+        if: steps.credentials.outputs.configured == 'true'
+        id: auth
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4.119.0 whoami >/dev/null
+          echo 'CLOUDFLARE_AUTH=PASS'
+
       - name: Deploy Cloudflare Pages
+        if: steps.credentials.outputs.configured == 'true'
         id: pages_deploy
         env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PROJECT: ${{ steps.target.outputs.project }}
           SOURCE_SHA: ${{ steps.target.outputs.source_sha }}
         shell: bash
-        run: CI='' npx --yes wrangler@4.119.0 pages deploy dist --project-name "$PROJECT" --branch main --commit-hash "$SOURCE_SHA" --commit-message 'Akiya Pocket verified production deployment'
-
-      - name: Persist refreshed Cloudflare OAuth credentials
-        if: steps.pages_deploy.outcome == 'success'
-        shell: bash
         run: |
           set -euo pipefail
-          credential_file="$HOME/.config/.wrangler/config/default.toml"
-          test -s "$credential_file"
-          bundle=$(base64 -w0 < "$credential_file")
-          oidc_url="${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${CF_BROKER_AUDIENCE}"
-          jwt=$(curl -fsSL -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "$oidc_url" | jq -r '.value')
-          payload="$RUNNER_TEMP/broker-put.json"
-          jq -n --arg b "$bundle" '{action:"put",credentialBundle:$b}' > "$payload"
-          response="$RUNNER_TEMP/broker-put-response.json"
-          status=$(curl -sS -o "$response" -w '%{http_code}' -X POST \
-            -H "Authorization: Bearer $jwt" -H 'Content-Type: application/json' \
-            --data-binary "@$payload" "$CF_BROKER_URL")
-          test "$status" = 200
-          jq -e '.ok==true and .stored==true' "$response" >/dev/null
-          unset bundle jwt
-          rm -f "$payload" "$response"
+          npx --yes wrangler@4.119.0 pages deploy dist --project-name "$PROJECT" --branch main --commit-hash "$SOURCE_SHA" --commit-message 'Akiya Pocket verified production deployment'
 
       - name: Verify live production parity and core APIs
         id: verify
         env:
           ORIGIN: ${{ steps.target.outputs.origin }}
           SOURCE_SHA: ${{ steps.target.outputs.source_sha }}
+          MODE: ${{ steps.credentials.outputs.mode }}
           API: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-api
           PAY: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-payment-api
         shell: bash
@@ -194,32 +183,71 @@ jobs:
               && jq -e --arg o "$ORIGIN" --arg s "$SOURCE_SHA" '.canonicalOrigin==$o and .build=="2026-08-31-acquisition-r3" and .sourceSha==$s' "$marker" >/dev/null; then
               matched=1; break
             fi
+            if [ "$MODE" = 'verify-only' ]; then break; fi
             sleep 5
           done
-          test "$matched" = 1
-          mismatches=0
+          if [ "$matched" != 1 ]; then
+            if [ "$MODE" = 'verify-only' ]; then
+              echo 'PRODUCTION_STALE_AND_CREDENTIALS_MISSING: current source is not deployed; configure both GitHub Cloudflare secrets or run the explicit one-time repair workflow.' >&2
+            else
+              echo 'DEPLOYMENT_MARKER_MISMATCH after deploy.' >&2
+            fi
+            exit 1
+          fi
+
+          : > "$RUNNER_TEMP/mismatches.initial"
           while IFS= read -r -d '' file; do
             rel=${file#dist/}
             case "$rel" in _headers|_redirects|DEPLOYMENT.json) continue;; esac
             tmp=$(mktemp)
-            if ! curl -fsSL --max-time 30 "$ORIGIN/$rel?v=$GITHUB_RUN_ID" -o "$tmp"; then
-              echo "LIVE_MISSING $rel"; mismatches=$((mismatches+1))
-            elif ! cmp -s "$file" "$tmp"; then
-              echo "LIVE_MISMATCH $rel"; mismatches=$((mismatches+1))
+            if ! curl -fsSL --max-time 30 "$ORIGIN/$rel?v=$GITHUB_RUN_ID-0" -o "$tmp" || ! cmp -s "$file" "$tmp"; then
+              printf '%s\n' "$rel" >> "$RUNNER_TEMP/mismatches.initial"
             fi
             rm -f "$tmp"
           done < <(find dist -type f -print0)
-          test "$mismatches" = 0
+
+          : > "$RUNNER_TEMP/mismatches.final"
+          while IFS= read -r rel; do
+            [ -n "$rel" ] || continue
+            matched_file=0
+            for attempt in $(seq 1 12); do
+              tmp=$(mktemp)
+              if curl -fsSL --max-time 30 "$ORIGIN/$rel?v=$GITHUB_RUN_ID-$attempt" -o "$tmp" && cmp -s "dist/$rel" "$tmp"; then
+                matched_file=1; rm -f "$tmp"; break
+              fi
+              rm -f "$tmp"
+              [ "$MODE" = 'verify-only' ] && break
+              sleep 5
+            done
+            if [ "$matched_file" != 1 ]; then echo "$rel" >> "$RUNNER_TEMP/mismatches.final"; fi
+          done < "$RUNNER_TEMP/mismatches.initial"
+          if [ -s "$RUNNER_TEMP/mismatches.final" ]; then
+            echo 'LIVE_PARITY_MISMATCH:' >&2
+            cat "$RUNNER_TEMP/mismatches.final" >&2
+            exit 1
+          fi
+
+          url_count=0
+          while IFS= read -r path; do
+            case "$path" in ''|'#'*) continue ;; esac
+            code=$(curl -sSL -o /dev/null -w '%{http_code}' --max-time 20 "$ORIGIN/$path?v=$GITHUB_RUN_ID")
+            test "$code" = 200 || { echo "PUBLIC_URL_FAIL path=$path final_http=$code" >&2; exit 1; }
+            url_count=$((url_count+1))
+          done < akiya-pocket/PUBLIC_URLS.txt
+          echo "PUBLIC_URL_CONTRACT_PASS count=$url_count"
+
           curl -fsSL -H "Origin: $ORIGIN" "$API" -o "$RUNNER_TEMP/api.json"
           jq -e '.ok==true and .ready==true and .accountDeletionAnonymizes==true' "$RUNNER_TEMP/api.json" >/dev/null
           curl -fsSL -H "Origin: $ORIGIN" "$PAY" -o "$RUNNER_TEMP/pay.json"
           jq -e '.ok==true and .ready==true and .amountJpy==3480 and .paymentLinkReady==true' "$RUNNER_TEMP/pay.json" >/dev/null
+
           curl -fsSL --max-time 30 -D "$RUNNER_TEMP/headers.txt" -o /dev/null "$ORIGIN/?v=$GITHUB_RUN_ID"
           tr -d '\r' < "$RUNNER_TEMP/headers.txt" > "$RUNNER_TEMP/headers-normalized.txt"
           grep -Eiq '^strict-transport-security:.*max-age=' "$RUNNER_TEMP/headers-normalized.txt"
           grep -Eiq '^x-content-type-options:[[:space:]]*nosniff' "$RUNNER_TEMP/headers-normalized.txt"
           grep -Eiq '^x-frame-options:[[:space:]]*DENY' "$RUNNER_TEMP/headers-normalized.txt"
           grep -Eiq '^content-security-policy:' "$RUNNER_TEMP/headers-normalized.txt"
+          echo "AKIYA_CF_LIVE_VERIFY=PASS mode=$MODE source=$SOURCE_SHA"
 
       - name: Report result
         if: always()
@@ -227,6 +255,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ORIGIN: ${{ steps.target.outputs.origin }}
           PROJECT: ${{ steps.target.outputs.project }}
+          MODE: ${{ steps.credentials.outputs.mode }}
           AUTH: ${{ steps.auth.outcome }}
           DEPLOY: ${{ steps.pages_deploy.outcome }}
           VERIFY: ${{ steps.verify.outcome }}
@@ -234,6 +263,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ "$AUTH" = success ] && [ "$DEPLOY" = success ] && [ "$VERIFY" = success ]; then overall=PASS; else overall=FAIL; fi
-          body=$(jq -n --arg o "$overall" --arg u "$ORIGIN" --arg p "$PROJECT" --arg r "$GITHUB_RUN_ID" --arg a "$AUTH" --arg d "$DEPLOY" --arg v "$VERIFY" --arg s "$SOURCE_SHA" '{body:("AKIYA_CF_STAGE1_V4="+$o+"\nRUN_ID="+$r+"\nSOURCE_SHA="+$s+"\nPROJECT="+$p+"\nURL="+$u+"/\nAUTH="+$a+"\nDEPLOY="+$d+"\nPUBLIC_VERIFY="+$v)}')
+          if [ "$VERIFY" = success ] && { [ "$MODE" = 'verify-only' ] || { [ "$AUTH" = success ] && [ "$DEPLOY" = success ]; }; }; then overall=PASS; else overall=FAIL; fi
+          body=$(jq -n --arg o "$overall" --arg u "$ORIGIN" --arg p "$PROJECT" --arg r "$GITHUB_RUN_ID" --arg m "$MODE" --arg a "$AUTH" --arg d "$DEPLOY" --arg v "$VERIFY" --arg s "$SOURCE_SHA" '{body:("AKIYA_CF_STAGE1_V4="+$o+"\nRUN_ID="+$r+"\nSOURCE_SHA="+$s+"\nPROJECT="+$p+"\nURL="+$u+"/\nMODE="+$m+"\nAUTH="+$a+"\nDEPLOY="+$d+"\nPUBLIC_VERIFY="+$v)}')
           curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
