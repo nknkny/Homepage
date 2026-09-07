@@ -1,0 +1,52 @@
+name: TEMP Akiya Cloudflare device authorization
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/akiya-cloudflare-device-auth-temp.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  authorize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+      - name: Start Cloudflare device authorization
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/cloudflare-device.log"
+          touch "$log"
+          stdbuf -oL -eL npx --yes wrangler@4.119.0 login --device --browser=false > >(tee -a "$log") 2>&1 &
+          pid=$!
+
+          code=''
+          for i in $(seq 1 60); do
+            code=$(grep -Eo '[A-Za-z0-9]{4}-?[A-Za-z0-9]{4}|[A-Za-z0-9]{8}' "$log" | tail -n 1 || true)
+            if grep -Fq 'https://dash.cloudflare.com/oauth2/device' "$log" && [ -n "$code" ]; then
+              break
+            fi
+            sleep 1
+          done
+
+          if [ -z "$code" ]; then
+            echo 'DEVICE_CODE_NOT_FOUND'
+            cat "$log"
+            kill "$pid" 2>/dev/null || true
+            exit 1
+          fi
+
+          body=$(printf 'CLOUDFLARE_DEVICE_AUTH_READY\nURL=https://dash.cloudflare.com/oauth2/device\nCODE=%s\nEXPIRES_IN_APPROX=5_MINUTES' "$code")
+          gh issue comment 42 --repo "$GITHUB_REPOSITORY" --body "$body"
+          echo "$body"
+
+          wait "$pid"
+          echo 'CLOUDFLARE_DEVICE_AUTH_SUCCESS'
