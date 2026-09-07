@@ -1,0 +1,154 @@
+name: Akiya Cloudflare production verify
+
+on:
+  workflow_dispatch:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: akiya-cloudflare-production-verify-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.number == 42 &&
+       contains(github.event.comment.body, 'VERIFY_AKIYA_CF_PRODUCTION_NOW'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 50
+
+      - name: Build exact expected production artifact
+        id: target
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_sha=$(git log -1 --format=%H -- akiya-pocket scripts/build-akiya-cloudflare-pages.mjs)
+          origin=$(tr -d '[:space:]' < akiya-pocket/CLOUDFLARE_CANONICAL.txt)
+          test -n "$source_sha"
+          case "$origin" in https://*.pages.dev) ;; *) exit 1;; esac
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "origin=$origin" >> "$GITHUB_OUTPUT"
+          AKIYA_CANONICAL_ORIGIN="$origin" AKIYA_DEPLOYMENT_URL="$origin" AKIYA_SOURCE_SHA="$source_sha" node scripts/build-akiya-cloudflare-pages.mjs
+          jq -e --arg o "$origin" --arg s "$source_sha" '.canonicalOrigin==$o and .build=="2026-08-31-acquisition-r3" and .sourceSha==$s' dist/DEPLOYMENT.json >/dev/null
+          test ! -d dist/control-center
+          grep -Fq 'DeRiEY9nqJJKMJH_5k6HD9hK1i3I6Urvqid4mG2VxS8' dist/index.html
+          grep -Fq '新規無料会員登録' dist/index.html
+          grep -Fq '現地確認を依頼する' dist/index.html
+          while IFS= read -r path; do
+            case "$path" in ''|'#'*) continue ;; esac
+            test -f "dist/$path"
+          done < akiya-pocket/PUBLIC_URLS.txt
+
+      - name: Verify canonical deployment marker
+        env:
+          ORIGIN: ${{ steps.target.outputs.origin }}
+          SOURCE_SHA: ${{ steps.target.outputs.source_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=0
+          for attempt in $(seq 1 12); do
+            curl -fsSL --max-time 20 "$ORIGIN/DEPLOYMENT.json?verify=$GITHUB_RUN_ID-$attempt" -o "$RUNNER_TEMP/deployment.json" || true
+            if jq -e --arg o "$ORIGIN" --arg s "$SOURCE_SHA" '.canonicalOrigin==$o and .build=="2026-08-31-acquisition-r3" and .sourceSha==$s' "$RUNNER_TEMP/deployment.json" >/dev/null 2>&1; then ok=1; break; fi
+            sleep 5
+          done
+          test "$ok" = 1
+
+      - name: Verify every deployed file with propagation retry
+        id: parity
+        env:
+          ORIGIN: ${{ steps.target.outputs.origin }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > "$RUNNER_TEMP/mismatches.initial"
+          while IFS= read -r -d '' file; do
+            rel=${file#dist/}
+            case "$rel" in _headers|_redirects|DEPLOYMENT.json) continue;; esac
+            tmp=$(mktemp)
+            if ! curl -fsSL --max-time 30 "$ORIGIN/$rel?verify=$GITHUB_RUN_ID-0" -o "$tmp" || ! cmp -s "$file" "$tmp"; then
+              printf '%s\n' "$rel" >> "$RUNNER_TEMP/mismatches.initial"
+            fi
+            rm -f "$tmp"
+          done < <(find dist -type f -print0)
+
+          : > "$RUNNER_TEMP/mismatches.final"
+          while IFS= read -r rel; do
+            [ -n "$rel" ] || continue
+            matched=0
+            for attempt in $(seq 1 12); do
+              tmp=$(mktemp)
+              if curl -fsSL --max-time 30 "$ORIGIN/$rel?verify=$GITHUB_RUN_ID-$attempt" -o "$tmp" && cmp -s "dist/$rel" "$tmp"; then
+                matched=1
+                rm -f "$tmp"
+                break
+              fi
+              rm -f "$tmp"
+              sleep 5
+            done
+            if [ "$matched" != 1 ]; then
+              echo "$rel" >> "$RUNNER_TEMP/mismatches.final"
+              echo "PARITY_FAIL $rel expected=$(sha256sum "dist/$rel" | awk '{print $1}')"
+            fi
+          done < "$RUNNER_TEMP/mismatches.initial"
+
+          if [ -s "$RUNNER_TEMP/mismatches.final" ]; then
+            echo 'FINAL_MISMATCHES:'
+            cat "$RUNNER_TEMP/mismatches.final"
+            exit 1
+          fi
+          echo "PARITY_PASS files=$(find dist -type f | wc -l)"
+
+      - name: Verify public URL contract, APIs, payment and security headers
+        id: core
+        env:
+          ORIGIN: ${{ steps.target.outputs.origin }}
+          API: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-api
+          PAY: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-payment-api
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r path; do
+            case "$path" in ''|'#'*) continue ;; esac
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$ORIGIN/$path?verify=$GITHUB_RUN_ID")
+            test "$code" = 200
+          done < akiya-pocket/PUBLIC_URLS.txt
+
+          curl -fsSL -H "Origin: $ORIGIN" "$API" -o "$RUNNER_TEMP/api.json"
+          jq -e '.ok==true and .ready==true and .accountDeletionAnonymizes==true' "$RUNNER_TEMP/api.json" >/dev/null
+          curl -fsSL -H "Origin: $ORIGIN" "$PAY" -o "$RUNNER_TEMP/pay.json"
+          jq -e '.ok==true and .ready==true and .amountJpy==3480 and .paymentLinkReady==true' "$RUNNER_TEMP/pay.json" >/dev/null
+
+          curl -fsSL --max-time 30 -D "$RUNNER_TEMP/headers.txt" -o /dev/null "$ORIGIN/?verify=$GITHUB_RUN_ID"
+          tr -d '\r' < "$RUNNER_TEMP/headers.txt" > "$RUNNER_TEMP/headers-normalized.txt"
+          grep -Eiq '^strict-transport-security:.*max-age=' "$RUNNER_TEMP/headers-normalized.txt"
+          grep -Eiq '^x-content-type-options:[[:space:]]*nosniff' "$RUNNER_TEMP/headers-normalized.txt"
+          grep -Eiq '^x-frame-options:[[:space:]]*DENY' "$RUNNER_TEMP/headers-normalized.txt"
+          grep -Eiq '^content-security-policy:' "$RUNNER_TEMP/headers-normalized.txt"
+
+      - name: Report production verification
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ steps.target.outputs.source_sha }}
+          PARITY: ${{ steps.parity.outcome }}
+          CORE: ${{ steps.core.outcome }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$PARITY" = success ] && [ "$CORE" = success ]; then overall=PASS; else overall=FAIL; fi
+          mismatches=''
+          if [ -s "$RUNNER_TEMP/mismatches.final" ]; then mismatches=$(paste -sd ',' "$RUNNER_TEMP/mismatches.final"); fi
+          body=$(jq -n --arg o "$overall" --arg r "$GITHUB_RUN_ID" --arg s "$SOURCE_SHA" --arg p "$PARITY" --arg c "$CORE" --arg m "$mismatches" '{body:("AKIYA_CF_PRODUCTION_VERIFY="+$o+"\nRUN_ID="+$r+"\nSOURCE_SHA="+$s+"\nPARITY="+$p+"\nCORE="+$c+"\nMISMATCHES="+$m)}')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
