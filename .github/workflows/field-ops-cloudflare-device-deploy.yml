@@ -1,0 +1,133 @@
+name: Field Ops Cloudflare one-time device deploy
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: field-ops-cloudflare-device-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.number == 42 &&
+       contains(github.event.comment.body, 'START_FIELD_OPS_CF_DEPLOY'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Validate site
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s field-ops/index.html
+          test -s field-ops/_headers
+          grep -Fq '現地に行かないと' field-ops/index.html
+          grep -Fq '25,000円' field-ops/index.html
+          grep -Fq 'Content-Security-Policy:' field-ops/_headers
+
+      - name: Cloudflare device authorization
+        id: auth
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/wrangler-login.log"
+          clean="$RUNNER_TEMP/wrangler-login-clean.log"
+          : > "$log"
+          (CI='' npx --yes wrangler@4.119.0 login --device --browser=false >"$log" 2>&1) &
+          pid=$!
+          url=''
+          code=''
+          for n in $(seq 1 60); do
+            perl -pe 's/\e\[[0-9;]*[mK]//g' "$log" > "$clean" || true
+            url=$(grep -Eo 'https://dash\.cloudflare\.com/oauth2/device(/verify)?' "$clean" | tail -1 || true)
+            code=$(grep -Eo '([A-Za-z0-9]{4}-[A-Za-z0-9]{4}|[A-Za-z0-9]{8})' "$clean" | tail -1 || true)
+            if [ -n "$url" ] && [ -n "$code" ]; then break; fi
+            if ! kill -0 "$pid" 2>/dev/null; then break; fi
+            sleep 1
+          done
+          if [ -z "$url" ] || [ -z "$code" ]; then
+            cat "$clean" || true
+            kill "$pid" 2>/dev/null || true
+            wait "$pid" 2>/dev/null || true
+            exit 1
+          fi
+          complete_url="${url}?user_code=${code}"
+          body=$(jq -n --arg url "$complete_url" --arg code "$code" --arg run "$GITHUB_RUN_ID" \
+            '{body:("FIELD_OPS_CF_AUTH_READY\nURL="+$url+"\nCODE="+$code+"\nRUN_ID="+$run+"\nEXPIRES_IN_APPROX=5_MINUTES")}')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' \
+            -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
+          wait "$pid"
+          CI='' npx --yes wrangler@4.119.0 whoami >/dev/null
+          rm -f "$log" "$clean"
+
+      - name: Ensure Pages project
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! CI='' npx --yes wrangler@4.119.0 pages project list | grep -Fq 'field-ops-aomori'; then
+            CI='' npx --yes wrangler@4.119.0 pages project create field-ops-aomori --production-branch main
+          fi
+
+      - name: Deploy FIELD OPS
+        shell: bash
+        run: |
+          set -euo pipefail
+          CI='' npx --yes wrangler@4.119.0 pages deploy field-ops \
+            --project-name field-ops-aomori \
+            --branch main \
+            --commit-hash "$GITHUB_SHA" \
+            --commit-message 'FIELD OPS verified production deploy'
+
+      - name: Verify production
+        shell: bash
+        run: |
+          set -euo pipefail
+          origin='https://field-ops-aomori.pages.dev'
+          ok=0
+          for i in $(seq 1 18); do
+            if curl -fsSL --max-time 20 "$origin/?v=$GITHUB_RUN_ID-$i" -o /tmp/index.html \
+              && grep -Fq '現地に行かないと' /tmp/index.html \
+              && grep -Fq '25,000円' /tmp/index.html; then
+              ok=1; break
+            fi
+            sleep 5
+          done
+          test "$ok" = 1
+          curl -fsSL -D /tmp/headers -o /dev/null "$origin/?v=$GITHUB_RUN_ID"
+          tr -d '\r' < /tmp/headers > /tmp/headers-normalized
+          grep -Eiq '^strict-transport-security:.*max-age=' /tmp/headers-normalized
+          grep -Eiq '^x-content-type-options:[[:space:]]*nosniff' /tmp/headers-normalized
+          grep -Eiq '^x-frame-options:[[:space:]]*DENY' /tmp/headers-normalized
+          grep -Eiq '^content-security-policy:' /tmp/headers-normalized
+          curl -fsSL "$origin/robots.txt" | grep -Fq 'field-ops-aomori.pages.dev/sitemap.xml'
+          curl -fsSL "$origin/sitemap.xml" | grep -Fq 'field-ops-aomori.pages.dev'
+          echo 'FIELD_OPS_CF_PRODUCTION_VERIFY=PASS'
+
+      - name: Report result
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTH: ${{ steps.auth.outcome }}
+        run: |
+          set -euo pipefail
+          body=$(jq -n --arg a "$AUTH" --arg run "$GITHUB_RUN_ID" \
+            '{body:("FIELD_OPS_CF_DEVICE_RUN_FINISHED\nRUN_ID="+$run+"\nAUTH="+$a+"\nCHECK_ACTIONS_RUN_FOR_FINAL_RESULT")}')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' \
+            -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
