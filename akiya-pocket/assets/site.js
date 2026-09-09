@@ -74,3 +74,16 @@ document.addEventListener('DOMContentLoaded',()=>AkiyaUI.turnstileForms().forEac
 (function(){
  'use strict';document.addEventListener('DOMContentLoaded',()=>{let path=location.pathname.replace(/\/+$/,'');if(path.endsWith('.html'))path=path.slice(0,-5);if(!path.endsWith('/aomori-vacant-house-checklist'))return;const panel=document.querySelector('.section .panel');if(!panel)return;const boxes=Array.from(panel.querySelectorAll('.choice input[type="checkbox"]'));if(!boxes.length)return;const grid=panel.querySelector('.grid-2'),notice=panel.querySelector('.notice'),actions=panel.querySelector('.form-actions'),primary=actions&&actions.querySelector('a[href*="register"]'),secondary=actions&&actions.querySelector('a[href^="#"]');const progress=document.createElement('div');progress.setAttribute('aria-live','polite');progress.className='check-progress';progress.innerHTML='<p><b id="akiyaChecklistCount">0 / '+boxes.length+' 項目を確認済み</b></p><div class="check-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="'+boxes.length+'" aria-valuenow="0"><span></span></div><p class="small muted">分からない項目は「未確認」のままで構いません。</p>';if(grid)grid.insertAdjacentElement('afterend',progress);else panel.insertBefore(progress,notice||actions||null);if(secondary){secondary.className='small muted';secondary.textContent='まだ保存せず、このまま公開版を続ける'}let firstTracked=false;const update=()=>{const count=boxes.filter(x=>x.checked).length,label=progress.querySelector('#akiyaChecklistCount'),bar=progress.querySelector('[role="progressbar"]'),fill=bar&&bar.querySelector('span');if(label)label.textContent=count+' / '+boxes.length+' 項目を確認済み';if(bar)bar.setAttribute('aria-valuenow',String(count));if(fill)fill.style.width=(100*count/boxes.length)+'%';if(primary)primary.textContent=count>0?count+'項目のチェック状態を無料で保存する':'チェック状態を無料で保存する';if(window.AkiyaAnalytics){AkiyaAnalytics.publicTrack('checklist_progress',{contentCategory:'value_first',contentId:'aomori_vacant_house_checklist',actionLabel:firstTracked?'progress_changed':'first_check',value:String(count),audienceJob:'checklist'});if(!firstTracked)AkiyaAnalytics.publicTrack('value_engagement',{contentCategory:'value_first',contentId:'aomori_vacant_house_checklist',actionLabel:'first_check',value:String(count),audienceJob:'checklist'});firstTracked=true}};boxes.forEach(b=>b.addEventListener('change',update));});
 })();
+
+/* Brand landing engagement: distinguish a real read from a bare search landing. */
+(function(){
+ 'use strict';
+ document.addEventListener('DOMContentLoaded',()=>{
+   let path=location.pathname.replace(/\/+$/,'');if(path.endsWith('.html'))path=path.slice(0,-5);if(path!=='/about')return;
+   let dwell=false,depth=false,sent=false;
+   const send=()=>{if(sent||!dwell||!depth||!window.AkiyaAnalytics)return;sent=true;AkiyaAnalytics.publicTrack('value_engagement',{contentCategory:'brand_trust',contentId:'about',actionLabel:'engaged_read',value:'8s_35pct',audienceJob:'general'});};
+   setTimeout(()=>{dwell=true;send()},8000);
+   const onScroll=()=>{const doc=document.documentElement,max=Math.max(1,doc.scrollHeight-innerHeight);if(scrollY/max>=0.35){depth=true;removeEventListener('scroll',onScroll);send()}};
+   addEventListener('scroll',onScroll,{passive:true});onScroll();
+ });
+})();
