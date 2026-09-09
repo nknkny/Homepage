@@ -1,0 +1,111 @@
+name: Akiya canonical email migration once
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: akiya-canonical-email-migration-once
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    if: >-
+      github.event.issue.number == 42 &&
+      contains(github.event.comment.body, 'MIGRATE_AKIYA_EMAIL_V1')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 50
+
+      - name: Replace legacy contact email everywhere in Akiya source
+        id: migrate
+        shell: bash
+        env:
+          OLD_EMAIL: aomori.akiya.rescue@gmail.com
+          NEW_EMAIL: akiyapocket@gmail.com
+        run: |
+          set -euo pipefail
+          before=$(grep -RIlF --exclude-dir=.git "$OLD_EMAIL" akiya-pocket | wc -l | tr -d ' ')
+          mapfile -d '' files < <(grep -RIlZF --exclude-dir=.git "$OLD_EMAIL" akiya-pocket || true)
+          for f in "${files[@]:-}"; do
+            [ -n "$f" ] || continue
+            python - "$f" "$OLD_EMAIL" "$NEW_EMAIL" <<'PY'
+          from pathlib import Path
+          import sys
+          p=Path(sys.argv[1]); old=sys.argv[2]; new=sys.argv[3]
+          s=p.read_text(encoding='utf-8')
+          if old in s:
+              p.write_text(s.replace(old,new),encoding='utf-8')
+          PY
+          done
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('akiya-pocket/privacy.html')
+          s=p.read_text(encoding='utf-8')
+          s=s.replace('最終改定日：2026年8月12日','最終改定日：2026年9月9日')
+          p.write_text(s,encoding='utf-8')
+          PY
+          if grep -RInF --exclude-dir=.git "$OLD_EMAIL" akiya-pocket; then
+            echo 'LEGACY_EMAIL_REMAINS' >&2
+            exit 1
+          fi
+          grep -RIlF --exclude-dir=.git "$NEW_EMAIL" akiya-pocket | sort > /tmp/new-email-files.txt
+          test -s /tmp/new-email-files.txt
+          for required in contact.html privacy.html commercial.html about.html account-recovery.html newsletter-unsubscribe.html; do
+            grep -Fq "$NEW_EMAIL" "akiya-pocket/$required"
+          done
+          git diff --check
+          echo "files_before=$before" >> "$GITHUB_OUTPUT"
+          echo "new_file_count=$(wc -l < /tmp/new-email-files.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
+          echo 'FILES_WITH_NEW_EMAIL:'
+          cat /tmp/new-email-files.txt
+
+      - name: Commit migration
+        id: commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git diff --quiet; then
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git add akiya-pocket
+          git commit -m 'Update Akiya Pocket canonical contact email'
+          for attempt in 1 2 3; do
+            git fetch origin main
+            if git rebase origin/main && git push origin HEAD:main; then
+              echo 'changed=true' >> "$GITHUB_OUTPUT"
+              echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            git rebase --abort || true
+            sleep $((attempt*2))
+          done
+          echo 'PUSH_FAILED_AFTER_RETRIES' >&2
+          exit 1
+
+      - name: Report result
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OUTCOME: ${{ job.status }}
+          CHANGED: ${{ steps.commit.outputs.changed }}
+          SHA: ${{ steps.commit.outputs.sha }}
+          FILES_BEFORE: ${{ steps.migrate.outputs.files_before }}
+          NEW_FILE_COUNT: ${{ steps.migrate.outputs.new_file_count }}
+        run: |
+          set -euo pipefail
+          body=$(jq -n --arg outcome "$OUTCOME" --arg changed "$CHANGED" --arg sha "$SHA" --arg before "$FILES_BEFORE" --arg after "$NEW_FILE_COUNT" '{body:("AKIYA_EMAIL_MIGRATION="+($outcome|ascii_upcase)+"\nCHANGED="+$changed+"\nSOURCE_SHA="+$sha+"\nFILES_WITH_OLD_EMAIL_BEFORE="+$before+"\nFILES_WITH_NEW_EMAIL_AFTER="+$after)}')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
