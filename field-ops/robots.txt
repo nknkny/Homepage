@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://field-ops-aomori.pages.dev/sitemap.xml
