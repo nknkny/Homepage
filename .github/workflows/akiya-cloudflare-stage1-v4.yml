@@ -14,10 +14,15 @@ on:
 permissions:
   contents: read
   issues: write
+  id-token: write
 
 concurrency:
   group: akiya-cloudflare-stage1-v4
   cancel-in-progress: true
+
+env:
+  AKIYA_CF_BROKER: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-cloudflare-ci-broker
+  AKIYA_CF_BROKER_AUDIENCE: akiya-cloudflare-ci-broker
 
 jobs:
   deploy:
@@ -49,7 +54,7 @@ jobs:
           echo "origin=$origin" >> "$GITHUB_OUTPUT"
           echo "project=$project" >> "$GITHUB_OUTPUT"
 
-      - name: Resolve safe deployment credential mode
+      - name: Resolve secure Cloudflare credential mode
         id: credentials
         shell: bash
         env:
@@ -60,18 +65,41 @@ jobs:
           token=0; account=0
           [ -n "${CLOUDFLARE_API_TOKEN:-}" ] && token=1
           [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ] && account=1
+
           if [ "$token" = 1 ] && [ "$account" = 1 ]; then
             echo 'configured=true' >> "$GITHUB_OUTPUT"
-            echo 'mode=deploy' >> "$GITHUB_OUTPUT"
-            echo 'CLOUDFLARE_CREDENTIAL_MODE=deploy'
-          elif [ "$token" = 0 ] && [ "$account" = 0 ]; then
+            echo 'mode=api-token' >> "$GITHUB_OUTPUT"
+            echo 'CLOUDFLARE_CREDENTIAL_MODE=api-token'
+            exit 0
+          fi
+          if [ "$token" != "$account" ]; then
+            echo 'Partial Cloudflare secret configuration is invalid: both CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are required.' >&2
+            exit 1
+          fi
+
+          oidc_json=$(curl -fsSL -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${AKIYA_CF_BROKER_AUDIENCE}")
+          oidc=$(printf '%s' "$oidc_json" | jq -r '.value // empty')
+          test -n "$oidc"
+          response=$(curl -sS -w '\n%{http_code}' -X POST \
+            -H "Authorization: Bearer $oidc" \
+            -H 'Content-Type: application/json' \
+            -d '{"action":"get"}' "$AKIYA_CF_BROKER")
+          http=$(printf '%s\n' "$response" | tail -1)
+          body=$(printf '%s\n' "$response" | sed '$d')
+          if [ "$http" = 200 ] && printf '%s' "$body" | jq -e '.ok==true and (.credentialBundle|type=="string") and (.credentialBundle|length>20)' >/dev/null 2>&1; then
+            bundle=$(printf '%s' "$body" | jq -r '.credentialBundle')
+            config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/.wrangler/config"
+            mkdir -p "$config_dir"
+            printf '%s' "$bundle" | base64 -d > "$config_dir/default.toml"
+            chmod 600 "$config_dir/default.toml"
+            echo 'configured=true' >> "$GITHUB_OUTPUT"
+            echo 'mode=broker-oauth' >> "$GITHUB_OUTPUT"
+            echo 'CLOUDFLARE_CREDENTIAL_MODE=broker-oauth'
+          else
             echo 'configured=false' >> "$GITHUB_OUTPUT"
             echo 'mode=verify-only' >> "$GITHUB_OUTPUT"
             echo 'CLOUDFLARE_CREDENTIAL_MODE=verify-only'
-            echo 'No Cloudflare secret is stored or copied elsewhere; current production will be verified instead.'
-          else
-            echo 'Partial Cloudflare secret configuration is invalid: both CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are required.' >&2
-            exit 1
+            echo 'No reusable Cloudflare credential is bootstrapped yet; production will be verified only.'
           fi
 
       - name: Build Cloudflare Pages artifact
@@ -104,14 +132,7 @@ jobs:
             case "$path" in ''|'#'*) continue ;; esac
             test -f "dist/$path" || { echo "PUBLIC_URL_MISSING=$path"; exit 1; }
           done < akiya-pocket/PUBLIC_URLS.txt
-          for page in \
-            remote-home-aomori.html \
-            inherited-home-aomori.html \
-            parent-facility-home-aomori.html \
-            vacant-home-notice-aomori.html \
-            vacant-home-weeds-aomori.html \
-            vacant-home-after-storm-aomori.html \
-            snow-vacant-home-aomori.html; do
+          for page in remote-home-aomori.html inherited-home-aomori.html parent-facility-home-aomori.html vacant-home-notice-aomori.html vacant-home-weeds-aomori.html vacant-home-after-storm-aomori.html snow-vacant-home-aomori.html; do
             grep -Fq 'assets/config.js' "dist/$page"
             grep -Fq 'assets/api.js' "dist/$page"
             grep -Fq 'assets/site.js' "dist/$page"
@@ -140,7 +161,7 @@ jobs:
               raise SystemExit(1)
           PY
 
-      - name: Verify configured Cloudflare API credentials
+      - name: Verify configured Cloudflare credentials
         if: steps.credentials.outputs.configured == 'true'
         id: auth
         shell: bash
@@ -165,6 +186,20 @@ jobs:
           set -euo pipefail
           npx --yes wrangler@4.119.0 pages deploy dist --project-name "$PROJECT" --branch main --commit-hash "$SOURCE_SHA" --commit-message 'Akiya Pocket verified production deployment'
 
+      - name: Persist refreshed broker OAuth credential
+        if: steps.credentials.outputs.mode == 'broker-oauth' && steps.pages_deploy.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          credential_file="${XDG_CONFIG_HOME:-$HOME/.config}/.wrangler/config/default.toml"
+          test -s "$credential_file"
+          bundle=$(base64 -w0 "$credential_file")
+          oidc_json=$(curl -fsSL -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${AKIYA_CF_BROKER_AUDIENCE}")
+          oidc=$(printf '%s' "$oidc_json" | jq -r '.value // empty')
+          test -n "$oidc"
+          body=$(jq -nc --arg c "$bundle" '{action:"put",credentialBundle:$c}')
+          curl -fsSL -X POST -H "Authorization: Bearer $oidc" -H 'Content-Type: application/json' -d "$body" "$AKIYA_CF_BROKER" | jq -e '.ok==true and .stored==true' >/dev/null
+
       - name: Verify live production parity and core APIs
         id: verify
         env:
@@ -188,7 +223,7 @@ jobs:
           done
           if [ "$matched" != 1 ]; then
             if [ "$MODE" = 'verify-only' ]; then
-              echo 'PRODUCTION_STALE_AND_CREDENTIALS_MISSING: current source is not deployed; configure both GitHub Cloudflare secrets or run the explicit one-time repair workflow.' >&2
+              echo 'PRODUCTION_STALE_AND_CREDENTIALS_MISSING: current source is not deployed; bootstrap the secure one-time repair credential.' >&2
             else
               echo 'DEPLOYMENT_MARKER_MISMATCH after deploy.' >&2
             fi
