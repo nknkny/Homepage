@@ -73,25 +73,33 @@ jobs:
             npx --yes wrangler@4.119.0 pages deploy field-ops --project-name field-ops-aomori --branch main --commit-hash "$GITHUB_SHA" --commit-message '現場ポート compatibility deploy'
           fi
       - name: Verify production
-        if: steps.cf.outputs.configured == 'true'
         run: |
           set -euo pipefail
           origin='https://genbaport.pages.dev'
           ok=0
-          for i in $(seq 1 18); do
+          for i in $(seq 1 36); do
             if curl -fsSL --max-time 20 "$origin/?v=$GITHUB_RUN_ID-$i" -o /tmp/index.html \
               && grep -Fq '現地に行かないと' /tmp/index.html \
               && grep -Fq '現場ポート' /tmp/index.html \
-              && grep -Fq 'genbaport@gmail.com' /tmp/index.html; then ok=1; break; fi
+              && grep -Fq 'genbaport@gmail.com' /tmp/index.html \
+              && grep -Fq '25,000円' /tmp/index.html; then ok=1; break; fi
             sleep 5
           done
           test "$ok" = 1
           ! grep -Fq 'aomori.akiya.rescue@gmail.com' /tmp/index.html
           ! grep -Fq 'FIELD OPS' /tmp/index.html
-          grep -Fq '25,000円' /tmp/index.html
           curl -fsSL -D /tmp/h -o /dev/null "$origin/"
           tr -d '\r' < /tmp/h >/tmp/hn
+          grep -Eiq '^strict-transport-security:.*max-age=' /tmp/hn
           grep -Eiq '^x-content-type-options:[[:space:]]*nosniff' /tmp/hn
           grep -Eiq '^x-frame-options:[[:space:]]*DENY' /tmp/hn
           grep -Eiq '^content-security-policy:' /tmp/hn
+          curl -fsSL "$origin/robots.txt" | grep -Fq 'genbaport.pages.dev/sitemap.xml'
+          curl -fsSL "$origin/sitemap.xml" | grep -Fq 'genbaport.pages.dev'
+          legacy='https://field-ops-aomori.pages.dev'
+          if curl -fsSL --max-time 20 "$legacy/?v=$GITHUB_RUN_ID" -o /tmp/legacy.html; then
+            grep -Fq '現場ポート' /tmp/legacy.html
+            grep -Fq 'genbaport@gmail.com' /tmp/legacy.html
+            ! grep -Fq 'aomori.akiya.rescue@gmail.com' /tmp/legacy.html
+          fi
           echo 'GENBAPORT_PRODUCTION_VERIFY=PASS'
