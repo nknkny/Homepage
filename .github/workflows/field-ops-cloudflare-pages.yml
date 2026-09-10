@@ -1,105 +1,96 @@
-name: 現場ポート Cloudflare Pages
+name: 現場ポート CI / Production Check
 on:
   push:
     branches: [main]
     paths:
       - 'field-ops/**'
+      - 'field-ops-legacy/**'
       - '.github/workflows/field-ops-cloudflare-pages.yml'
+      - '.github/workflows/field-ops-cloudflare-device-deploy.yml'
   workflow_dispatch:
+  schedule:
+    - cron: '17 21 * * *'
 permissions:
   contents: read
 concurrency:
-  group: genbaport-cloudflare-pages
+  group: genbaport-ci-production
   cancel-in-progress: true
 jobs:
-  validate-deploy:
+  validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-      - name: Validate site
+      - name: Validate source
         shell: bash
         run: |
           set -euo pipefail
-          test -s field-ops/index.html
-          test -s field-ops/_headers
-          grep -Fq '現地に行かないと' field-ops/index.html
+          for f in index.html site.css app.js 404.html privacy.html terms.html sample-report.html sample-report.pdf favicon.svg apple-touch-icon.png og-image.png site.webmanifest robots.txt sitemap.xml _headers build-id.txt; do test -s "field-ops/$f"; done
+          test -s field-ops-legacy/_redirects
+          node --check field-ops/app.js
           grep -Fq '現場ポート' field-ops/index.html
           grep -Fq 'genbaport@gmail.com' field-ops/index.html
+          grep -Fq '9,000円〜（税別）' field-ops/index.html
+          grep -Fq '青森市内の追加交通費なし' field-ops/index.html
+          grep -Fq '月末締め翌月末払い' field-ops/index.html
+          grep -Fq '振込手数料は発注者様' field-ops/index.html
+          grep -Fq 'PDF報告書＋元写真' field-ops/index.html
           ! grep -Fq 'aomori.akiya.rescue@gmail.com' field-ops/index.html
-          ! grep -Fq 'FIELD OPS' field-ops/index.html
-          grep -Fq '5,000' field-ops/index.html
-          grep -Fq '4,000 × 拠点数' field-ops/index.html
-          grep -Fq '時間課金は採用しません' field-ops/index.html
-          grep -Fq 'Content-Security-Policy:' field-ops/_headers
-          python - <<'PY'
+          ! grep -Fq '>FIELD OPS<' field-ops/index.html
+          ! grep -Fq 'Phase 0' field-ops/index.html
+          ! grep -Fq '実証中' field-ops/index.html
+          grep -Fq "script-src 'self'" field-ops/_headers
+          ! grep -Fq "script-src 'self' 'unsafe-inline'" field-ops/_headers
+          grep -Fq 'https://genbaport.pages.dev/' field-ops/sitemap.xml
+          grep -Fq 'https://genbaport.pages.dev/:splat 301' field-ops-legacy/_redirects
+          python3 - <<'PY'
           from html.parser import HTMLParser
           from pathlib import Path
+          import json,re,xml.etree.ElementTree as ET
+          root=Path('field-ops')
+          pages=['index.html','404.html','privacy.html','terms.html','sample-report.html']
           class P(HTMLParser):
-              def __init__(self): super().__init__(); self.h1=0
+              def __init__(self): super().__init__(); self.h1=0; self.ids=set(); self.hrefs=[]
               def handle_starttag(self,t,a):
+                  d=dict(a)
                   if t=='h1': self.h1+=1
-          x=P(); x.feed(Path('field-ops/index.html').read_text(encoding='utf-8'))
-          assert x.h1==1, x.h1
-          print('GENBAPORT_STATIC_VALIDATION=PASS')
+                  if 'id' in d:
+                      assert d['id'] not in self.ids, ('duplicate id',d['id']); self.ids.add(d['id'])
+                  if t=='a' and d.get('href'): self.hrefs.append(d['href'])
+          for page in pages:
+              x=P(); x.feed((root/page).read_text(encoding='utf-8'))
+              assert x.h1==1,(page,x.h1)
+              for href in x.hrefs:
+                  if href.startswith('/') and not href.startswith('//'):
+                      target=href.split('#')[0].split('?')[0]
+                      if target in ('','/'): continue
+                      p=root/target.lstrip('/')
+                      assert p.exists(),(page,'missing link',href)
+          text=(root/'index.html').read_text(encoding='utf-8')
+          m=re.search(r'<script type="application/ld\+json">(.*?)</script>',text,re.S); assert m
+          json.loads(m.group(1))
+          ET.parse(root/'sitemap.xml')
+          manifest=json.loads((root/'site.webmanifest').read_text(encoding='utf-8')); assert manifest['name']=='現場ポート'
+          print('GENBAPORT_SOURCE_VALIDATION=PASS')
           PY
-      - name: Check Cloudflare credentials
-        id: cf
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          if [ -n "${CLOUDFLARE_API_TOKEN:-}" ] && [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then echo 'configured=true' >> "$GITHUB_OUTPUT"; else echo 'configured=false' >> "$GITHUB_OUTPUT"; fi
-      - name: Create canonical Pages project if needed
-        if: steps.cf.outputs.configured == 'true'
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          set -euo pipefail
-          npx --yes wrangler@4.119.0 whoami >/dev/null
-          if ! npx --yes wrangler@4.119.0 pages project list --json | jq -e '.[] | select(.name=="genbaport")' >/dev/null; then
-            npx --yes wrangler@4.119.0 pages project create genbaport --production-branch main
-          fi
-      - name: Deploy canonical
-        if: steps.cf.outputs.configured == 'true'
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          set -euo pipefail
-          npx --yes wrangler@4.119.0 pages deploy field-ops --project-name genbaport --branch main --commit-hash "$GITHUB_SHA" --commit-message '現場ポート production deploy'
-          if npx --yes wrangler@4.119.0 pages project list --json | jq -e '.[] | select(.name=="field-ops-aomori")' >/dev/null; then
-            npx --yes wrangler@4.119.0 pages deploy field-ops --project-name field-ops-aomori --branch main --commit-hash "$GITHUB_SHA" --commit-message '現場ポート compatibility deploy'
-          fi
-      - name: Verify production
+      - name: Verify public production
+        shell: bash
         run: |
           set -euo pipefail
           origin='https://genbaport.pages.dev'
-          ok=0
-          for i in $(seq 1 36); do
-            if curl -fsSL --max-time 20 "$origin/?v=$GITHUB_RUN_ID-$i" -o /tmp/index.html \
-              && grep -Fq '現地に行かないと' /tmp/index.html \
-              && grep -Fq '現場ポート' /tmp/index.html \
-              && grep -Fq 'genbaport@gmail.com' /tmp/index.html \
-              && grep -Fq '25,000円' /tmp/index.html; then ok=1; break; fi
-            sleep 5
-          done
-          test "$ok" = 1
+          expected="$(tr -d '\r\n' < field-ops/build-id.txt)"
+          curl -fsSL --retry 3 --retry-delay 2 --max-time 20 "$origin/build-id.txt?v=$GITHUB_RUN_ID" -o /tmp/build-id.txt
+          actual="$(tr -d '\r\n' < /tmp/build-id.txt)"
+          if [ "$actual" != "$expected" ]; then echo "GENBAPORT_PRODUCTION_STALE expected=$expected actual=$actual"; exit 1; fi
+          curl -fsSL --retry 3 --max-time 20 "$origin/?v=$GITHUB_RUN_ID" -o /tmp/index.html
+          for s in '現場ポート' 'genbaport@gmail.com' '9,000円〜（税別）' '月末締め翌月末払い' '振込手数料は発注者様' 'PDF報告書＋元写真'; do grep -Fq "$s" /tmp/index.html; done
           ! grep -Fq 'aomori.akiya.rescue@gmail.com' /tmp/index.html
-          ! grep -Fq 'FIELD OPS' /tmp/index.html
-          curl -fsSL -D /tmp/h -o /dev/null "$origin/"
-          tr -d '\r' < /tmp/h >/tmp/hn
+          ! grep -Fq 'Phase 0' /tmp/index.html
+          for p in /privacy.html /terms.html /sample-report.html /sample-report.pdf /site.css /app.js /favicon.svg /apple-touch-icon.png /og-image.png /site.webmanifest /robots.txt /sitemap.xml; do curl -fsSIL --retry 2 --max-time 20 "$origin$p" >/dev/null; done
+          code="$(curl -sS -o /dev/null -w '%{http_code}' "$origin/__genbaport_missing_test__")"; test "$code" = 404
+          curl -fsSL -D /tmp/h -o /dev/null "$origin/"; tr -d '\r' < /tmp/h > /tmp/hn
           grep -Eiq '^strict-transport-security:.*max-age=' /tmp/hn
           grep -Eiq '^x-content-type-options:[[:space:]]*nosniff' /tmp/hn
           grep -Eiq '^x-frame-options:[[:space:]]*DENY' /tmp/hn
           grep -Eiq '^content-security-policy:' /tmp/hn
-          curl -fsSL "$origin/robots.txt" | grep -Fq 'genbaport.pages.dev/sitemap.xml'
-          curl -fsSL "$origin/sitemap.xml" | grep -Fq 'genbaport.pages.dev'
-          legacy='https://field-ops-aomori.pages.dev'
-          if curl -fsSL --max-time 20 "$legacy/?v=$GITHUB_RUN_ID" -o /tmp/legacy.html; then
-            grep -Fq '現場ポート' /tmp/legacy.html
-            grep -Fq 'genbaport@gmail.com' /tmp/legacy.html
-            ! grep -Fq 'aomori.akiya.rescue@gmail.com' /tmp/legacy.html
-          fi
           echo 'GENBAPORT_PRODUCTION_VERIFY=PASS'
