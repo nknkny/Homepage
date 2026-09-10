@@ -1,4 +1,4 @@
-name: Field Ops Cloudflare Pages
+name: 現場ポート Cloudflare Pages
 on:
   push:
     branches: [main]
@@ -9,7 +9,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: field-ops-cloudflare-pages
+  group: genbaport-cloudflare-pages
   cancel-in-progress: true
 jobs:
   validate-deploy:
@@ -24,6 +24,10 @@ jobs:
           test -s field-ops/index.html
           test -s field-ops/_headers
           grep -Fq '現地に行かないと' field-ops/index.html
+          grep -Fq '現場ポート' field-ops/index.html
+          grep -Fq 'genbaport@gmail.com' field-ops/index.html
+          ! grep -Fq 'aomori.akiya.rescue@gmail.com' field-ops/index.html
+          ! grep -Fq 'FIELD OPS' field-ops/index.html
           grep -Fq '5,000' field-ops/index.html
           grep -Fq '4,000 × 拠点数' field-ops/index.html
           grep -Fq '時間課金は採用しません' field-ops/index.html
@@ -37,7 +41,7 @@ jobs:
                   if t=='h1': self.h1+=1
           x=P(); x.feed(Path('field-ops/index.html').read_text(encoding='utf-8'))
           assert x.h1==1, x.h1
-          print('FIELD_OPS_STATIC_VALIDATION=PASS')
+          print('GENBAPORT_STATIC_VALIDATION=PASS')
           PY
       - name: Check Cloudflare credentials
         id: cf
@@ -46,7 +50,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           if [ -n "${CLOUDFLARE_API_TOKEN:-}" ] && [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then echo 'configured=true' >> "$GITHUB_OUTPUT"; else echo 'configured=false' >> "$GITHUB_OUTPUT"; fi
-      - name: Create Pages project if needed
+      - name: Create canonical Pages project if needed
         if: steps.cf.outputs.configured == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -54,30 +58,40 @@ jobs:
         run: |
           set -euo pipefail
           npx --yes wrangler@4.119.0 whoami >/dev/null
-          if ! npx --yes wrangler@4.119.0 pages project list --json | jq -e '.[] | select(.name=="field-ops-aomori")' >/dev/null; then
-            npx --yes wrangler@4.119.0 pages project create field-ops-aomori --production-branch main
+          if ! npx --yes wrangler@4.119.0 pages project list --json | jq -e '.[] | select(.name=="genbaport")' >/dev/null; then
+            npx --yes wrangler@4.119.0 pages project create genbaport --production-branch main
           fi
-      - name: Deploy
+      - name: Deploy canonical
         if: steps.cf.outputs.configured == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          npx --yes wrangler@4.119.0 pages deploy field-ops --project-name field-ops-aomori --branch main --commit-hash "$GITHUB_SHA" --commit-message 'FIELD OPS production deploy'
+          npx --yes wrangler@4.119.0 pages deploy field-ops --project-name genbaport --branch main --commit-hash "$GITHUB_SHA" --commit-message '現場ポート production deploy'
+          if npx --yes wrangler@4.119.0 pages project list --json | jq -e '.[] | select(.name=="field-ops-aomori")' >/dev/null; then
+            npx --yes wrangler@4.119.0 pages deploy field-ops --project-name field-ops-aomori --branch main --commit-hash "$GITHUB_SHA" --commit-message '現場ポート compatibility deploy'
+          fi
       - name: Verify production
         if: steps.cf.outputs.configured == 'true'
         run: |
           set -euo pipefail
-          origin='https://field-ops-aomori.pages.dev'
+          origin='https://genbaport.pages.dev'
+          ok=0
           for i in $(seq 1 18); do
-            if curl -fsSL --max-time 20 "$origin/?v=$GITHUB_RUN_ID-$i" -o /tmp/index.html && grep -Fq '現地に行かないと' /tmp/index.html; then break; fi
+            if curl -fsSL --max-time 20 "$origin/?v=$GITHUB_RUN_ID-$i" -o /tmp/index.html \
+              && grep -Fq '現地に行かないと' /tmp/index.html \
+              && grep -Fq '現場ポート' /tmp/index.html \
+              && grep -Fq 'genbaport@gmail.com' /tmp/index.html; then ok=1; break; fi
             sleep 5
           done
+          test "$ok" = 1
+          ! grep -Fq 'aomori.akiya.rescue@gmail.com' /tmp/index.html
+          ! grep -Fq 'FIELD OPS' /tmp/index.html
           grep -Fq '25,000円' /tmp/index.html
           curl -fsSL -D /tmp/h -o /dev/null "$origin/"
           tr -d '\r' < /tmp/h >/tmp/hn
           grep -Eiq '^x-content-type-options:[[:space:]]*nosniff' /tmp/hn
           grep -Eiq '^x-frame-options:[[:space:]]*DENY' /tmp/hn
           grep -Eiq '^content-security-policy:' /tmp/hn
-          echo 'FIELD_OPS_PRODUCTION_VERIFY=PASS'
+          echo 'GENBAPORT_PRODUCTION_VERIFY=PASS'
