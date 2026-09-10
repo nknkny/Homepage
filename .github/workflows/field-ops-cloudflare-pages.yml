@@ -46,6 +46,7 @@ jobs:
           python3 - <<'PY'
           from html.parser import HTMLParser
           from pathlib import Path
+          from hashlib import sha256
           import json,re,xml.etree.ElementTree as ET
           root=Path('field-ops')
           pages=['index.html','404.html','privacy.html','terms.html','sample-report.html']
@@ -68,9 +69,14 @@ jobs:
                       assert p.exists(),(page,'missing link',href)
           text=(root/'index.html').read_text(encoding='utf-8')
           m=re.search(r'<script type="application/ld\+json">(.*?)</script>',text,re.S); assert m
-          json.loads(m.group(1))
-          ET.parse(root/'sitemap.xml')
+          json.loads(m.group(1)); ET.parse(root/'sitemap.xml')
           manifest=json.loads((root/'site.webmanifest').read_text(encoding='utf-8')); assert manifest['name']=='現場ポート'
+          files=['index.html','site.css','app.js','404.html','privacy.html','terms.html','sample-report.html','sample-report.pdf','favicon.svg','apple-touch-icon.png','og-image.png','site.webmanifest','robots.txt','sitemap.xml','_headers']
+          h=sha256()
+          for fn in files:
+              b=(root/fn).read_bytes(); h.update(fn.encode()+b'\0'+b+b'\0')
+          expected=(root/'build-id.txt').read_text().strip()
+          assert h.hexdigest()==expected,(h.hexdigest(),expected)
           print('GENBAPORT_SOURCE_VALIDATION=PASS')
           PY
       - name: Verify public production
