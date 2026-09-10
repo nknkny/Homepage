@@ -1,4 +1,4 @@
-name: Field Ops Cloudflare one-time device deploy
+name: 現場ポート Cloudflare one-time device deploy
 
 on:
   issue_comment:
@@ -10,7 +10,7 @@ permissions:
   issues: write
 
 concurrency:
-  group: field-ops-cloudflare-device-deploy
+  group: genbaport-cloudflare-device-deploy
   cancel-in-progress: false
 
 jobs:
@@ -19,7 +19,8 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'issue_comment' &&
        github.event.issue.number == 42 &&
-       contains(github.event.comment.body, 'START_FIELD_OPS_CF_DEPLOY'))
+       (contains(github.event.comment.body, 'START_GENBAPORT_CF_DEPLOY') ||
+        contains(github.event.comment.body, 'START_FIELD_OPS_CF_DEPLOY')))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -34,6 +35,10 @@ jobs:
           test -s field-ops/index.html
           test -s field-ops/_headers
           grep -Fq '現地に行かないと' field-ops/index.html
+          grep -Fq '現場ポート' field-ops/index.html
+          grep -Fq 'genbaport@gmail.com' field-ops/index.html
+          ! grep -Fq 'aomori.akiya.rescue@gmail.com' field-ops/index.html
+          ! grep -Fq 'FIELD OPS' field-ops/index.html
           grep -Fq '25,000円' field-ops/index.html
           grep -Fq 'Content-Security-Policy:' field-ops/_headers
 
@@ -67,7 +72,7 @@ jobs:
           fi
           complete_url="${url}?user_code=${code}"
           body=$(jq -n --arg url "$complete_url" --arg code "$code" --arg run "$GITHUB_RUN_ID" \
-            '{body:("FIELD_OPS_CF_AUTH_READY\nURL="+$url+"\nCODE="+$code+"\nRUN_ID="+$run+"\nEXPIRES_IN_APPROX=5_MINUTES")}')
+            '{body:("GENBAPORT_CF_AUTH_READY\nURL="+$url+"\nCODE="+$code+"\nRUN_ID="+$run+"\nEXPIRES_IN_APPROX=5_MINUTES")}')
           curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" \
             -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' \
             -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
@@ -75,48 +80,69 @@ jobs:
           CI='' npx --yes wrangler@4.119.0 whoami >/dev/null
           rm -f "$log" "$clean"
 
-      - name: Ensure Pages project
+      - name: Ensure canonical Pages project
         shell: bash
         run: |
           set -euo pipefail
-          if ! CI='' npx --yes wrangler@4.119.0 pages project list | grep -Fq 'field-ops-aomori'; then
-            CI='' npx --yes wrangler@4.119.0 pages project create field-ops-aomori --production-branch main
+          if ! CI='' npx --yes wrangler@4.119.0 pages project list | grep -Fq 'genbaport'; then
+            CI='' npx --yes wrangler@4.119.0 pages project create genbaport --production-branch main
           fi
 
-      - name: Deploy FIELD OPS
+      - name: Deploy 現場ポート canonical
         shell: bash
         run: |
           set -euo pipefail
           CI='' npx --yes wrangler@4.119.0 pages deploy field-ops \
-            --project-name field-ops-aomori \
+            --project-name genbaport \
             --branch main \
             --commit-hash "$GITHUB_SHA" \
-            --commit-message 'FIELD OPS verified production deploy'
+            --commit-message '現場ポート verified production deploy'
+
+      - name: Update legacy FIELD OPS host
+        shell: bash
+        run: |
+          set -euo pipefail
+          if CI='' npx --yes wrangler@4.119.0 pages project list | grep -Fq 'field-ops-aomori'; then
+            CI='' npx --yes wrangler@4.119.0 pages deploy field-ops \
+              --project-name field-ops-aomori \
+              --branch main \
+              --commit-hash "$GITHUB_SHA" \
+              --commit-message '現場ポート compatibility deploy'
+          fi
 
       - name: Verify production
         shell: bash
         run: |
           set -euo pipefail
-          origin='https://field-ops-aomori.pages.dev'
+          origin='https://genbaport.pages.dev'
           ok=0
           for i in $(seq 1 18); do
             if curl -fsSL --max-time 20 "$origin/?v=$GITHUB_RUN_ID-$i" -o /tmp/index.html \
-              && grep -Fq '現地に行かないと' /tmp/index.html \
+              && grep -Fq '現場ポート' /tmp/index.html \
+              && grep -Fq 'genbaport@gmail.com' /tmp/index.html \
               && grep -Fq '25,000円' /tmp/index.html; then
               ok=1; break
             fi
             sleep 5
           done
           test "$ok" = 1
+          ! grep -Fq 'aomori.akiya.rescue@gmail.com' /tmp/index.html
+          ! grep -Fq 'FIELD OPS' /tmp/index.html
           curl -fsSL -D /tmp/headers -o /dev/null "$origin/?v=$GITHUB_RUN_ID"
           tr -d '\r' < /tmp/headers > /tmp/headers-normalized
           grep -Eiq '^strict-transport-security:.*max-age=' /tmp/headers-normalized
           grep -Eiq '^x-content-type-options:[[:space:]]*nosniff' /tmp/headers-normalized
           grep -Eiq '^x-frame-options:[[:space:]]*DENY' /tmp/headers-normalized
           grep -Eiq '^content-security-policy:' /tmp/headers-normalized
-          curl -fsSL "$origin/robots.txt" | grep -Fq 'field-ops-aomori.pages.dev/sitemap.xml'
-          curl -fsSL "$origin/sitemap.xml" | grep -Fq 'field-ops-aomori.pages.dev'
-          echo 'FIELD_OPS_CF_PRODUCTION_VERIFY=PASS'
+          curl -fsSL "$origin/robots.txt" | grep -Fq 'genbaport.pages.dev/sitemap.xml'
+          curl -fsSL "$origin/sitemap.xml" | grep -Fq 'genbaport.pages.dev'
+          legacy='https://field-ops-aomori.pages.dev'
+          if curl -fsSL --max-time 20 "$legacy/?v=$GITHUB_RUN_ID" -o /tmp/legacy.html; then
+            grep -Fq '現場ポート' /tmp/legacy.html
+            grep -Fq 'genbaport@gmail.com' /tmp/legacy.html
+            ! grep -Fq 'aomori.akiya.rescue@gmail.com' /tmp/legacy.html
+          fi
+          echo 'GENBAPORT_CF_PRODUCTION_VERIFY=PASS'
 
       - name: Report result
         if: always()
@@ -127,7 +153,7 @@ jobs:
         run: |
           set -euo pipefail
           body=$(jq -n --arg a "$AUTH" --arg run "$GITHUB_RUN_ID" \
-            '{body:("FIELD_OPS_CF_DEVICE_RUN_FINISHED\nRUN_ID="+$run+"\nAUTH="+$a+"\nCHECK_ACTIONS_RUN_FOR_FINAL_RESULT")}')
+            '{body:("GENBAPORT_CF_DEVICE_RUN_FINISHED\nRUN_ID="+$run+"\nAUTH="+$a+"\nCHECK_ACTIONS_RUN_FOR_FINAL_RESULT")}')
           curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" \
             -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' \
             -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
