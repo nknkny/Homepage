@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive,nosnippet">
+  <meta name="theme-color" content="#07131b">
+  <title>GENBA PORT OPS｜運営者専用</title>
+  <link rel="stylesheet" href="/site.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">GP</span><span><b>GENBA PORT OPS</b><small>現場ポート 運営者専用</small></span></div>
+    <div class="top-actions"><span class="secure">PRIVATE / NOINDEX</span><button id="print-current" class="btn ghost" type="button">現在の書類をPDF保存</button></div>
+  </header>
+
+  <main class="shell">
+    <aside class="side">
+      <button class="nav active" data-target="report-panel" type="button">現場報告書</button>
+      <button class="nav" data-target="invoice-panel" type="button">請求書</button>
+      <button class="nav" data-target="data-panel" type="button">保存・バックアップ</button>
+      <div class="side-note">入力内容はこの端末のブラウザ内に保存します。写真は自動保存しません。</div>
+    </aside>
+
+    <section class="workspace">
+      <section id="report-panel" class="panel active">
+        <div class="panel-head"><div><p class="eyebrow">FIELD REPORT</p><h1>現場確認報告書を作る</h1></div><div class="toolbar"><button id="report-save" class="btn" type="button">下書き保存</button><button id="report-reset" class="btn ghost" type="button">新規</button></div></div>
+        <div class="grid2">
+          <form id="report-form" class="editor" autocomplete="off">
+            <div class="form-grid">
+              <label>JOB ID<input name="jobId" placeholder="GP-20260911-001" required></label>
+              <label>顧客名<input name="client" placeholder="株式会社〇〇"></label>
+              <label>担当者<input name="contact" placeholder="〇〇様"></label>
+              <label>現場名<input name="site" placeholder="〇〇店 / 〇〇施設"></label>
+              <label class="wide">現場住所<input name="address" placeholder="青森県青森市…"></label>
+              <label>実施日<input name="date" type="date"></label>
+              <label>実施時刻<input name="time" placeholder="13:20〜13:35"></label>
+              <label class="wide">依頼内容<textarea name="request" rows="3" placeholder="指定POP掲出有無、指定写真、数量、型番確認など"></textarea></label>
+              <label class="wide">総括<textarea name="summary" rows="3" placeholder="確認できた事実のみを簡潔に記載"></textarea></label>
+            </div>
+
+            <div class="subhead"><h2>確認結果</h2><button id="add-result" class="mini" type="button">＋ 行を追加</button></div>
+            <div class="table-wrap"><table class="edit-table"><thead><tr><th>No.</th><th>確認項目</th><th>結果</th><th>証拠</th><th>備考</th><th></th></tr></thead><tbody id="result-rows"></tbody></table></div>
+
+            <div class="subhead"><h2>写真</h2><span>必要な写真を選択。画像自体はブラウザ保存しません。</span></div>
+            <label class="upload">写真を追加<input id="photo-input" type="file" accept="image/*" multiple></label>
+            <div id="photo-editor" class="photo-editor"></div>
+
+            <div class="form-actions"><button id="report-print" class="btn primary" type="button">報告書をPDF保存 / 印刷</button></div>
+          </form>
+
+          <article id="report-preview" class="paper report-paper" aria-label="報告書プレビュー">
+            <div class="doc-head"><div><p>GENBA PORT</p><h2>現場確認報告書</h2></div><div class="doc-id" id="pv-job">JOB ID —</div></div>
+            <div class="doc-meta" id="report-meta"></div>
+            <section><h3>依頼内容</h3><p id="pv-request" class="preline">—</p></section>
+            <section><h3>確認結果</h3><table><thead><tr><th>No.</th><th>確認項目</th><th>結果</th><th>証拠</th><th>備考</th></tr></thead><tbody id="pv-results"></tbody></table></section>
+            <section><h3>総括</h3><p id="pv-summary" class="preline">—</p></section>
+            <section id="pv-photo-section"><h3>写真</h3><div id="pv-photos" class="photo-grid"></div></section>
+            <footer>現場ポート｜発注仕様に沿って取得した観察事実を報告します。</footer>
+          </article>
+        </div>
+      </section>
+
+      <section id="invoice-panel" class="panel">
+        <div class="panel-head"><div><p class="eyebrow">INVOICE</p><h1>請求書を作る</h1></div><div class="toolbar"><button id="invoice-save" class="btn" type="button">下書き保存</button><button id="invoice-reset" class="btn ghost" type="button">新規</button></div></div>
+        <div class="grid2">
+          <form id="invoice-form" class="editor" autocomplete="off">
+            <div class="form-grid">
+              <label>請求番号<input name="invoiceNo" placeholder="INV-202609-001"></label>
+              <label>JOB ID<input name="jobId" placeholder="GP-20260911-001"></label>
+              <label class="wide">請求先<input name="client" placeholder="株式会社〇〇 御中"></label>
+              <label>請求日<input name="issueDate" type="date"></label>
+              <label>支払期限<input name="dueDate" type="date"></label>
+              <label>発行者名<input name="issuer" value="現場ポート"></label>
+              <label>連絡先<input name="issuerEmail" value="genbaport@gmail.com"></label>
+              <label class="wide">適格請求書発行事業者番号<input name="registrationNo" placeholder="登録番号を入力"></label>
+              <label class="wide">振込先<textarea name="bank" rows="3" placeholder="銀行名 / 支店名 / 種別 / 口座番号 / 口座名義"></textarea></label>
+            </div>
+
+            <div class="subhead"><h2>明細</h2><button id="add-item" class="mini" type="button">＋ 明細を追加</button></div>
+            <div class="table-wrap"><table class="edit-table"><thead><tr><th>内容</th><th>数量</th><th>単価</th><th>税率</th><th></th></tr></thead><tbody id="item-rows"></tbody></table></div>
+            <label class="block">備考<textarea name="memo" rows="4" placeholder="振込手数料は発注者様負担、案件名など"></textarea></label>
+            <div class="form-actions"><button id="invoice-print" class="btn primary" type="button">請求書をPDF保存 / 印刷</button></div>
+          </form>
+
+          <article id="invoice-preview" class="paper invoice-paper" aria-label="請求書プレビュー">
+            <div class="invoice-title"><h2>請 求 書</h2><div><b id="pv-invoice-no">—</b><span id="pv-issue-date"></span></div></div>
+            <div class="invoice-parties"><div><h3 id="pv-client">御中</h3><p>下記の通りご請求申し上げます。</p></div><div class="issuer"><b id="pv-issuer">現場ポート</b><span id="pv-issuer-email">genbaport@gmail.com</span><span id="pv-registration"></span></div></div>
+            <div class="amount"><span>ご請求金額</span><strong id="pv-grand">¥0</strong></div>
+            <table class="invoice-lines"><thead><tr><th>内容</th><th>数量</th><th>単価</th><th>税率</th><th>金額</th></tr></thead><tbody id="pv-items"></tbody></table>
+            <div class="totals"><div><span>税抜計</span><b id="pv-subtotal">¥0</b></div><div><span>消費税</span><b id="pv-tax">¥0</b></div><div class="grand"><span>合計</span><b id="pv-total">¥0</b></div></div>
+            <div class="invoice-info"><div><h3>支払期限</h3><p id="pv-due">—</p></div><div><h3>振込先</h3><p id="pv-bank" class="preline">—</p></div></div>
+            <section><h3>備考</h3><p id="pv-memo" class="preline">—</p></section>
+            <footer>現場ポート</footer>
+          </article>
+        </div>
+      </section>
+
+      <section id="data-panel" class="panel">
+        <div class="panel-head"><div><p class="eyebrow">LOCAL DATA</p><h1>保存・バックアップ</h1></div></div>
+        <div class="data-card">
+          <h2>この端末の保存データ</h2>
+          <p>報告書・請求書の入力内容をブラウザのローカルストレージへ保存します。顧客情報を外部サーバーへ送信しません。</p>
+          <div class="data-actions"><button id="export-data" class="btn" type="button">JSONバックアップを書き出す</button><label class="btn ghost import">JSONを読み込む<input id="import-data" type="file" accept="application/json"></label><button id="clear-data" class="btn danger" type="button">保存データを全削除</button></div>
+          <div class="saved-grid"><div><span>報告書下書き</span><b id="report-saved-at">未保存</b></div><div><span>請求書下書き</span><b id="invoice-saved-at">未保存</b></div></div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/app.js" defer></script>
+</body>
+</html>
