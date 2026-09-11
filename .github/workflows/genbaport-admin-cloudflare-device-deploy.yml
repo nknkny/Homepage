@@ -1,0 +1,107 @@
+name: GENBA PORT OPS Cloudflare deploy
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: genbaport-admin-cloudflare-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issue_comment' && github.event.issue.number == 42 && contains(github.event.comment.body, 'START_GENBAPORT_ADMIN_DEPLOY'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Validate admin source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s genbaport-admin/public/index.html
+          test -s genbaport-admin/public/site.css
+          test -s genbaport-admin/public/app.js
+          test -s genbaport-admin/public/_headers
+          test -s genbaport-admin/public/robots.txt
+          test -s genbaport-admin/functions/_middleware.js
+          node --check genbaport-admin/public/app.js
+          node --check genbaport-admin/functions/_middleware.js
+          grep -Fq 'noindex' genbaport-admin/public/index.html
+          grep -Fq 'Disallow: /' genbaport-admin/public/robots.txt
+          echo "SOURCE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Cloudflare device authorization
+        id: auth
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/wrangler-login.log"; clean="$RUNNER_TEMP/wrangler-login-clean.log"; : > "$log"
+          (CI='' npx --yes wrangler@4.119.0 login --device --browser=false >"$log" 2>&1) & pid=$!
+          url=''; code=''
+          for n in $(seq 1 60); do
+            perl -pe 's/\e\[[0-9;]*[mK]//g' "$log" > "$clean" || true
+            url=$(grep -Eo 'https://dash\.cloudflare\.com/oauth2/device(/verify)?' "$clean" | tail -1 || true)
+            code=$(grep -Eo '([A-Za-z0-9]{4}-[A-Za-z0-9]{4}|[A-Za-z0-9]{8})' "$clean" | tail -1 || true)
+            if [ -n "$url" ] && [ -n "$code" ]; then break; fi
+            if ! kill -0 "$pid" 2>/dev/null; then break; fi
+            sleep 1
+          done
+          if [ -z "$url" ] || [ -z "$code" ]; then cat "$clean" || true; kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; exit 1; fi
+          body=$(jq -n --arg url "$url?user_code=$code" --arg code "$code" --arg run "$GITHUB_RUN_ID" '{body:("GENBAPORT_ADMIN_CF_AUTH_READY\nURL="+$url+"\nCODE="+$code+"\nRUN_ID="+$run+"\nEXPIRES_IN_APPROX=5_MINUTES")}')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
+          wait "$pid"
+          CI='' npx --yes wrangler@4.119.0 whoami >/dev/null
+
+      - name: Ensure project
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! CI='' npx --yes wrangler@4.119.0 pages project list | grep -Fq 'genbaport-admin'; then
+            CI='' npx --yes wrangler@4.119.0 pages project create genbaport-admin --production-branch main
+          fi
+
+      - name: Deploy private admin site
+        working-directory: genbaport-admin
+        shell: bash
+        run: |
+          set -euo pipefail
+          CI='' npx --yes wrangler@4.119.0 pages deploy public --project-name genbaport-admin --branch main --commit-hash "$SOURCE_SHA" --commit-message 'GENBA PORT OPS private deploy' --commit-dirty=true
+
+      - name: Verify authentication gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          origin='https://genbaport-admin.pages.dev'
+          code=''
+          for i in $(seq 1 24); do
+            code=$(curl -sS --max-time 20 -o /tmp/body -w '%{http_code}' "$origin/?v=$GITHUB_RUN_ID-$i" || true)
+            [ "$code" = 401 ] && break
+            sleep 5
+          done
+          [ "$code" = 401 ]
+          curl -sSI "$origin/" | tr -d '\r' | grep -Eiq '^www-authenticate:.*GENBA PORT OPS'
+          echo 'GENBAPORT_ADMIN_AUTH_GATE=PASS'
+
+      - name: Report result
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTH: ${{ steps.auth.outcome }}
+        run: |
+          set -euo pipefail
+          body=$(jq -n --arg a "$AUTH" --arg run "$GITHUB_RUN_ID" --arg sha "${SOURCE_SHA:-unknown}" --arg result "${{ job.status }}" '{body:("GENBAPORT_ADMIN_DEPLOY_FINISHED\nRUN_ID="+$run+"\nSOURCE_SHA="+$sha+"\nAUTH="+$a+"\nJOB="+$result)}')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
