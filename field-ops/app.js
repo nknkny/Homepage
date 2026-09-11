@@ -7,20 +7,9 @@ const sites=q('#sites'),estimate=q('#estimate');
 const calc=()=>{if(!sites||!estimate)return;const raw=sites.value.trim();const n=Number(raw);const valid=raw!==''&&Number.isInteger(n)&&n>=1&&n<=100;if(!valid){estimate.textContent='1〜100の整数を入力';return;}estimate.textContent=(5000+4000*n).toLocaleString('ja-JP')+'円（税別）';};
 if(sites&&estimate){sites.addEventListener('input',calc);sites.addEventListener('blur',()=>{const n=Number(sites.value);if(!Number.isFinite(n)||n<1)sites.value='1';else if(n>100)sites.value='100';else sites.value=String(Math.round(n));calc();});calc();}
 const form=q('#inquiry-form'),status=q('#form-status'),copyBtn=q('#copy-inquiry');
-const buildInquiry=()=>{if(!form)return null;const fd=new FormData(form);const sitesRaw=String(fd.get('sites')||'').trim();const n=Number(sitesRaw);if(!Number.isInteger(n)||n<1){const el=q('#form-sites');if(el){el.setCustomValidity('拠点数は1以上の整数で入力してください。');el.reportValidity();}return null;}const el=q('#form-sites');if(el)el.setCustomValidity('');const get=k=>String(fd.get(k)||'').trim();const subject=`現場ポート 案件相談｜${get('company')||'会社名未入力'}`;const body=[
-'現場ポート ご担当者様','',
-'【会社名】',get('company'),
-'【担当者名】',get('name'),
-'【メールアドレス】',get('email'),
-'【電話番号】',get('phone')||'未記入',
-'【現場地域】',get('area'),
-'【拠点数】',`${n}拠点`,
-'【希望実施日】',get('preferred_date')||'未記入',
-'【依頼内容】',get('details'),
-'【必要成果物・補足】',get('deliverables')||'未記入','',
-'※このメールは現場ポートの案件相談フォームで作成しました。'
-].join('\n');return{subject,body};};
-if(form){form.addEventListener('submit',e=>{e.preventDefault();if(!form.reportValidity())return;const d=buildInquiry();if(!d)return;if(status){status.classList.remove('error');status.textContent='メールアプリを開きます。開かない場合は「内容をコピー」をご利用ください。';}location.href=`mailto:genbaport@gmail.com?subject=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(d.body)}`;});}
-if(copyBtn){copyBtn.addEventListener('click',async()=>{if(form&&!form.reportValidity())return;const d=buildInquiry();if(!d)return;const text=`件名: ${d.subject}\n\n${d.body}`;try{await navigator.clipboard.writeText(text);if(status){status.classList.remove('error');status.textContent='相談内容をクリップボードへコピーしました。';}}catch(_){if(status){status.classList.add('error');status.textContent='自動コピーできませんでした。メールアプリから送信してください。';}}});}
+const getInquiry=()=>{if(!form)return null;const fd=new FormData(form);const sitesRaw=String(fd.get('sites')||'').trim();const n=Number(sitesRaw);if(!Number.isInteger(n)||n<1){const el=q('#form-sites');if(el){el.setCustomValidity('拠点数は1以上の整数で入力してください。');el.reportValidity();}return null;}const el=q('#form-sites');if(el)el.setCustomValidity('');const get=k=>String(fd.get(k)||'').trim();return{company:get('company'),name:get('name'),email:get('email'),phone:get('phone')||'未記入',area:get('area'),sites:`${n}拠点`,preferred_date:get('preferred_date')||'未記入',details:get('details'),deliverables:get('deliverables')||'未記入',privacy_consent:get('privacy_consent')?'同意済み':'未同意'};};
+const setStatus=(text,isError=false)=>{if(!status)return;status.classList.toggle('error',isError);status.textContent=text;};
+if(form){form.addEventListener('submit',async e=>{e.preventDefault();if(!form.reportValidity())return;const d=getInquiry();if(!d)return;const submitBtn=q('button[type="submit"]',form);if(submitBtn){submitBtn.disabled=true;submitBtn.setAttribute('aria-busy','true');submitBtn.textContent='送信中…';}setStatus('送信しています…');try{const payload={...d,_subject:`【現場ポート】案件相談｜${d.company||'会社名未入力'}`,_template:'table',_captcha:'false',_honey:String(new FormData(form).get('_honey')||''),_url:'https://genbaport.pages.dev/#contact'};const res=await fetch('https://formsubmit.co/ajax/genbaport@gmail.com',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(payload)});let data={};try{data=await res.json();}catch(_){data={};}if(!res.ok||data.success===false)throw new Error('submit_failed');form.reset();const area=q('#area');if(area)area.value='青森市';const fs=q('#form-sites');if(fs)fs.value='1';setStatus('送信しました。内容を確認のうえ、現場ポートからご連絡します。');}catch(_){setStatus('送信できませんでした。恐れ入りますが、genbaport@gmail.com または 090-1064-3213 までご連絡ください。',true);}finally{if(submitBtn){submitBtn.disabled=false;submitBtn.removeAttribute('aria-busy');submitBtn.textContent='案件相談を送信';}}});}
+if(copyBtn){copyBtn.addEventListener('click',async()=>{if(form&&!form.reportValidity())return;const d=getInquiry();if(!d)return;const text=['現場ポート 案件相談','',`会社名: ${d.company}`,`担当者名: ${d.name}`,`メール: ${d.email}`,`電話: ${d.phone}`,`現場地域: ${d.area}`,`拠点数: ${d.sites}`,`希望実施日: ${d.preferred_date}`,'',`依頼内容:\n${d.details}`,'',`必要成果物・補足:\n${d.deliverables}`].join('\n');try{await navigator.clipboard.writeText(text);setStatus('相談内容をクリップボードへコピーしました。');}catch(_){setStatus('自動コピーできませんでした。',true);}});}
 qa('a[href^="#"]').forEach(a=>a.addEventListener('click',()=>{const id=a.getAttribute('href');if(id&&id.length>1){const t=q(id);if(t)setTimeout(()=>t.setAttribute('tabindex','-1'),0);}}));
 })();
