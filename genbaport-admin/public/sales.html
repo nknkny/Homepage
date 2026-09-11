@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive,nosnippet">
+  <meta name="theme-color" content="#07131b">
+  <title>営業管理｜GENBA PORT OPS</title>
+  <link rel="stylesheet" href="/site.css">
+  <style>
+    .sales-shell{max-width:1500px;margin:0 auto;padding:24px}.sales-head{display:flex;justify-content:space-between;gap:16px;align-items:end;margin-bottom:18px}.sales-head h1{margin:4px 0 0}.sales-grid{display:grid;grid-template-columns:minmax(360px,.8fr) minmax(560px,1.2fr);gap:18px}.sales-card{background:#fff;border:1px solid #d9e1e5;border-radius:14px;padding:18px;box-shadow:0 18px 50px rgba(7,19,27,.08)}.sales-card h2{margin:0 0 12px;font-size:17px}.notice{border-left:4px solid #07131b;background:#f2f5f6;padding:12px 14px;border-radius:8px;line-height:1.65;font-size:12px;margin:0 0 14px}.lock{border-left-color:#9a3c3c;background:#fff4f4}.sales-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}.sales-kpis div{background:#f4f7f8;border-radius:10px;padding:12px}.sales-kpis span,.sales-kpis b{display:block}.sales-kpis span{font-size:10px;color:#6d7c85}.sales-kpis b{font-size:20px;margin-top:3px}.sales-form{display:grid;grid-template-columns:1fr 1fr;gap:10px}.sales-form label{display:flex;flex-direction:column;gap:5px;font-size:11px;font-weight:750;color:#33434d}.sales-form .wide{grid-column:1/-1}.sales-table{width:100%;border-collapse:collapse;min-width:900px}.sales-table th,.sales-table td{font-size:11px;padding:8px;border-bottom:1px solid #e1e7ea;text-align:left;vertical-align:top}.sales-table th{background:#f4f7f8}.sales-table td a{word-break:break-all}.table-scroll{overflow:auto;border:1px solid #d9e1e5;border-radius:10px}.tiny{font-size:10px;color:#6d7c85;line-height:1.5}.actions-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.status-pill{display:inline-block;border-radius:999px;background:#eef2f4;padding:4px 8px;font-size:10px}.control-list{display:grid;gap:10px}.control-item{border:1px solid #d9e1e5;border-radius:10px;padding:12px}.control-item b{display:block;margin-bottom:4px}.control-item p{font-size:11px;color:#5c6c76;line-height:1.6;margin:0 0 8px}.prompt-box{width:100%;min-height:118px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}.master-link{color:inherit;text-decoration:none}@media(max-width:1000px){.sales-grid{grid-template-columns:1fr}.sales-kpis{grid-template-columns:repeat(2,1fr)}}@media(max-width:650px){.sales-shell{padding:14px}.sales-form{grid-template-columns:1fr}.sales-form .wide{grid-column:auto}.sales-kpis{grid-template-columns:1fr 1fr}.sales-head{align-items:flex-start;flex-direction:column}}
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">GP</span><span><b>GENBA PORT OPS</b><small>営業管理 / 運営者専用</small></span></div>
+    <div class="top-actions"><span class="secure">PRIVATE / NOINDEX</span><a class="btn ghost master-link" href="/">報告書・請求書へ戻る</a></div>
+  </header>
+  <main class="sales-shell">
+    <div class="sales-head"><div><p class="eyebrow">SALES OPERATIONS</p><h1>営業リスト・CRM・文面管理</h1></div><a class="btn primary master-link" href="https://docs.google.com/spreadsheets/d/1V7X07PBur89mZbaiuQ3MLZaSor8Ao6y3Ryb88Gmkpy8/edit" target="_blank" rel="noopener">営業管理正本を開く</a></div>
+
+    <div class="notice"><b>正本はGoogle Sheet。</b> 営業候補生成時は「07_既出企業台帳」を必ず照合し、企業名・ドメイン・メール・フォームURLの重複を除外します。確認できない担当者名・メールアドレスは推測しません。</div>
+    <div class="notice lock"><b>送信ロック中。</b> この画面からメール送信・問い合わせフォーム送信は行いません。Gmail送信は、あなたがChatGPTに明示的に「送れ」と指示した場合だけ実行します。</div>
+
+    <section class="sales-kpis">
+      <div><span>この端末の登録企業</span><b id="kpi-total">0</b></div>
+      <div><span>未接触</span><b id="kpi-new">0</b></div>
+      <div><span>下書きあり</span><b id="kpi-draft">0</b></div>
+      <div><span>返信あり</span><b id="kpi-reply">0</b></div>
+    </section>
+
+    <div class="sales-grid">
+      <section class="sales-card">
+        <h2>企業をこの端末に追加・編集</h2>
+        <form id="sales-form" class="sales-form" autocomplete="off">
+          <input type="hidden" name="id">
+          <label>企業名<input name="company" required placeholder="株式会社〇〇"></label>
+          <label>公式ドメイン<input name="domain" placeholder="example.co.jp"></label>
+          <label>公開メール<input name="email" type="email" placeholder="確認できた場合のみ"></label>
+          <label>担当者 / 宛名<input name="recipient" placeholder="〇〇部 ご担当者様"></label>
+          <label class="wide">公式・根拠URL<input name="sourceUrl" type="url" placeholder="https://..."></label>
+          <label class="wide">問い合わせフォームURL<input name="formUrl" type="url" placeholder="https://..."></label>
+          <label>状態<select name="status"><option>未接触</option><option>下書き作成</option><option>送信済み</option><option>返信あり</option><option>商談</option><option>保留</option><option>失注</option><option>除外</option></select></label>
+          <label>優先<select name="priority"><option>S</option><option>A</option><option>B</option><option>C</option></select></label>
+          <label>最終接触日<input name="lastContact" type="date"></label>
+          <label>次回アクション日<input name="nextDate" type="date"></label>
+          <label class="wide">公開情報で確認した事実<textarea name="facts" rows="3" placeholder="必ず根拠URLで確認した内容のみ"></textarea></label>
+          <label class="wide">営業メール件名<textarea name="subject" rows="2" placeholder="企業別に作成"></textarea></label>
+          <label class="wide">営業メール本文<textarea name="body" rows="8" placeholder="企業別に作成。未確認情報は書かない。"></textarea></label>
+          <label class="wide">メモ<textarea name="notes" rows="3"></textarea></label>
+        </form>
+        <div class="actions-row"><button id="save-company" class="btn primary" type="button">保存</button><button id="reset-company" class="btn ghost" type="button">新規入力</button><button id="export-sales" class="btn" type="button">この端末のCSVを書き出す</button></div>
+        <p class="tiny">重複判定：企業名の正規化値＋ドメインを基本キーとし、メールアドレス・問い合わせフォームURLも照合します。重複時は保存を停止します。</p>
+      </section>
+
+      <section class="sales-card">
+        <h2>この端末の営業管理一覧</h2>
+        <div class="table-scroll"><table class="sales-table"><thead><tr><th>企業</th><th>ドメイン</th><th>宛先</th><th>状態</th><th>最終接触</th><th>次回</th><th>根拠</th><th>操作</th></tr></thead><tbody id="sales-rows"></tbody></table></div>
+      </section>
+    </div>
+
+    <section class="sales-card" style="margin-top:18px">
+      <h2>ChatGPT自動化コントロール</h2>
+      <div class="control-list">
+        <div class="control-item"><b>1. 新規営業リスト生成</b><p>公開情報を検索し、正本の「01_営業先」「02_CRM」「07_既出企業台帳」を照合。既出企業は除外し、企業ごとに根拠URLを保存します。</p><button class="btn copy-prompt" data-prompt="lead" type="button">指示文をコピー</button></div>
+        <div class="control-item"><b>2. 企業別営業メール作成</b><p>会社ごとの確認済み事実を使い、宛名・件名・本文を個別生成。「09_メール下書き」に保存します。担当者名やメールは推測しません。</p><button class="btn copy-prompt" data-prompt="draft" type="button">指示文をコピー</button></div>
+        <div class="control-item"><b>3. Gmail履歴をCRMへ反映</b><p>Gmailの送受信を読み、日時・Thread ID・Message ID・返信状況を「08_送受信履歴」とCRMに記録できます。送信はしません。</p><button class="btn copy-prompt" data-prompt="sync" type="button">指示文をコピー</button></div>
+        <div class="control-item"><b>4. 問い合わせフォーム</b><p>フォームURLと企業別文面の管理までは可能。大量の自動フォーム送信は、CAPTCHA・規約・スパム対策・誤送信リスクがあるため自動実行しません。</p></div>
+      </div>
+      <h2 style="margin-top:18px">コピーされる指示文</h2>
+      <textarea id="prompt-preview" class="prompt-box" readonly></textarea>
+    </section>
+  </main>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/sales.js" defer></script>
+</body>
+</html>
