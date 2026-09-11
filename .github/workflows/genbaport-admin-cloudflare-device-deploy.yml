@@ -92,7 +92,7 @@ jobs:
             sleep 5
           done
           [ "$code" = 401 ]
-          curl -sSI "$origin/" | tr -d '\r' | grep -Eiq '^www-authenticate:.*GENBA PORT OPS'
+          curl -sSI "$origin/" | tr -d '\r' | grep -Eiq '^www-authenticate:.*GENBA PORT Admin'
           echo 'GENBAPORT_ADMIN_AUTH_GATE=PASS'
 
       - name: Report result
