@@ -1,6 +1,10 @@
 name: 現場ポート Cloudflare device deploy
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/field-ops-cloudflare-device-deploy.yml'
   issue_comment:
     types: [created]
   workflow_dispatch:
@@ -17,6 +21,7 @@ jobs:
   deploy:
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push' ||
       (github.event_name == 'issue_comment' && github.event.issue.number == 42 && contains(github.event.comment.body, 'START_GENBAPORT_CF_DEPLOY'))
     runs-on: ubuntu-latest
     timeout-minutes: 25
