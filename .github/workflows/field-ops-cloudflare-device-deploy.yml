@@ -29,26 +29,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -s field-ops/index.html
-          test -s field-ops/build-id.txt
+          for f in index.html site.css app.js 404.html privacy.html terms.html sample-report.html sample-report.pdf favicon.svg apple-touch-icon.png og-image.png site.webmanifest robots.txt sitemap.xml _headers; do test -s "field-ops/$f"; done
           test -s field-ops-legacy/_redirects
           node --check field-ops/app.js
           grep -Fq '現場ポート' field-ops/index.html
           grep -Fq 'genbaport@gmail.com' field-ops/index.html
+          grep -Fq '9,000円〜（税別）' field-ops/index.html
+          grep -Fq '青森市内の追加交通費なし' field-ops/index.html
           grep -Fq '月末締め翌月末払い' field-ops/index.html
+          grep -Fq '振込手数料は発注者様' field-ops/index.html
+          grep -Fq 'PDF報告書＋元写真' field-ops/index.html
           ! grep -Fq 'aomori.akiya.rescue@gmail.com' field-ops/index.html
-          python3 - <<'PY'
-          from pathlib import Path
-          from hashlib import sha256
-          root=Path('field-ops')
-          files=['index.html','site.css','app.js','404.html','privacy.html','terms.html','sample-report.html','sample-report.pdf','favicon.svg','apple-touch-icon.png','og-image.png','site.webmanifest','robots.txt','sitemap.xml','_headers']
-          h=sha256()
-          for fn in files:
-              b=(root/fn).read_bytes(); h.update(fn.encode()+b'\0'+b+b'\0')
-          expected=(root/'build-id.txt').read_text().strip()
-          assert h.hexdigest()==expected,(h.hexdigest(),expected)
-          print('GENBAPORT_BUILD_ID_SOURCE_MATCH=PASS')
-          PY
+          ! grep -Fq 'Phase 0' field-ops/index.html
+          printf '%s\n' "$GITHUB_SHA" > field-ops/build-id.txt
+          echo "GENBAPORT_DEPLOY_BUILD=$GITHUB_SHA"
 
       - name: Cloudflare device authorization
         id: auth
@@ -96,16 +90,26 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          origin='https://genbaport.pages.dev'; expected="$(tr -d '\r\n' < field-ops/build-id.txt)"; ok=0
+          origin='https://genbaport.pages.dev'; expected="$GITHUB_SHA"; ok=0
           for i in $(seq 1 36); do
-            if actual=$(curl -fsSL --max-time 20 "$origin/build-id.txt?v=$GITHUB_RUN_ID-$i" 2>/dev/null | tr -d '\r\n') && [ "$actual" = "$expected" ]; then ok=1; break; fi
+            actual=$(curl -fsSL --max-time 20 "$origin/build-id.txt?v=$GITHUB_RUN_ID-$i" 2>/dev/null | tr -d '\r\n' || true)
+            if [ "$actual" = "$expected" ]; then ok=1; break; fi
             sleep 5
           done
           test "$ok" = 1
           curl -fsSL "$origin/?v=$GITHUB_RUN_ID" -o /tmp/index.html
           for s in '現場ポート' 'genbaport@gmail.com' '9,000円〜（税別）' '月末締め翌月末払い' '振込手数料は発注者様' 'PDF報告書＋元写真'; do grep -Fq "$s" /tmp/index.html; done
+          ! grep -Fq 'Phase 0' /tmp/index.html
+          for p in /privacy.html /terms.html /sample-report.html /sample-report.pdf /site.css /app.js /favicon.svg /apple-touch-icon.png /og-image.png /site.webmanifest /robots.txt /sitemap.xml; do curl -fsSIL --max-time 20 "$origin$p" >/dev/null; done
           code="$(curl -sS -o /dev/null -w '%{http_code}' "$origin/__genbaport_missing_test__")"; test "$code" = 404
-          legacy='https://field-ops-aomori.pages.dev'; if curl -fsSI --max-time 20 "$legacy/test-path" -o /tmp/lh; then grep -Eiq '^location:[[:space:]]*https://genbaport\.pages\.dev/test-path' /tmp/lh; fi
+          curl -fsSL -D /tmp/h -o /dev/null "$origin/"; tr -d '\r' < /tmp/h > /tmp/hn
+          grep -Eiq '^content-security-policy:.*script-src.*self' /tmp/hn
+          grep -Eiq '^strict-transport-security:.*max-age=' /tmp/hn
+          legacy='https://field-ops-aomori.pages.dev'
+          code=$(curl -sS -o /dev/null -w '%{http_code}' "$legacy/test-path" || true)
+          test "$code" = 301
+          loc=$(curl -sSI "$legacy/test-path" | tr -d '\r' | awk 'BEGIN{IGNORECASE=1}/^location:/{print $2; exit}')
+          test "$loc" = 'https://genbaport.pages.dev/test-path'
           echo 'GENBAPORT_EXACT_PRODUCTION_VERIFY=PASS'
 
       - name: Report result
