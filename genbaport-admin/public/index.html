@@ -70,6 +70,7 @@
               <label>JOB ID<input name="jobId" placeholder="GP-20260911-001"></label>
               <label class="wide">請求先<input name="client" placeholder="株式会社〇〇 御中"></label>
               <label>請求日<input name="issueDate" type="date"></label>
+              <label>取引日 / 業務実施日<input name="serviceDate" type="date"></label>
               <label>支払期限<input name="dueDate" type="date"></label>
               <label>発行者名<input name="issuer" value="現場ポート"></label>
               <label>連絡先<input name="issuerEmail" value="genbaport@gmail.com"></label>
@@ -84,10 +85,11 @@
           </form>
 
           <article id="invoice-preview" class="paper invoice-paper" aria-label="請求書プレビュー">
-            <div class="invoice-title"><h2>請 求 書</h2><div><b id="pv-invoice-no">—</b><span id="pv-issue-date"></span></div></div>
+            <div class="invoice-title"><h2>請 求 書</h2><div><b id="pv-invoice-no">—</b><span id="pv-issue-date"></span><span id="pv-service-date"></span></div></div>
             <div class="invoice-parties"><div><h3 id="pv-client">御中</h3><p>下記の通りご請求申し上げます。</p></div><div class="issuer"><b id="pv-issuer">現場ポート</b><span id="pv-issuer-email">genbaport@gmail.com</span><span id="pv-registration"></span></div></div>
             <div class="amount"><span>ご請求金額</span><strong id="pv-grand">¥0</strong></div>
             <table class="invoice-lines"><thead><tr><th>内容</th><th>数量</th><th>単価</th><th>税率</th><th>金額</th></tr></thead><tbody id="pv-items"></tbody></table>
+            <div id="pv-tax-breakdown" class="tax-breakdown"></div>
             <div class="totals"><div><span>税抜計</span><b id="pv-subtotal">¥0</b></div><div><span>消費税</span><b id="pv-tax">¥0</b></div><div class="grand"><span>合計</span><b id="pv-total">¥0</b></div></div>
             <div class="invoice-info"><div><h3>支払期限</h3><p id="pv-due">—</p></div><div><h3>振込先</h3><p id="pv-bank" class="preline">—</p></div></div>
             <section><h3>備考</h3><p id="pv-memo" class="preline">—</p></section>
