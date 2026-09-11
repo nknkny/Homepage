@@ -41,8 +41,10 @@ jobs:
           grep -Fq 'PDF報告書＋元写真' field-ops/index.html
           ! grep -Fq 'aomori.akiya.rescue@gmail.com' field-ops/index.html
           ! grep -Fq 'Phase 0' field-ops/index.html
-          printf '%s\n' "$GITHUB_SHA" > field-ops/build-id.txt
-          echo "GENBAPORT_DEPLOY_BUILD=$GITHUB_SHA"
+          source_sha="$(git rev-parse HEAD)"
+          printf '%s\n' "$source_sha" > field-ops/build-id.txt
+          echo "SOURCE_SHA=$source_sha" >> "$GITHUB_ENV"
+          echo "GENBAPORT_DEPLOY_BUILD=$source_sha"
 
       - name: Cloudflare device authorization
         id: auth
@@ -66,50 +68,101 @@ jobs:
           complete_url="${url}?user_code=${code}"
           body=$(jq -n --arg url "$complete_url" --arg code "$code" --arg run "$GITHUB_RUN_ID" '{body:("GENBAPORT_CF_AUTH_READY\nURL="+$url+"\nCODE="+$code+"\nRUN_ID="+$run+"\nEXPIRES_IN_APPROX=5_MINUTES")}')
           curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
-          wait "$pid"; CI='' npx --yes wrangler@4.119.0 whoami >/dev/null; rm -f "$log" "$clean"
+          wait "$pid"
+          CI='' npx --yes wrangler@4.119.0 whoami >/dev/null
+          rm -f "$log" "$clean"
 
       - name: Ensure canonical project
         shell: bash
         run: |
           set -euo pipefail
-          if ! CI='' npx --yes wrangler@4.119.0 pages project list | grep -Fq 'genbaport'; then CI='' npx --yes wrangler@4.119.0 pages project create genbaport --production-branch main; fi
+          if ! CI='' npx --yes wrangler@4.119.0 pages project list | grep -Fq 'genbaport'; then
+            CI='' npx --yes wrangler@4.119.0 pages project create genbaport --production-branch main
+          fi
 
       - name: Deploy canonical
         shell: bash
         run: |
           set -euo pipefail
-          CI='' npx --yes wrangler@4.119.0 pages deploy field-ops --project-name genbaport --branch main --commit-hash "$GITHUB_SHA" --commit-message '現場ポート production deploy'
+          CI='' npx --yes wrangler@4.119.0 pages deploy field-ops --project-name genbaport --branch main --commit-hash "$SOURCE_SHA" --commit-message '現場ポート production deploy' --commit-dirty=true
 
       - name: Redirect legacy host
         shell: bash
         run: |
           set -euo pipefail
-          if CI='' npx --yes wrangler@4.119.0 pages project list | grep -Fq 'field-ops-aomori'; then CI='' npx --yes wrangler@4.119.0 pages deploy field-ops-legacy --project-name field-ops-aomori --branch main --commit-hash "$GITHUB_SHA" --commit-message 'Redirect legacy host to 現場ポート'; fi
+          if CI='' npx --yes wrangler@4.119.0 pages project list | grep -Fq 'field-ops-aomori'; then
+            CI='' npx --yes wrangler@4.119.0 pages deploy field-ops-legacy --project-name field-ops-aomori --branch main --commit-hash "$SOURCE_SHA" --commit-message 'Redirect legacy host to 現場ポート' --commit-dirty=true
+          fi
 
       - name: Verify exact production build
+        id: verify
         shell: bash
         run: |
           set -euo pipefail
-          origin='https://genbaport.pages.dev'; expected="$GITHUB_SHA"; ok=0
+          origin='https://genbaport.pages.dev'
+          legacy='https://field-ops-aomori.pages.dev'
+          expected="$SOURCE_SHA"
+
+          fail() {
+            echo "GENBAPORT_VERIFY_FAILURE: $*" >&2
+            exit 1
+          }
+
+          echo "VERIFY_EXPECTED_SHA=$expected"
+          ok=0
+          actual=''
           for i in $(seq 1 36); do
             actual=$(curl -fsSL --max-time 20 "$origin/build-id.txt?v=$GITHUB_RUN_ID-$i" 2>/dev/null | tr -d '\r\n' || true)
-            if [ "$actual" = "$expected" ]; then ok=1; break; fi
+            if [ "$actual" = "$expected" ]; then
+              ok=1
+              break
+            fi
             sleep 5
           done
-          test "$ok" = 1
-          curl -fsSL "$origin/?v=$GITHUB_RUN_ID" -o /tmp/index.html
-          for s in '現場ポート' 'genbaport@gmail.com' '9,000円〜（税別）' '月末締め翌月末払い' '振込手数料は発注者様' 'PDF報告書＋元写真'; do grep -Fq "$s" /tmp/index.html; done
-          ! grep -Fq 'Phase 0' /tmp/index.html
-          for p in /privacy.html /terms.html /sample-report.html /sample-report.pdf /site.css /app.js /favicon.svg /apple-touch-icon.png /og-image.png /site.webmanifest /robots.txt /sitemap.xml; do curl -fsSIL --max-time 20 "$origin$p" >/dev/null; done
-          code="$(curl -sS -o /dev/null -w '%{http_code}' "$origin/__genbaport_missing_test__")"; test "$code" = 404
-          curl -fsSL -D /tmp/h -o /dev/null "$origin/"; tr -d '\r' < /tmp/h > /tmp/hn
-          grep -Eiq '^content-security-policy:.*script-src.*self' /tmp/hn
-          grep -Eiq '^strict-transport-security:.*max-age=' /tmp/hn
-          legacy='https://field-ops-aomori.pages.dev'
-          code=$(curl -sS -o /dev/null -w '%{http_code}' "$legacy/test-path" || true)
-          test "$code" = 301
-          loc=$(curl -sSI "$legacy/test-path" | tr -d '\r' | awk 'BEGIN{IGNORECASE=1}/^location:/{print $2; exit}')
-          test "$loc" = 'https://genbaport.pages.dev/test-path'
+          [ "$ok" = 1 ] || fail "canonical build-id mismatch: expected=$expected actual=$actual"
+          echo 'VERIFY_CANONICAL_BUILD_ID=PASS'
+
+          curl -fsSL --max-time 20 "$origin/?v=$GITHUB_RUN_ID" -o /tmp/index.html || fail 'canonical root fetch failed'
+          for s in '現場ポート' 'genbaport@gmail.com' '9,000円〜（税別）' '月末締め翌月末払い' '振込手数料は発注者様' 'PDF報告書＋元写真'; do
+            grep -Fq "$s" /tmp/index.html || fail "canonical root missing expected text: $s"
+          done
+          ! grep -Fq 'Phase 0' /tmp/index.html || fail 'canonical root still contains Phase 0'
+          echo 'VERIFY_CANONICAL_CONTENT=PASS'
+
+          for p in /privacy.html /terms.html /sample-report.html /sample-report.pdf /site.css /app.js /favicon.svg /apple-touch-icon.png /og-image.png /site.webmanifest /robots.txt /sitemap.xml; do
+            curl -fsSL --max-time 20 -o /dev/null "$origin$p" || fail "asset fetch failed: $p"
+          done
+          echo 'VERIFY_ASSETS=PASS'
+
+          code="$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' "$origin/__genbaport_missing_test__" || true)"
+          [ "$code" = 404 ] || fail "404 check returned HTTP $code"
+          echo 'VERIFY_404=PASS'
+
+          curl -fsSL --max-time 20 -D /tmp/h -o /dev/null "$origin/" || fail 'header fetch failed'
+          tr -d '\r' < /tmp/h > /tmp/hn
+          grep -Eiq '^content-security-policy:.*script-src.*self' /tmp/hn || fail 'CSP header missing or invalid'
+          grep -Eiq '^strict-transport-security:.*max-age=' /tmp/hn || fail 'HSTS header missing'
+          grep -Eiq '^x-content-type-options:[[:space:]]*nosniff' /tmp/hn || fail 'X-Content-Type-Options header missing'
+          grep -Eiq '^x-frame-options:[[:space:]]*DENY' /tmp/hn || fail 'X-Frame-Options header missing'
+          echo 'VERIFY_SECURITY_HEADERS=PASS'
+
+          legacy_ok=0
+          legacy_code=''
+          legacy_loc=''
+          for i in $(seq 1 36); do
+            curl -sS --max-time 20 -D /tmp/lh -o /dev/null "$legacy/test-path?v=$GITHUB_RUN_ID-$i" || true
+            tr -d '\r' < /tmp/lh > /tmp/lhn || true
+            legacy_code=$(awk 'NR==1{print $2}' /tmp/lhn 2>/dev/null || true)
+            legacy_loc=$(awk 'BEGIN{IGNORECASE=1}/^location:/{print $2; exit}' /tmp/lhn 2>/dev/null || true)
+            if [ "$legacy_code" = 301 ] && { [ "$legacy_loc" = 'https://genbaport.pages.dev/test-path?v='"$GITHUB_RUN_ID-$i" ] || [ "$legacy_loc" = 'https://genbaport.pages.dev/test-path' ]; }; then
+              legacy_ok=1
+              break
+            fi
+            sleep 5
+          done
+          [ "$legacy_ok" = 1 ] || fail "legacy redirect mismatch: HTTP=$legacy_code location=$legacy_loc"
+          echo 'VERIFY_LEGACY_301=PASS'
+
           echo 'GENBAPORT_EXACT_PRODUCTION_VERIFY=PASS'
 
       - name: Report result
@@ -118,7 +171,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           AUTH: ${{ steps.auth.outcome }}
+          VERIFY: ${{ steps.verify.outcome }}
         run: |
           set -euo pipefail
-          body=$(jq -n --arg a "$AUTH" --arg run "$GITHUB_RUN_ID" '{body:("GENBAPORT_CF_DEVICE_RUN_FINISHED\nRUN_ID="+$run+"\nAUTH="+$a+"\nCHECK_ACTIONS_RUN_FOR_FINAL_RESULT")}')
+          body=$(jq -n --arg a "$AUTH" --arg v "$VERIFY" --arg run "$GITHUB_RUN_ID" --arg sha "${SOURCE_SHA:-unknown}" '{body:("GENBAPORT_CF_DEVICE_RUN_FINISHED\nRUN_ID="+$run+"\nSOURCE_SHA="+$sha+"\nAUTH="+$a+"\nVERIFY="+$v)}')
           curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
