@@ -18,6 +18,7 @@
     <aside class="side">
       <button class="nav active" data-target="report-panel" type="button">現場報告書</button>
       <button class="nav" data-target="invoice-panel" type="button">請求書</button>
+      <a href="/sales.html" style="display:block;color:#b8c6cd;padding:13px 14px;border-radius:10px;text-decoration:none;font-weight:700">営業管理</a>
       <button class="nav" data-target="data-panel" type="button">保存・バックアップ</button>
       <div class="side-note">入力内容はこの端末のブラウザ内に保存します。写真は自動保存しません。</div>
     </aside>
@@ -38,14 +39,11 @@
               <label class="wide">依頼内容<textarea name="request" rows="3" placeholder="指定POP掲出有無、指定写真、数量、型番確認など"></textarea></label>
               <label class="wide">総括<textarea name="summary" rows="3" placeholder="確認できた事実のみを簡潔に記載"></textarea></label>
             </div>
-
             <div class="subhead"><h2>確認結果</h2><button id="add-result" class="mini" type="button">＋ 行を追加</button></div>
             <div class="table-wrap"><table class="edit-table"><thead><tr><th>No.</th><th>確認項目</th><th>結果</th><th>証拠</th><th>備考</th><th></th></tr></thead><tbody id="result-rows"></tbody></table></div>
-
             <div class="subhead"><h2>写真</h2><span>必要な写真を選択。画像自体はブラウザ保存しません。</span></div>
             <label class="upload">写真を追加<input id="photo-input" type="file" accept="image/*" multiple></label>
             <div id="photo-editor" class="photo-editor"></div>
-
             <div class="form-actions"><button id="report-print" class="btn primary" type="button">報告書をPDF保存 / 印刷</button></div>
           </form>
 
@@ -77,7 +75,6 @@
               <label class="wide">適格請求書発行事業者番号<input name="registrationNo" placeholder="登録番号を入力"></label>
               <label class="wide">振込先<textarea name="bank" rows="3" placeholder="銀行名 / 支店名 / 種別 / 口座番号 / 口座名義"></textarea></label>
             </div>
-
             <div class="subhead"><h2>明細</h2><button id="add-item" class="mini" type="button">＋ 明細を追加</button></div>
             <div class="table-wrap"><table class="edit-table"><thead><tr><th>内容</th><th>数量</th><th>単価</th><th>税率</th><th></th></tr></thead><tbody id="item-rows"></tbody></table></div>
             <label class="block">備考<textarea name="memo" rows="4" placeholder="振込手数料は発注者様負担、案件名など"></textarea></label>
