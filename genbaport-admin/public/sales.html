@@ -8,7 +8,7 @@
   <title>営業管理｜GENBA PORT OPS</title>
   <link rel="stylesheet" href="/site.css">
   <style>
-    .sales-shell{max-width:1500px;margin:0 auto;padding:24px}.sales-head{display:flex;justify-content:space-between;gap:16px;align-items:end;margin-bottom:18px}.sales-head h1{margin:4px 0 0}.sales-grid{display:grid;grid-template-columns:minmax(360px,.8fr) minmax(560px,1.2fr);gap:18px}.sales-card{background:#fff;border:1px solid #d9e1e5;border-radius:14px;padding:18px;box-shadow:0 18px 50px rgba(7,19,27,.08)}.sales-card h2{margin:0 0 12px;font-size:17px}.notice{border-left:4px solid #07131b;background:#f2f5f6;padding:12px 14px;border-radius:8px;line-height:1.65;font-size:12px;margin:0 0 14px}.lock{border-left-color:#9a3c3c;background:#fff4f4}.sales-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}.sales-kpis div{background:#f4f7f8;border-radius:10px;padding:12px}.sales-kpis span,.sales-kpis b{display:block}.sales-kpis span{font-size:10px;color:#6d7c85}.sales-kpis b{font-size:20px;margin-top:3px}.sales-form{display:grid;grid-template-columns:1fr 1fr;gap:10px}.sales-form label{display:flex;flex-direction:column;gap:5px;font-size:11px;font-weight:750;color:#33434d}.sales-form .wide{grid-column:1/-1}.sales-table{width:100%;border-collapse:collapse;min-width:900px}.sales-table th,.sales-table td{font-size:11px;padding:8px;border-bottom:1px solid #e1e7ea;text-align:left;vertical-align:top}.sales-table th{background:#f4f7f8}.sales-table td a{word-break:break-all}.table-scroll{overflow:auto;border:1px solid #d9e1e5;border-radius:10px}.tiny{font-size:10px;color:#6d7c85;line-height:1.5}.actions-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.status-pill{display:inline-block;border-radius:999px;background:#eef2f4;padding:4px 8px;font-size:10px}.control-list{display:grid;gap:10px}.control-item{border:1px solid #d9e1e5;border-radius:10px;padding:12px}.control-item b{display:block;margin-bottom:4px}.control-item p{font-size:11px;color:#5c6c76;line-height:1.6;margin:0 0 8px}.prompt-box{width:100%;min-height:118px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}.master-link{color:inherit;text-decoration:none}@media(max-width:1000px){.sales-grid{grid-template-columns:1fr}.sales-kpis{grid-template-columns:repeat(2,1fr)}}@media(max-width:650px){.sales-shell{padding:14px}.sales-form{grid-template-columns:1fr}.sales-form .wide{grid-column:auto}.sales-kpis{grid-template-columns:1fr 1fr}.sales-head{align-items:flex-start;flex-direction:column}}
+    .sales-shell{max-width:1540px;margin:0 auto;padding:24px}.sales-head{display:flex;justify-content:space-between;gap:20px;align-items:end;margin-bottom:18px}.sales-head h1{margin:4px 0 0}.sales-head-copy{max-width:820px}.sales-head-copy>p:last-child{color:#52616a;line-height:1.7;margin:9px 0 0}.master-link{color:inherit;text-decoration:none;white-space:nowrap}.notice{border-left:4px solid #07131b;background:#f2f5f6;padding:12px 14px;border-radius:8px;line-height:1.65;font-size:12px;margin:0 0 12px}.notice strong{display:block;margin-bottom:2px}.notice.lock{border-left-color:#9a3c3c;background:#fff4f4;color:#5c2020}.workflow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:18px 0;padding:0;list-style:none;counter-reset:flow}.workflow li{counter-increment:flow;position:relative;min-height:126px;background:#fff;border:1px solid #d9e1e5;border-radius:14px;padding:16px 14px 14px 48px;box-shadow:0 12px 32px rgba(7,19,27,.06)}.workflow li:before{content:counter(flow);position:absolute;left:14px;top:14px;display:grid;place-items:center;width:25px;height:25px;border-radius:50%;background:#07131b;color:#fff;font-size:12px;font-weight:900}.workflow li:not(:last-child):after{content:"›";position:absolute;right:-10px;top:46px;z-index:2;width:18px;height:28px;display:grid;place-items:center;color:#69808a;font-size:24px;font-weight:900}.workflow b{display:block;font-size:13px;margin-bottom:6px}.workflow span{display:block;color:#53646d;font-size:11px;line-height:1.55}.workflow em{display:inline-block;margin-top:9px;border-radius:999px;background:#eef2f4;color:#53646d;padding:3px 8px;font-style:normal;font-size:10px;font-weight:800}.workflow li.current{border-color:#77954c;box-shadow:0 0 0 3px rgba(181,255,87,.38)}.workflow li.current:before,.workflow li.done:before{background:#4d6e23}.workflow li.done em{background:#e3f7cc;color:#304716}.workflow li.blocked{background:#fff8f3;border-color:#e5c4ae}.workflow li.blocked:before{background:#a85231}.next-action{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;background:#07131b;color:#fff;border-radius:14px;padding:16px 18px;margin:0 0 16px}.next-action small{display:block;color:#b9c9cf;font-size:10px;letter-spacing:.1em;font-weight:850}.next-action b{display:block;margin-top:3px;font-size:15px}.next-action span{color:#c9d5da;font-size:12px;line-height:1.6}.sales-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px}.sales-kpis div{background:#fff;border:1px solid #d9e1e5;border-radius:11px;padding:12px}.sales-kpis span,.sales-kpis b{display:block}.sales-kpis span{font-size:10px;color:#5a6972}.sales-kpis b{font-size:20px;margin-top:3px}.sales-grid{display:grid;grid-template-columns:minmax(430px,.9fr) minmax(650px,1.35fr);gap:18px;align-items:start}.sales-card{background:#fff;border:1px solid #d9e1e5;border-radius:14px;padding:18px;box-shadow:0 18px 50px rgba(7,19,27,.08)}.sales-card h2{margin:0;font-size:18px}.sales-card-intro{font-size:12px;line-height:1.65;color:#56666f;margin:6px 0 16px}.form-section{border-top:1px solid #dfe6e9;padding-top:16px;margin-top:16px}.form-section-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px}.form-section-head .step-number{display:grid;place-items:center;flex:0 0 27px;height:27px;border-radius:50%;background:#07131b;color:#fff;font-size:12px;font-weight:900}.form-section-head b{display:block;font-size:14px}.form-section-head span{display:block;color:#65747c;font-size:10px;line-height:1.5;margin-top:2px}.sales-form{display:grid;grid-template-columns:1fr 1fr;gap:11px}.sales-form label{display:flex;flex-direction:column;gap:5px;font-size:11px;font-weight:750;color:#33434d}.sales-form .wide{grid-column:1/-1}.sales-form .checkbox-line{display:grid;grid-template-columns:20px 1fr;align-items:start;gap:8px;border:1px solid #d8e1e5;border-radius:9px;padding:11px;font-weight:650;line-height:1.55}.checkbox-line input{width:17px;height:17px;margin:1px 0 0}.required-note{font-weight:500;color:#6b7a82}.exclusion-box{grid-column:1/-1;background:#fff5ef;border:1px solid #eccbb8;border-radius:10px;padding:12px;color:#5a3023}.exclusion-box b{display:block;font-size:11px;margin-bottom:5px}.exclusion-box p{font-size:10px;line-height:1.65;margin:0}.check-panel{grid-column:1/-1;border-radius:10px;background:#f1f5f6;border:1px solid #d5e0e4;padding:11px 12px;font-size:11px;line-height:1.65;color:#40515a}.check-panel strong{display:block;color:#21313a;margin-bottom:2px}.check-panel.ok{background:#f0f8e7;border-color:#bdd69d;color:#334c1e}.check-panel.danger{background:#fff1f1;border-color:#e3b3b3;color:#6b2828}.check-list{margin:6px 0 0;padding-left:18px}.actions-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.actions-row .btn{min-height:42px}.actions-row .primary{flex:1}.tiny{font-size:10px;color:#5a6972;line-height:1.55}.field-help{font-size:10px;color:#687880;font-weight:500;line-height:1.45}.draft-tools{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap}.draft-tools .btn{padding:8px 11px;font-size:11px}.table-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px}.table-head span{font-size:11px;color:#66767e}.table-scroll{overflow:auto;border:1px solid #d9e1e5;border-radius:10px}.sales-table{width:100%;border-collapse:collapse;min-width:1050px}.sales-table th,.sales-table td{font-size:11px;padding:9px 8px;border-bottom:1px solid #e1e7ea;text-align:left;vertical-align:top}.sales-table th{background:#f4f7f8;color:#4d5e67;position:sticky;top:0;z-index:1}.sales-table td a{word-break:break-all;text-decoration:underline;text-underline-offset:2px}.sales-table tr.row-excluded{background:#fff8f4}.sales-table tr.row-sent{background:#f5f8f2}.status-pill,.stage-pill{display:inline-block;border-radius:999px;background:#eef2f4;padding:4px 8px;font-size:10px;font-weight:750;white-space:nowrap}.stage-pill.ready{background:#dff3c8;color:#314a19}.stage-pill.stop{background:#fae2dc;color:#722e20}.row-actions{display:flex;gap:5px;flex-wrap:wrap;min-width:185px}.row-actions .mini{padding:6px 8px;font-size:10px}.row-actions .mini[disabled]{cursor:not-allowed;opacity:.48}.block-reason{display:block;margin-top:5px;color:#8c3c2d;max-width:210px}.empty-state{padding:26px!important;color:#60717a;line-height:1.7}.control-list{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}.control-item{border:1px solid #d9e1e5;border-radius:10px;padding:13px;display:flex;flex-direction:column;min-height:180px}.control-item b{display:block;margin-bottom:5px;font-size:13px}.control-item p{font-size:11px;color:#53646d;line-height:1.65;margin:0 0 10px}.control-item .btn{margin-top:auto;font-size:11px;padding:8px 10px}.control-item.final{background:#07131b;color:#fff}.control-item.final p{color:#c6d3d8}.prompt-box{width:100%;min-height:138px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}.section-title{display:flex;justify-content:space-between;gap:10px;align-items:end;margin-bottom:12px}.section-title p{font-size:11px;color:#60717a;margin:0}.storage-note{margin:12px 0 0}.visually-hidden{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}@media(max-width:1220px){.workflow{grid-template-columns:repeat(3,1fr)}.workflow li:not(:last-child):after{display:none}.control-list{grid-template-columns:repeat(3,1fr)}.sales-grid{grid-template-columns:1fr}}@media(max-width:760px){.sales-shell{padding:14px}.sales-head{align-items:flex-start;flex-direction:column}.workflow{grid-template-columns:1fr 1fr}.sales-kpis{grid-template-columns:1fr 1fr}.sales-kpis div:last-child{grid-column:1/-1}.sales-form{grid-template-columns:1fr}.sales-form .wide,.exclusion-box,.check-panel,.draft-tools{grid-column:auto}.control-list{grid-template-columns:1fr}.next-action{flex-direction:column}.top-actions{width:100%}.top-actions .master-link{white-space:normal}.section-title{display:block}.section-title p{margin-top:5px}}@media(max-width:480px){.workflow{grid-template-columns:1fr}.sales-kpis{grid-template-columns:1fr 1fr}}
   </style>
 </head>
 <body>
@@ -16,59 +16,122 @@
     <div class="brand"><span class="brand-mark">GP</span><span><b>GENBA PORT OPS</b><small>営業管理 / 運営者専用</small></span></div>
     <div class="top-actions"><span class="secure">PRIVATE / NOINDEX</span><a class="btn ghost master-link" href="/">報告書・請求書へ戻る</a></div>
   </header>
+
   <main class="sales-shell">
-    <div class="sales-head"><div><p class="eyebrow">SALES OPERATIONS</p><h1>営業リスト・CRM・文面管理</h1></div><a class="btn primary master-link" href="https://docs.google.com/spreadsheets/d/1V7X07PBur89mZbaiuQ3MLZaSor8Ao6y3Ryb88Gmkpy8/edit" target="_blank" rel="noopener">営業管理正本を開く</a></div>
+    <div class="sales-head">
+      <div class="sales-head-copy">
+        <p class="eyebrow">SALES OPERATIONS</p>
+        <h1>1社ずつ確認して送る営業管理</h1>
+        <p>候補を集めた直後には送信しません。重複と対象外業種を先に落とし、残った会社だけに個別文面を作り、最後は必ずGmail上で人間が確認します。</p>
+      </div>
+      <a class="btn primary master-link" href="https://docs.google.com/spreadsheets/d/1V7X07PBur89mZbaiuQ3MLZaSor8Ao6y3Ryb88Gmkpy8/edit" target="_blank" rel="noopener">営業管理正本を開く</a>
+    </div>
 
-    <div class="notice"><b>正本はGoogle Sheet。</b> 営業候補生成時は「07_既出企業台帳」を必ず照合し、企業名・ドメイン・メール・フォームURLの重複を除外します。確認できない担当者名・メールアドレスは推測しません。</div>
-    <div class="notice lock"><b>送信ロック中。</b> この画面からメール送信・問い合わせフォーム送信は行いません。Gmail送信は、あなたがChatGPTに明示的に「送れ」と指示した場合だけ実行します。</div>
+    <div class="notice"><strong>正本はGoogle Sheetです。</strong>この画面のデータはこの端末だけに保存されます。登録前に正本の「01_営業先」「02_CRM」「07_既出企業台帳」を照合してください。</div>
+    <div class="notice lock"><strong>一斉送信・自動送信は禁止です。</strong>この画面は送信処理を持ちません。全条件を通過した1社についてGmailの作成画面を開くだけで、送信ボタンは人間が最終確認後に押します。</div>
 
-    <section class="sales-kpis">
+    <ol class="workflow" aria-label="営業の必須手順">
+      <li id="flow-1" class="current"><b>営業リスト作成</b><span>公式情報から候補企業と識別情報を登録する。</span><em>候補を登録</em></li>
+      <li id="flow-2"><b>重複排除</b><span>企業名・法人番号・ドメイン・公開メール・フォームURLで照合する。</span><em>照合前</em></li>
+      <li id="flow-3"><b>対象外業種除外</b><span>専門作業・工事・危険作業が中心なら営業しない。</span><em>判定前</em></li>
+      <li id="flow-4"><b>会社別営業文生成</b><span>公開事実を使い、正式企業名と「ご担当者様」を入れる。</span><em>未作成</em></li>
+      <li id="flow-5"><b>人間が確認して送信</b><span>1社ずつGmailで宛先・件名・本文を確認して送る。</span><em>自動送信なし</em></li>
+    </ol>
+
+    <div class="next-action" aria-live="polite">
+      <div><small>NEXT ACTION</small><b id="next-action-title">まず候補企業を1社登録してください</b></div>
+      <span id="next-action-detail">正式企業名と、公開情報で確認できた識別情報を入力します。</span>
+    </div>
+
+    <section class="sales-kpis" aria-label="営業状況">
       <div><span>この端末の登録企業</span><b id="kpi-total">0</b></div>
-      <div><span>未接触</span><b id="kpi-new">0</b></div>
-      <div><span>下書きあり</span><b id="kpi-draft">0</b></div>
-      <div><span>返信あり</span><b id="kpi-reply">0</b></div>
+      <div><span>重複確認待ち</span><b id="kpi-dedupe">0</b></div>
+      <div><span>業種判定待ち</span><b id="kpi-screen">0</b></div>
+      <div><span>文面確認待ち</span><b id="kpi-draft">0</b></div>
+      <div><span>送信済み / 返信</span><b id="kpi-contacted">0</b></div>
     </section>
 
     <div class="sales-grid">
-      <section class="sales-card">
-        <h2>企業をこの端末に追加・編集</h2>
-        <form id="sales-form" class="sales-form" autocomplete="off">
+      <section class="sales-card" aria-labelledby="company-form-title">
+        <h2 id="company-form-title">企業を1社ずつ登録・確認</h2>
+        <p class="sales-card-intro">上から順に入力してください。途中保存はできますが、全ゲートを通過するまでGmailは開けません。</p>
+
+        <form id="sales-form" autocomplete="off" novalidate>
           <input type="hidden" name="id">
-          <label>企業名<input name="company" required placeholder="株式会社〇〇"></label>
-          <label>公式ドメイン<input name="domain" placeholder="example.co.jp"></label>
-          <label>公開メール<input name="email" type="email" placeholder="確認できた場合のみ"></label>
-          <label>担当者 / 宛名<input name="recipient" placeholder="〇〇部 ご担当者様"></label>
-          <label class="wide">公式・根拠URL<input name="sourceUrl" type="url" placeholder="https://..."></label>
-          <label class="wide">問い合わせフォームURL<input name="formUrl" type="url" placeholder="https://..."></label>
-          <label>状態<select name="status"><option>未接触</option><option>下書き作成</option><option>送信済み</option><option>返信あり</option><option>商談</option><option>保留</option><option>失注</option><option>除外</option></select></label>
-          <label>優先<select name="priority"><option>S</option><option>A</option><option>B</option><option>C</option></select></label>
-          <label>最終接触日<input name="lastContact" type="date"></label>
-          <label>次回アクション日<input name="nextDate" type="date"></label>
-          <label class="wide">公開情報で確認した事実<textarea name="facts" rows="3" placeholder="必ず根拠URLで確認した内容のみ"></textarea></label>
-          <label class="wide">営業メール件名<textarea name="subject" rows="2" placeholder="企業別に作成"></textarea></label>
-          <label class="wide">営業メール本文<textarea name="body" rows="8" placeholder="企業別に作成。未確認情報は書かない。"></textarea></label>
-          <label class="wide">メモ<textarea name="notes" rows="3"></textarea></label>
+
+          <div class="form-section">
+            <div class="form-section-head"><span class="step-number">1</span><span><b>候補企業と識別情報</b><span>推測ではなく、公式サイトなどで確認できた値だけを入力します。</span></span></div>
+            <div class="sales-form">
+              <label>正式企業名 <span class="required-note">必須</span><input name="company" required placeholder="株式会社〇〇" aria-describedby="company-help"><span id="company-help" class="field-help">登記・公式サイトで使われている正式表記</span></label>
+              <label>法人番号<input name="corporateNumber" inputmode="numeric" maxlength="13" placeholder="13桁（確認できた場合）"></label>
+              <label>公式ドメイン<input name="domain" inputmode="url" placeholder="example.co.jp"></label>
+              <label>公開メール<input name="email" type="email" placeholder="公開確認できた場合のみ"></label>
+              <label class="wide">問い合わせフォームURL<input name="formUrl" type="url" placeholder="https://example.co.jp/contact"></label>
+              <label class="wide">公式・根拠URL<input name="sourceUrl" type="url" placeholder="https://example.co.jp/company"></label>
+              <label>企業優先度<select name="priority"><option>S</option><option>A</option><option>B</option><option>C</option></select></label>
+              <label>CRM状態<select name="status"><option>未接触</option><option>下書き作成</option><option>送信準備完了</option><option>送信済み</option><option>返信あり</option><option>商談</option><option>保留</option><option>失注</option><option>除外</option></select></label>
+              <label>最終接触日<input name="lastContact" type="date"></label>
+              <label>次回アクション日<input name="nextDate" type="date"></label>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-head"><span class="step-number">2</span><span><b>重複排除</b><span>同一企業は1回だけ。利用可能な5種類の識別情報をすべて照合します。</span></span></div>
+            <div class="sales-form">
+              <div id="duplicate-check" class="check-panel" role="status" aria-live="polite"><strong>重複チェック待ち</strong>企業名を入力すると、この端末と組込済み既出企業を照合します。</div>
+              <label class="wide checkbox-line"><input name="ledgerChecked" type="checkbox"><span>Google Sheetの「01_営業先」「02_CRM」「07_既出企業台帳」を、企業名・法人番号・公式ドメイン・公開メール・問い合わせフォームURLで照合しました。</span></label>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-head"><span class="step-number">3</span><span><b>対象外業種の除外</b><span>依頼の一部ではなく、企業の中心業務で判定します。</span></span></div>
+            <div class="sales-form">
+              <div class="exclusion-box"><b>営業対象外となる中心業務</b><p>IT保守、PC設定、ネットワーク設定、配線、修理、機器交換、電気工事、設備保守、法定点検、建築診断、測量、専門測定、施工、危険作業</p></div>
+              <label>業種・事業分類<input name="industry" placeholder="例：店頭販促支援"></label>
+              <label>対象判定 <span class="required-note">必須</span><select name="eligibility" required><option value="pending">未確認</option><option value="eligible">対象：上記業務が中心ではない</option><option value="excluded">対象外：上記業務が中心</option></select></label>
+              <label class="wide">公開情報で確認した事業内容<textarea name="businessSummary" rows="3" placeholder="主な事業、拠点数、地方現場の有無など"></textarea></label>
+              <label class="wide">対象外判定の根拠 / 注意点<textarea name="exclusionReason" rows="2" placeholder="対象外の場合は理由を記録。対象の場合も専門作業を依頼しない根拠を記録できます。"></textarea></label>
+              <div id="industry-check" class="check-panel" role="status" aria-live="polite"><strong>業種チェック待ち</strong>事業内容を入力し、対象判定を選択してください。</div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="form-section-head"><span class="step-number">4</span><span><b>会社別の営業文</b><span>1社固有の公開事実を必ず入れ、汎用文の使い回しを防ぎます。</span></span></div>
+            <div class="sales-form">
+              <label class="wide">公開情報で確認した事実<textarea name="facts" rows="3" placeholder="提案の根拠に使う事実と、その確認元"></textarea></label>
+              <label class="wide">この会社だけに連絡する理由 <span class="required-note">文面作成時は必須</span><textarea name="personalization" rows="3" placeholder="例：全国の小売店舗で店頭販促支援を行っており、青森市のスポット確認を切り出せる可能性があるため"></textarea></label>
+              <label class="wide">宛名 <span class="required-note">「正式企業名 ご担当者様」必須</span><input name="recipient" placeholder="株式会社〇〇 ご担当者様"></label>
+              <div class="draft-tools"><button id="set-recipient" class="btn" type="button">正式企業名＋ご担当者様を入れる</button><button id="build-draft" class="btn" type="button">会社別の文面ひな型を作る</button></div>
+              <label class="wide">営業メール件名<textarea name="subject" rows="2" placeholder="会社ごとに確認して作成"></textarea></label>
+              <label class="wide">営業メール本文<textarea name="body" rows="11" placeholder="正式企業名、ご担当者様、会社固有の提案理由を含めます。"></textarea></label>
+              <div id="message-check" class="check-panel" role="status" aria-live="polite"><strong>文面チェック待ち</strong>宛名・件名・本文を入力してください。</div>
+              <label class="wide checkbox-line"><input name="humanReviewed" type="checkbox"><span>正式企業名、宛名、公開メール、件名、本文、会社固有の事実を人間が確認しました。文面を変更した場合は再確認します。</span></label>
+              <label class="wide">メモ<textarea name="notes" rows="3"></textarea></label>
+            </div>
+          </div>
         </form>
-        <div class="actions-row"><button id="save-company" class="btn primary" type="button">保存</button><button id="reset-company" class="btn ghost" type="button">新規入力</button><button id="export-sales" class="btn" type="button">この端末のCSVを書き出す</button></div>
-        <p class="tiny">重複判定：企業名の正規化値＋ドメインを基本キーとし、メールアドレス・問い合わせフォームURLも照合します。重複時は保存を停止します。</p>
+
+        <div class="actions-row"><button id="save-company" class="btn primary" type="button">この1社を保存</button><button id="reset-company" class="btn ghost" type="button">次の会社を新規入力</button><button id="export-sales" class="btn" type="button">CSVを書き出す</button></div>
+        <p class="tiny storage-note">送信機能はありません。Gmailボタンは、重複照合・対象判定・個別文面・人間確認が完了した1社にだけ表示されます。</p>
       </section>
 
-      <section class="sales-card">
-        <h2>この端末の営業管理一覧</h2>
-        <div class="table-scroll"><table class="sales-table"><thead><tr><th>企業</th><th>ドメイン</th><th>宛先</th><th>状態</th><th>最終接触</th><th>次回</th><th>根拠</th><th>操作</th></tr></thead><tbody id="sales-rows"></tbody></table></div>
+      <section class="sales-card" aria-labelledby="sales-list-title">
+        <div class="table-head"><h2 id="sales-list-title">企業別の営業キュー</h2><span>左から順に未完了条件を解消します</span></div>
+        <div class="table-scroll"><table class="sales-table"><thead><tr><th>現在の段階</th><th>企業</th><th>重複照合</th><th>業種判定</th><th>宛先</th><th>CRM</th><th>根拠</th><th>操作</th></tr></thead><tbody id="sales-rows"></tbody></table></div>
       </section>
     </div>
 
-    <section class="sales-card" style="margin-top:18px">
-      <h2>ChatGPT自動化コントロール</h2>
+    <section class="sales-card" style="margin-top:18px" aria-labelledby="automation-title">
+      <div class="section-title"><div><h2 id="automation-title">ChatGPTへ渡す作業指示</h2><p>営業工程と同じ順番です。前の工程を完了してから次へ進みます。</p></div></div>
       <div class="control-list">
-        <div class="control-item"><b>1. 新規営業リスト生成</b><p>公開情報を検索し、正本の「01_営業先」「02_CRM」「07_既出企業台帳」を照合。既出企業は除外し、企業ごとに根拠URLを保存します。</p><button class="btn copy-prompt" data-prompt="lead" type="button">指示文をコピー</button></div>
-        <div class="control-item"><b>2. 企業別営業メール作成</b><p>会社ごとの確認済み事実を使い、宛名・件名・本文を個別生成。「09_メール下書き」に保存します。担当者名やメールは推測しません。</p><button class="btn copy-prompt" data-prompt="draft" type="button">指示文をコピー</button></div>
-        <div class="control-item"><b>3. Gmail履歴をCRMへ反映</b><p>Gmailの送受信を読み、日時・Thread ID・Message ID・返信状況を「08_送受信履歴」とCRMに記録できます。送信はしません。</p><button class="btn copy-prompt" data-prompt="sync" type="button">指示文をコピー</button></div>
-        <div class="control-item"><b>4. 問い合わせフォーム</b><p>フォームURLと企業別文面の管理までは可能。大量の自動フォーム送信は、CAPTCHA・規約・スパム対策・誤送信リスクがあるため自動実行しません。</p></div>
+        <div class="control-item"><b>1. 営業リスト作成</b><p>公式情報から候補を集めます。この段階では文面作成も送信もしません。</p><button class="btn copy-prompt" data-prompt="lead" type="button">指示文をコピー</button></div>
+        <div class="control-item"><b>2. 重複排除</b><p>5種類の識別情報を正本と照合し、同一企業を候補から除外します。</p><button class="btn copy-prompt" data-prompt="dedupe" type="button">指示文をコピー</button></div>
+        <div class="control-item"><b>3. 対象外業種除外</b><p>専門作業・工事・点検・危険作業が中心の企業を除外台帳へ移します。</p><button class="btn copy-prompt" data-prompt="screen" type="button">指示文をコピー</button></div>
+        <div class="control-item"><b>4. 会社別文面生成</b><p>残った企業ごとに、正式企業名・ご担当者様・固有の公開事実を入れます。</p><button class="btn copy-prompt" data-prompt="draft" type="button">指示文をコピー</button></div>
+        <div class="control-item final"><b>5. 人間がGmailで確認</b><p>1社ずつ宛先・件名・本文を確認して人間が送信します。一斉自動送信は行いません。</p></div>
       </div>
-      <h2 style="margin-top:18px">コピーされる指示文</h2>
-      <textarea id="prompt-preview" class="prompt-box" readonly></textarea>
+      <h2 style="margin-top:18px;font-size:15px">コピーされる指示文</h2>
+      <textarea id="prompt-preview" class="prompt-box" readonly aria-label="コピーされる指示文"></textarea>
     </section>
   </main>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
