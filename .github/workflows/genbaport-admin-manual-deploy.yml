@@ -1,0 +1,30 @@
+name: Deploy GENBA PORT admin (manual)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: github.repository == 'nknkny/Homepage'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Validate canonical Sheets link and asset count
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f genbaport-admin/public/sales.html
+          grep -Fq '1o5nU3Cxa6cKY0aWdtEpDaICRLYUgsSRcgmMce9sQm10' genbaport-admin/public/sales.html
+          if grep -Fq '1V7X07PBur89mZbaiuQ3MLZaSor8Ao6y3Ryb88Gmkpy8' genbaport-admin/public/sales.html; then exit 1; fi
+          test "$(find genbaport-admin/public -maxdepth 1 -type f | wc -l)" -eq 7
+      - name: Deploy existing Cloudflare Pages project
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.GENBAPORT_CLOUDFLARE_PAGES_TOKEN }}
+          accountId: 937040eabe599e4eb8b9108060e2241d
+          command: pages deploy genbaport-admin/public --project-name=genbaport-admin --branch=main
