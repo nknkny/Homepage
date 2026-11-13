@@ -149,9 +149,12 @@ jobs:
           for p in root.glob('*.html'):
             if p.name in legacy:continue
             text=p.read_text(encoding='utf-8')
-            out=re.sub(r'href="register\.html(?:\?[^"]*)?"','href="request.html"',text)
+            out=re.sub(r'href="(?:register|member-login|member)\.html(?:\?[^"]*)?"','href="request.html"',text)
             out=out.replace('>新規無料会員登録</a>','>会員登録なしで依頼する</a>')
-            out=out.replace('>無料会員登録</a>','>現地確認を依頼する</a>')
+            out=out.replace('>無料会員登録</a>','>会員登録なしで依頼する</a>')
+            out=out.replace('>会員ログイン</a>','>現地確認を依頼する</a>')
+            out=out.replace('>会員ページ</a>','>現地確認を依頼する</a>')
+            out=out.replace('>ログイン</a>','>現地確認を依頼する</a>')
             out=out.replace('依頼には無料会員登録が必要です','会員登録なしで依頼できます')
             if out!=text:p.write_text(out,encoding='utf-8');changed+=1
           print('REGISTRATION_CTA_REWRITTEN_PAGES',changed)
