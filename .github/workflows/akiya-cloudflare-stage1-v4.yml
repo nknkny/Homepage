@@ -216,10 +216,50 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          if npx --yes wrangler@4.119.0 whoami >/dev/null 2>&1; then
+            echo 'CLOUDFLARE_AUTH=PASS_EXISTING'
+            exit 0
+          fi
+          # Do not start an interactive login during routine pushes.
+          if [ "$GITHUB_EVENT_NAME" != "issue_comment" ]; then
+            echo 'CLOUDFLARE_AUTH_EXPIRED: owner reauthorization required; no overwrite performed' >&2
+            exit 1
+          fi
+          echo 'CLOUDFLARE_DEVICE_AUTH_REQUIRED'
+          logfile="$RUNNER_TEMP/akiya-wrangler-device-auth.log"
+          clean="$RUNNER_TEMP/akiya-wrangler-device-auth-clean.log"
+          (CI='' npx --yes wrangler@4.119.0 login --device --browser=false >"$logfile" 2>&1) &
+          auth_pid=$!
+          url=''; code=''
+          for n in $(seq 1 45); do
+            sed -E 's/\x1B\[[0-9;]*[a-zA-Z]//g' "$logfile" > "$clean" || true
+            url=$(grep -Eo 'https://dash\.cloudflare\.com/oauth2/device(/verify)?' "$clean" | tail -1 || true)
+            code=$(grep -Eo '([A-Za-z0-9]{4}-[A-Za-z0-9]{4}|[A-Z0-9]{8})' "$clean" | tail -1 || true)
+            if [ -n "$url" ] && [ -n "$code" ]; then break; fi
+            if ! kill -0 "$auth_pid" 2>/dev/null; then break; fi
+            sleep 1
+          done
+          if [ -z "$url" ] || [ -z "$code" ]; then
+            cat "$clean" || true
+            kill "$auth_pid" 2>/dev/null || true
+            wait "$auth_pid" 2>/dev/null || true
+            exit 1
+          fi
+          {
+            echo '## Cloudflare authorization required'
+            echo "Open: $url"
+            echo "Enter code: $code"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "CLOUDFLARE_DEVICE_URL=$url"
+          echo "CLOUDFLARE_DEVICE_CODE=$code"
+          body=$(jq -n --arg url "$url" --arg code "$code" --arg run "$GITHUB_RUN_ID" '{body:("AKIYA_CF_DEVICE_AUTH_REQUIRED\nVERIFY_URL="+$url+"\nCODE="+$code+"\nRUN_ID="+$run)}')
+          curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' -d "$body" "https://api.github.com/repos/$GITHUB_REPOSITORY/issues/42/comments" >/dev/null
+          wait "$auth_pid"
           npx --yes wrangler@4.119.0 whoami >/dev/null
-          echo 'CLOUDFLARE_AUTH=PASS'
+          echo 'CLOUDFLARE_AUTH=PASS_REAUTHORIZED'
 
       - name: Deploy Cloudflare Pages
         if: steps.credentials.outputs.configured == 'true'
