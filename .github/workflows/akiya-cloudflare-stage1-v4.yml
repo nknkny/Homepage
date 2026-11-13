@@ -119,7 +119,7 @@ jobs:
           test -f dist/DEPLOYMENT.json
           jq -e --arg o "$ORIGIN" --arg s "$SOURCE_SHA" '.canonicalOrigin==$o and .build=="2026-08-31-acquisition-r3" and .sourceSha==$s' dist/DEPLOYMENT.json >/dev/null
           grep -Fq "<link rel=\"canonical\" href=\"${ORIGIN}/\">" dist/index.html
-          grep -Fq '新規無料会員登録' dist/index.html
+          grep -Fq '会員登録なしで依頼する' dist/index.html
           grep -Fq '現地確認を依頼する' dist/index.html
           grep -Fq '登録なしで無料チェック' dist/index.html
           grep -Fq '先に報告見本を見る' dist/index.html
