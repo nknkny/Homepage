@@ -221,6 +221,9 @@ jobs:
           grep -Fq '会員登録・月額料金なし' dist/commercial.html
           ! grep -Fq '無料会員登録0円' dist/commercial.html
           grep -Fq '最終改定日：2026年11月13日' dist/service-terms.html
+          node --check dist/assets/pages/guest-request.js
+          node --check dist/assets/pages/guest-checkout.js
+          node scripts/test-akiya-returning-customer.cjs
           test -f dist/assets/warm-20261113.css
           grep -Fq 'assets/warm-20261113.css' dist/index.html
           grep -Fq 'assets/warm-20261113.css' dist/request.html
