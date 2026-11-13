@@ -10,6 +10,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 6
     steps:
+      - name: Install Japanese fonts for accurate line wrapping
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq fonts-noto-cjk
+          fc-cache -f >/dev/null
       - name: Inspect production desktop and mobile screenshots
         shell: bash
         run: |
