@@ -1,0 +1,28 @@
+name: Akiya Pocket Visual Review
+on:
+  issue_comment:
+    types: [created]
+permissions:
+  contents: read
+jobs:
+  screenshots:
+    if: ${{ github.event.issue.number == 42 && contains(github.event.comment.body, 'AKIYA_VISUAL_SCREENSHOT') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Inspect production desktop and mobile screenshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          browser="$(command -v google-chrome || command -v chromium-browser || command -v chromium || true)"
+          test -n "$browser" || { echo "CHROME_NOT_INSTALLED"; exit 1; }
+          echo "BROWSER=$browser"
+          "$browser" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --force-device-scale-factor=1 --window-size=1365,900 --virtual-time-budget=3500 --screenshot=/tmp/akiya-desktop.png "https://akiya-pocket-aomori.pages.dev/?qa=nov-13-desktop" >/tmp/akiya-chrome-d.log 2>&1
+          "$browser" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --force-device-scale-factor=1 --window-size=412,900 --virtual-time-budget=3500 --screenshot=/tmp/akiya-mobile.png "https://akiya-pocket-aomori.pages.dev/?qa=nov-13-mobile" >/tmp/akiya-chrome-m.log 2>&1
+          "$browser" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --force-device-scale-factor=1 --window-size=1365,900 --virtual-time-budget=3500 --screenshot=/tmp/akiya-request.png "https://akiya-pocket-aomori.pages.dev/request.html?qa=nov-13-request" >/tmp/akiya-chrome-r.log 2>&1
+          for label in DESKTOP MOBILE REQUEST; do
+            case "$label" in DESKTOP) file=/tmp/akiya-desktop.png;; MOBILE) file=/tmp/akiya-mobile.png;; REQUEST) file=/tmp/akiya-request.png;; esac
+            echo "AKIYA_IMAGE_${label}_START"
+            base64 -w80 "$file"
+            echo "AKIYA_IMAGE_${label}_END"
+          done
