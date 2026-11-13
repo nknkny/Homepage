@@ -18,7 +18,7 @@ permissions:
 
 concurrency:
   group: akiya-cloudflare-stage1-v4
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   AKIYA_CF_BROKER: https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-cloudflare-ci-broker
@@ -237,7 +237,7 @@ jobs:
           for n in $(seq 1 45); do
             sed -E 's/\x1B\[[0-9;]*[a-zA-Z]//g' "$logfile" > "$clean" || true
             url=$(grep -Eo 'https://dash\.cloudflare\.com/oauth2/device(/verify)?' "$clean" | tail -1 || true)
-            code=$(grep -Eo '([A-Za-z0-9]{4}-[A-Za-z0-9]{4}|[A-Z0-9]{8})' "$clean" | tail -1 || true)
+            code=$(grep -Eo '([A-Za-z0-9]{4}-[A-Za-z0-9]{4}|[A-Za-z0-9]{8})' "$clean" | tail -1 || true)
             if [ -n "$url" ] && [ -n "$code" ]; then break; fi
             if ! kill -0 "$auth_pid" 2>/dev/null; then break; fi
             sleep 1
