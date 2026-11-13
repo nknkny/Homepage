@@ -180,6 +180,13 @@ jobs:
               out=out.replace('支払時期：カード払い前の最終確認画面で申込み内容を確認した後、Stripeで前払いします。','支払時期：青森市内の標準案件は最終確認画面で申込み内容を確認した後、Stripeで前払いします。個別見積案件は見積もり時に支払時期を案内します。')
               out=out.replace('依頼受付後、会員ページからカード払い前の最終確認画面へ進み','青森市内の標準案件は依頼受付後にカード払い前の最終確認画面へ進み')
               out=out.replace('契約成立：利用者が最終確認画面で申込みに同意してStripeで支払いを完了し、当事業者のシステムが当該支払いを正常に確認した時点で成立します。','契約成立：青森市内の標準案件は最終確認画面への同意とStripe決済を行い、当事業者のシステムが支払いを正常に確認した時点で成立します。個別見積案件は事前提示した条件への同意と案内した支払いの確認後に成立します。')
+            if p.name=='service-terms.html':
+              out=out.replace('最終改定日：2026年8月22日　適用開始日：2026年8月22日','最終改定日：2026年11月13日　適用開始日：2026年11月13日')
+            if p.name=='commercial.html':
+              out=out.replace('無料会員登録0円、月額0円。現地確認1回3,480円（税込）。標準サービスについて追加料金はありません。','会員登録・月額料金なし。青森市内の標準的な外観現地確認は1回3,480円（税込）。むつ市などの遠方物件は出張料金を含む合計額を事前見積もりします。')
+              out=out.replace('クレジットカード。Stripeが提供する決済ページで行います。','青森市内の標準案件はクレジットカード。むつ市などの個別見積案件は見積もり時に支払方法を案内します。カード決済はStripeが提供する決済ページで行います。')
+              out=out.replace('カード払い前の最終確認画面で申込み内容を確認した後、Stripeで前払いします。','青森市内の標準案件は最終確認画面で申込み内容を確認した後、Stripeで前払いします。個別見積案件は見積もり時に支払時期を案内します。')
+              out=out.replace('利用者が最終確認画面で申込みに同意してStripeで支払いを完了し、当事業者のシステムが当該支払いを正常に確認した時点で成立します。','青森市内の標準案件は、利用者が最終確認画面で申込みに同意してStripeで支払いを完了し、当事業者のシステムが支払いを正常に確認した時点で成立します。個別見積案件は事前提示した条件への同意と案内した支払いの確認後に成立します。')
             if out!=text:p.write_text(out,encoding='utf-8');changed+=1
           print('REGISTRATION_CTA_REWRITTEN_PAGES',changed)
           PY
@@ -191,6 +198,9 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
+          grep -Fq '会員登録・月額料金なし' dist/commercial.html
+          ! grep -Fq '無料会員登録0円' dist/commercial.html
+          grep -Fq '最終改定日：2026年11月13日' dist/service-terms.html
           test -f dist/DEPLOYMENT.json
           jq -e --arg o "$ORIGIN" --arg s "$SOURCE_SHA" '.canonicalOrigin==$o and .build=="2026-08-31-acquisition-r3" and .sourceSha==$s' dist/DEPLOYMENT.json >/dev/null
           grep -Fq "<link rel=\"canonical\" href=\"${ORIGIN}/\">" dist/index.html
