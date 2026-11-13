@@ -122,7 +122,7 @@ jobs:
           import os, re
           root=Path('dist')
           origin=os.environ['ORIGIN'].rstrip('/')
-          protected={'index.html','request.html','checkout.html','payment-success.html','payment.html','register.html','assets/config.js','assets/pages/guest-request.js','assets/pages/guest-checkout.js','assets/pages/guest-payment-success.js','assets/warm-20261113.css','_headers','_redirects','DEPLOYMENT.json','PUBLIC_URLS.txt','CLOUDFLARE_CANONICAL.txt'}
+          protected={'index.html','request.html','checkout.html','payment-success.html','payment.html','register.html','assets/config.js','assets/pages/guest-request.js','assets/pages/guest-checkout.js','assets/pages/guest-payment-success.js','assets/warm-20261113.css','service.html','faq.html','service-terms.html','commercial.html','payment.html','_headers','_redirects','DEPLOYMENT.json','PUBLIC_URLS.txt','CLOUDFLARE_CANONICAL.txt'}
           extensions={'.html','.css','.js','.json','.xml','.txt','.jpg','.jpeg','.png','.webp','.svg','.gif','.ico'}
           targets=[p for p in root.rglob('*') if p.is_file() and p.relative_to(root).as_posix() not in protected and p.suffix.lower() in extensions and not p.relative_to(root).as_posix().startswith('control-center/')]
           def restore(p):
@@ -144,7 +144,7 @@ jobs:
           with ThreadPoolExecutor(max_workers=8) as pool:
             results=[f.result() for f in as_completed([pool.submit(restore,p) for p in targets])]
           print('OVERLAY_PRESERVED',sum(ok for _,ok in results),'OF',len(results))
-          legacy={'register.html','member.html','member-login.html','profile.html','delete-account.html','account-recovery.html','member-survey.html'}
+          legacy={'register.html','member.html','member-login.html','profile.html','delete-account.html','account-recovery.html','member-survey.html','service.html','faq.html','service-terms.html','commercial.html','payment.html'}
           changed=0
           for p in root.glob('*.html'):
             if p.name in legacy:continue
@@ -245,6 +245,10 @@ jobs:
           grep -Fq '会員登録・月額料金なし' dist/commercial.html
           ! grep -Fq '無料会員登録0円' dist/commercial.html
           grep -Fq '最終改定日：2026年11月13日' dist/service-terms.html
+          test "$(grep -o '個別見積案件は' dist/service-terms.html | wc -l)" -le 1
+          test "$(grep -o '基本料金でカード払いをご案内する場合は' dist/service-terms.html | wc -l)" -le 1
+          ! grep -Fq '会員ページ' dist/service-terms.html
+          ! grep -Fq '現地立会い' dist/service-terms.html
           node --check dist/assets/pages/guest-request.js
           node --check dist/assets/pages/guest-checkout.js
           node scripts/test-akiya-returning-customer.cjs
