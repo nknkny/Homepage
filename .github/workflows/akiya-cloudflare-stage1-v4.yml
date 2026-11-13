@@ -115,7 +115,7 @@ jobs:
           SOURCE_SHA: ${{ steps.target.outputs.source_sha }}
         shell: bash
         run: |
-          set -euo pipefail
+          set -euxo pipefail
           test -f dist/DEPLOYMENT.json
           jq -e --arg o "$ORIGIN" --arg s "$SOURCE_SHA" '.canonicalOrigin==$o and .build=="2026-08-31-acquisition-r3" and .sourceSha==$s' dist/DEPLOYMENT.json >/dev/null
           grep -Fq "<link rel=\"canonical\" href=\"${ORIGIN}/\">" dist/index.html
