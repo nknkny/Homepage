@@ -207,6 +207,30 @@ jobs:
             out=out.replace('登録なしで依頼する','依頼する')
             if p.name not in legacy and 'assets/warm-20261113.css' not in out and '</head>' in out:
               out=out.replace('</head>','<link href="assets/warm-20261113.css" rel="stylesheet"></head>',1)
+            # 2026-11-13: price policy still under review. Do not single out Mutsu as a distant surcharge region.
+            out=out.replace('むつ市などの遠方物件は出張料金を事前見積もりします。','個別見積もりが必要な場合は、事前に正式料金をご案内します。')
+            out=out.replace('むつ市などの遠方物件は出張料金を含め事前見積もりします。','個別見積もりが必要な場合は事前に正式料金をご案内します。')
+            out=out.replace('むつ市などの遠方物件は出張費を含む合計料金を事前に個別見積もりし','個別見積もりが必要な場合は合計料金を事前に提示し')
+            out=out.replace('むつ市などの遠方物件は出張料金を含む合計額を事前見積もりします。','個別見積もりが必要な場合は合計額を事前に提示します。')
+            out=out.replace('むつ市などの遠方物件は出張料金を含む合計料金を事前見積もりします。','個別見積もりが必要な場合は合計料金を事前に提示します。')
+            out=out.replace('むつ市などの遠方物件は','個別見積もりが必要な物件は')
+            out=out.replace('むつ市などの遠方は','個別見積もりが必要な場合は')
+            out=out.replace('むつ市などの個別見積案件は','個別見積案件は')
+            out=out.replace('青森市内の標準的な外観確認は1回3,480円（税込）です。','青森の外観確認は基本料金1回3,480円（税込）からご案内しています。')
+            out=out.replace('青森市内の標準的な現地確認は1回3,480円（税込）で、追加料金はありません。','外観確認の基本料金は1回3,480円（税込）です。追加料金が必要な場合は事前に合計額をご案内します。')
+            out=out.replace('青森市内の標準的な外観現地確認は1回3,480円（税込）で、追加料金はありません。','外観現地確認の基本料金は1回3,480円（税込）です。個別見積もりが必要な場合は事前に合計額をご案内します。')
+            out=out.replace('青森市内の標準的な外観現地確認は1回3,480円（税込）。','青森の外観確認は基本料金1回3,480円（税込）。')
+            out=out.replace('青森市内の標準案件は','基本料金でお申し込みの場合は')
+            out=out.replace('青森市内の標準的な外観現地確認','青森の外観現地確認')
+            if p.name=='payment.html':
+              out=out.replace('現地確認は1回3,480円（税込）。','外観現地確認の基本料金は1回3,480円（税込）。')
+              out=out.replace('現地確認を依頼した回だけ3,480円をお支払いいただく','現地確認を依頼した回のみ料金が発生する')
+            if p.name=='faq.html':
+              out=out.replace('遠方の方は現地での立会いなしでも利用できます。','現地への同行は必要ありません。')
+            if p.name=='service.html':
+              out=out.replace('青森市内の対象物件へ訪問し','青森の対象物件へ訪問し')
+              out=out.replace('青森市内の対象物件に','青森の対象物件に')
+            out=out.replace('むつ市を遠方','青森の物件')
             if out!=text:p.write_text(out,encoding='utf-8');changed+=1
           print('REGISTRATION_CTA_REWRITTEN_PAGES',changed)
           PY
@@ -232,6 +256,14 @@ jobs:
           ! grep -Fq '現地立会い' dist/request.html
           ! grep -Fq '会員登録なしで依頼' dist/index.html
           ! grep -Fq '3,480円のカード前払い' dist/request.html
+          ! grep -Fq 'むつ市などの遠方' dist/index.html
+          ! grep -Fq 'むつ市などの遠方' dist/request.html
+          ! grep -Fq 'むつ市などの遠方' dist/service.html
+          ! grep -Fq 'むつ市などの遠方' dist/faq.html
+          ! grep -Fq 'むつ市などの遠方' dist/commercial.html
+          ! grep -Fq 'むつ市などの遠方' dist/service-terms.html
+          ! grep -Fq 'むつ市は事前見積もり' dist/index.html
+          grep -Fq '青森の外観確認' dist/index.html
           test -f dist/DEPLOYMENT.json
           jq -e --arg o "$ORIGIN" --arg s "$SOURCE_SHA" '.canonicalOrigin==$o and .build=="2026-08-31-acquisition-r3" and .sourceSha==$s' dist/DEPLOYMENT.json >/dev/null
           grep -Fq "<link rel=\"canonical\" href=\"${ORIGIN}/\">" dist/index.html
