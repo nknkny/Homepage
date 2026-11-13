@@ -232,3 +232,73 @@ body{color:#28352e;background:#fffdfa}
 .warm-request .warm-stored-banner button{text-align:center}
 }
 @media(prefers-reduced-motion:reduce){.btn,.warm-situation{transition:none!important}html{scroll-behavior:auto}}
+
+
+/* Crafted visual system: enrich hierarchy without adding explanatory paragraphs. */
+:root{--craft-forest:#244a3b;--craft-copper:#ba704e;--craft-ivory:#fbf6ec;--craft-mist:#dfe9de}
+.warm-home{background:#fcf9f3}
+.warm-home .site-header{box-shadow:0 8px 30px rgba(44,63,49,.045)}
+.warm-home .home-brand{display:flex;align-items:center;gap:9px}
+.craft-logo-mark{width:43px;height:43px;display:grid;place-items:center;border-radius:13px;background:#eff1e8;box-shadow:inset 0 0 0 1px #dde6d9}
+.craft-logo-mark svg{width:33px;height:33px}
+.warm-hero{position:relative;background:radial-gradient(ellipse at 10% 15%,#fffdf7 0,transparent 48%),linear-gradient(110deg,#faf6eb 0%,#eeeede 100%)}
+.warm-hero:before{content:"";position:absolute;inset:0;opacity:.13;pointer-events:none;background-image:radial-gradient(#a8a086 .5px,transparent .5px);background-size:12px 12px;mask-image:linear-gradient(90deg,black,transparent 83%)}
+.warm-hero-grid{min-height:665px;padding-block:72px 83px;gap:57px}
+.warm-hero-copy{position:relative;z-index:2}
+.warm-hero h1{font-size:clamp(3.1rem,5.25vw,5.5rem);text-shadow:0 2px 2px rgba(33,58,40,.018)}
+.warm-hero h1 em{position:relative;display:inline-block}
+.warm-hero h1 em:after{content:"";display:block;height:8px;border-radius:50%;background:#edc4a9;position:absolute;bottom:3px;left:3%;width:95%;z-index:-1;opacity:.48;transform:rotate(-1.4deg)}
+.warm-hero-price{box-shadow:0 8px 24px rgba(46,63,43,.045);border:1px solid #e6decd;background:#fffdfa;padding:14px 17px}
+.warm-hero-price>strong{letter-spacing:-.04em}
+.warm-hero-price>span:last-child{max-width:140px;line-height:1.4}
+.warm-main-cta{box-shadow:0 11px 27px rgba(166,93,60,.21);border:1px solid #b86e4b}
+.warm-hero-media{border-radius:180px 180px 34px 34px;box-shadow:0 34px 70px rgba(35,58,41,.18);transform:translateY(8px)}
+.warm-hero-media:before{content:"";position:absolute;z-index:-1;inset:-16px 18px 17px -15px;border:1px solid rgba(131,153,117,.44);border-radius:185px 185px 35px 35px;pointer-events:none}
+.warm-hero-media:after{content:"";position:absolute;z-index:-1;width:120px;height:120px;border-radius:100%;background:radial-gradient(circle,#f0b48a 0,#e3b58f 60%,transparent 62%);top:-38px;right:-27px;opacity:.5;pointer-events:none}
+.craft-hero-frame-label{position:absolute;top:-39px;right:4px;font:700 .64rem/1.4 Georgia,serif;letter-spacing:.23em;color:#7d8e78}
+.craft-report-preview{position:absolute;right:-20px;bottom:35px;z-index:4;display:flex;align-items:center;gap:12px;background:rgba(255,253,247,.96);border-radius:16px;min-height:74px;padding:13px 17px;box-shadow:0 18px 40px rgba(28,53,38,.16);text-decoration:none;border:1px solid rgba(244,239,227,.98);color:#345442}
+.craft-report-preview:hover{color:#9b6346;transform:translateY(-2px)}
+.craft-report-preview>span:last-child{font-size:1.05rem;color:#b2764d;margin-left:8px}
+.craft-report-icon{width:40px;height:40px;border-radius:12px;background:#e9f0e6;color:#3f6751;display:grid;place-items:center}
+.craft-report-icon svg{width:25px;height:25px}
+.craft-report-preview small{display:block;font-size:.64rem;letter-spacing:.13em;color:#9d8c73;font-weight:850}
+.craft-report-preview b{display:block;font-size:.83rem;white-space:nowrap}
+.warm-photo-caption{left:-25px;bottom:52px;padding:19px 21px;z-index:3}
+.warm-feature-strip{position:relative}
+.craft-feature-eyebrow{position:absolute;top:-16px;left:50%;transform:translateX(-50%);border-radius:50px;padding:6px 20px;white-space:nowrap;background:#e6ebde;border:1px solid #cddbc9;color:#6d7d6a;font-size:.62rem;letter-spacing:.18em;font-weight:800}
+.warm-feature-grid{padding-block:30px}
+.warm-feature-mark{font-size:1.8rem;color:#bd835d}
+.warm-feature-grid strong{font-size:1.05rem}
+.warm-feature-grid small{font-size:.86rem}
+.warm-value{position:relative;background:linear-gradient(95deg,#fffdf9 55%,#f9f4ea)}
+.craft-vertical-name{position:absolute;top:40px;right:35px;writing-mode:vertical-rl;color:rgba(58,79,59,.22);letter-spacing:.48em;font-size:.68rem;font-weight:900}
+.warm-value-art{background:linear-gradient(140deg,#e1ebde 0%,#eff1e8 58%,#eddbca 100%);box-shadow:0 20px 50px rgba(54,80,52,.08)}
+.craft-mock-note{position:absolute;top:36px;left:34px;z-index:2;display:grid;gap:6px;color:#38624b}
+.craft-mock-mark{font:.65rem/1.4 Georgia,serif;letter-spacing:.2em}
+.craft-mock-note strong{font-size:.85rem;line-height:1.5}
+.warm-report-frame{transform:rotate(-6deg) translate(23px,19px);box-shadow:0 30px 60px rgba(48,59,48,.19)}
+.warm-value-stamp{right:27px;bottom:24px;width:86px;height:86px;background:rgba(255,250,241,.62);border-style:dashed}
+.warm-situations{background:#f5efe4}
+.warm-situation-grid{gap:20px}
+.warm-situation{overflow:hidden;min-height:260px;border:1px solid #ece2d2;background:linear-gradient(160deg,#fffefa,#fbf6eb);box-shadow:0 18px 44px rgba(64,81,53,.055)}
+.warm-situation:before{content:"";position:absolute;width:150px;height:150px;top:-68px;right:-66px;border-radius:50%;background:#e7eadd;transition:transform .3s ease}
+.warm-situation:nth-child(2):before{background:#f3e3d6}
+.warm-situation:nth-child(3):before{background:#e2e7e3}
+.warm-situation:hover:before{transform:scale(1.3)}
+.warm-situation-icon{position:relative;z-index:1;width:58px;height:58px;border-radius:18px;font-size:1.65rem;background:#f1e9db;box-shadow:inset 0 0 0 1px #e8ddc9}
+.warm-situation:nth-child(2) .warm-situation-icon{background:#f8e9e0}
+.warm-situation:nth-child(3) .warm-situation-icon{background:#edf0e9}
+.warm-situation h3{position:relative;z-index:1;font-size:1.23rem}
+.warm-situation p{position:relative;z-index:1}
+.warm-how-grid>div{border-top:2px solid #bacab6;background:linear-gradient(#fffdf9,#fffdfa);border-radius:0 0 14px 14px}
+.warm-price{background:linear-gradient(110deg,#dfe9dc,#f5eee0)}
+.warm-price-card{position:relative;overflow:hidden;border:1px solid #d8e0ce;box-shadow:0 27px 50px rgba(45,72,43,.12)}
+.craft-price-ribbon{font:.65rem/1.4 Georgia,serif;letter-spacing:.18em;color:#bb7a55;margin-bottom:25px}
+.warm-price-card .warm-price-caption{font-size:.86rem}
+.warm-final{position:relative;background:linear-gradient(110deg,#274b3a,#426b51);overflow:hidden}
+.warm-final:after{content:"";position:absolute;right:-9%;top:-105px;width:350px;height:350px;border-radius:50%;border:1px solid rgba(246,239,218,.22);box-shadow:0 0 0 34px rgba(235,238,210,.045),0 0 0 72px rgba(235,238,210,.025)}
+.warm-final-inner{position:relative;z-index:2}
+.warm-request .warm-aside{background:linear-gradient(155deg,#edf4e8,#f6eee1);box-shadow:0 13px 32px rgba(37,73,47,.055)}
+.craft-aside-icon{display:grid;place-items:center;margin:18px 0 24px;width:59px;height:59px;border-radius:20px;background:#dbe8d8;color:#477257;font-size:2rem}
+@media(max-width:980px){.warm-hero-grid{gap:35px}.craft-report-preview{right:0;bottom:8px}.warm-photo-caption{left:-9px;bottom:78px}.warm-value-grid{gap:45px}}
+@media(max-width:720px){.warm-hero-grid{gap:34px;padding-block:55px 58px}.warm-hero{background:linear-gradient(150deg,#faf5e9,#f2f2e6)}.warm-hero-media{margin-right:0;border-radius:95px 95px 20px 20px;min-height:315px;transform:none}.warm-hero-media:before{inset:-9px 10px 12px -5px;border-radius:100px 100px 20px 20px}.warm-hero-media:after{width:70px;height:70px;top:-21px;right:-14px}.craft-hero-frame-label{display:none}.craft-report-preview{right:-1px;bottom:-15px;padding:11px 12px;min-height:63px;gap:8px}.craft-report-icon{width:33px;height:33px}.craft-report-icon svg{width:20px;height:20px}.craft-report-preview b{font-size:.74rem}.craft-report-preview>span:last-child{font-size:.89rem;margin-left:3px}.warm-photo-caption{left:8px;bottom:67px}.craft-feature-eyebrow{font-size:.5rem;letter-spacing:.09em;padding:6px 9px}.warm-feature-grid{padding-block:32px 12px}.warm-value-art{min-height:340px}.craft-vertical-name{display:none}.warm-value-copy h2{line-height:1.37}.craft-mock-note{top:18px;left:20px}.warm-report-frame{width:64%;transform:rotate(-5deg) translate(16px,25px)}.warm-price-card{padding:29px}.warm-price-grid{gap:30px}.warm-final:after{right:-150px}}
