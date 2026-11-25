@@ -235,6 +235,9 @@ jobs:
           print('REGISTRATION_CTA_REWRITTEN_PAGES',changed)
           PY
 
+      - name: Apply and verify fixed-price public navigation patch
+        run: node scripts/akiya-fixed-price-finalize.cjs dist
+
       - name: Validate production artifact
         env:
           ORIGIN: ${{ steps.target.outputs.origin }}
