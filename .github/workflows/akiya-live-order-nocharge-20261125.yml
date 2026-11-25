@@ -1,0 +1,51 @@
+name: Akiya live no-charge order verification
+on:
+  push:
+    branches: [akiya-live-browser-audit-20261125]
+    paths: ['.github/workflows/akiya-live-order-nocharge-20261125.yml']
+permissions:
+  contents: read
+  issues: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify actual API and checkout without charging
+        run: |
+          cat > /tmp/akiya-live-order.cjs <<'JS'
+          const base='https://akiya-pocket-aomori.pages.dev',endpoint='https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-api';
+          const assert=require('node:assert/strict'),fs=require('node:fs'),{randomUUID}=require('node:crypto');
+          const summary={mode:'live API synthetic QA; no real customer, no card entry, no payment',cases:[],failures:[]};
+          async function api(action,data){const clientRequestId='QA-'+randomUUID();const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json',Origin:base},body:JSON.stringify({...data,action,clientRequestId}),signal:AbortSignal.timeout(30000)});const j=await r.json();assert.equal(j.clientRequestId,clientRequestId);return {status:r.status,j};}
+          async function main(){
+           for(const city of ['青森市','むつ市']){
+            const c={city};summary.cases.push(c);
+            try{
+             const input={customerName:'内部監査テスト QA',customerEmail:'akiya-internal-qa@example.invalid',propertyAddress:'青森県'+city+' 内部監査用架空住所（訪問禁止）',requestRelationship:'所有者本人',accessPermission:'所有者本人として依頼する',requestConsent:'yes',requestNotes:'内部QA試験。実顧客・訪問・請求対象外。'};
+             const r=await api('create_guest_request',input);assert.equal(r.status,200);assert.equal(r.j.ok,true);assert.equal(r.j.canPayNow,true);assert.ok(r.j.requestId&&r.j.guestToken);c.requestId=r.j.requestId;c.created=true;
+             const auth={requestId:r.j.requestId,guestToken:r.j.guestToken};
+             const o=await api('get_guest_request',auth);assert.equal(o.j.ok,true);assert.equal(Number(o.j.amountJpy),3480);assert.equal(o.j.cardAvailable,true);assert.equal(o.j.paid,false);c.orderRead=true;c.amount=3480;
+             const bad=await api('start_guest_payment',auth);assert.equal(bad.j.ok,false);assert.equal(bad.j.code,'CONSENT_REQUIRED');c.consentGuard=true;
+             const pay=await api('start_guest_payment',{...auth,finalConsent:'yes'});assert.equal(pay.j.ok,true);const url=new URL(pay.j.paymentUrl);assert.equal(url.protocol,'https:');assert.ok(['buy.stripe.com','checkout.stripe.com'].includes(url.hostname));assert.equal(url.searchParams.get('client_reference_id'),r.j.requestId);c.stripeLinkGenerated=true;
+             const h=await fetch(url,{method:'GET',redirect:'follow',signal:AbortSignal.timeout(25000)});c.stripeHttpStatus=h.status;assert.ok(h.ok);c.stripePageReached=true;
+             const v=await api('verify_guest_payment',auth);assert.equal(v.j.ok,true);assert.equal(v.j.paid,false);c.noChargeConfirmed=true;c.result='PASS';
+            }catch(e){c.result='FAIL';summary.failures.push(city+': '+String(e.message).replace(/https?:\/\/\S+/g,'[url omitted]').slice(0,160));}
+           }
+          }
+          main().catch(()=>summary.failures.push('runner failed')).finally(()=>{fs.writeFileSync('qa-live-orders.json',JSON.stringify(summary,null,2));console.log(JSON.stringify(summary));if(summary.failures.length)process.exitCode=1;});
+          
+          JS
+          node /tmp/akiya-live-order.cjs
+      - name: Record sanitized result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          if test -f qa-live-orders.json; then
+            { echo "AKIYA_LIVE_NO_CHARGE_RUN=$RUN_ID"; cat qa-live-orders.json; } | gh issue comment 42 --body-file -
+          else
+            gh issue comment 42 --body "AKIYA_LIVE_NO_CHARGE_RUN=$RUN_ID NO_EVIDENCE"
+          fi
