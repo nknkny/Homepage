@@ -46,7 +46,7 @@ function finalize(name,h) {
  if(name==="index.html"){h=h.replace(/(<div class="warm-hero-price")><span>青森の外観確認<\/span>/,'$1 aria-label="青森の外観確認">').replace(/<div class="craft-price-ribbon">ONE-TIME PHOTO CHECK<\/div><span>青森の外観確認・1物件<\/span>/,"");if(!/対応地域[：:]?\s*青森市・むつ市/.test(text(h)))h=h.replace(/(<p class="warm-lead">[\s\S]*?<\/p>)/,'$1<p class="small">対応地域：青森市・むつ市</p>')}
  if(name==="request.html"){h=h.replace(/<p>青森の外観現地確認<\/p>/,"");if(!/対応地域[：:]?\s*青森市・むつ市/.test(text(h)))h=h.replace(/(<div class="warm-price-line">[\s\S]*?<\/div>)/,'$1<p>対応地域：青森市・むつ市</p>')}
  if(name==="service.html")h=h.replace("青森の外観現地確認は3,480円（税込）。","外観現地確認は3,480円（税込）です。対応地域：青森市・むつ市。");
- if(name==="service-terms.html")h=h.replace("青森の外観現地確認は1物件1回3,480円（税込）です。","青森市・むつ市の外観現地確認は1物件1回3,480円（税込）です。追加料金はありません。").replace("その個別条件を優先します。","その個別条件を優先します。ただし、現地確認の料金は1物件1回3,480円（税込）です。");
+ if(name==="service-terms.html")h=h.replace("青森の外観現地確認は1物件1回3,480円（税込）です。","青森市・むつ市の外観現地確認は1物件1回3,480円（税込）です。追加料金はありません。").replace("その個別条件を優先します。ただし、法令上無効となる条件は適用しません。","その個別条件を優先します。ただし、現地確認の料金は1物件1回3,480円（税込）です。法令上無効となる条件は適用しません。");
  if(name==="commercial.html")h=h.replace("青森の外観現地確認は1物件1回3,480円（税込）です。","青森市・むつ市の外観現地確認は1物件1回3,480円（税込）です。追加料金はありません。");
  return h;
 }
