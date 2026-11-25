@@ -1,0 +1,145 @@
+name: Akiya live read-only browser audit
+on:
+  push:
+    branches: [akiya-live-browser-audit-20261125]
+    paths: ['.github/workflows/akiya-live-browser-audit-20261125.yml']
+permissions:
+  contents: read
+  issues: write
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned browser driver
+        run: npm install --no-save --ignore-scripts --prefix /tmp/akiya-qa playwright-core@1.51.1
+      - name: Audit live pages without sending orders or payments
+        shell: bash
+        run: |
+          cat > /tmp/akiya-live-audit.cjs <<'JS'
+          const {chromium}=require('/tmp/akiya-qa/node_modules/playwright-core');
+          const fs=require('node:fs'),assert=require('node:assert/strict'),cp=require('node:child_process');
+          const base='https://akiya-pocket-aomori.pages.dev/';
+          const api='https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-pocket-api';
+          const pages=fs.readFileSync('akiya-pocket/PUBLIC_URLS.txt','utf8').split(/\r?\n/).filter(s=>s.endsWith('.html'));
+          const viewports=[{width:1440,height:900},{width:390,height:844},{width:320,height:760}];
+          fs.mkdirSync('qa-evidence',{recursive:true});
+          const results={started:new Date().toISOString(),html:pages.length,views:[],flow:[],api:[],failures:[]};
+          const fail=(scope,detail)=>results.failures.push({scope,detail:String(detail).slice(0,500)});
+          async function run(){
+           const b=await chromium.launch({headless:true,executablePath:cp.execSync('which google-chrome || which chromium').toString().trim(),args:['--no-sandbox']});
+           try{
+            const config=await fetch(base+'assets/config.js',{cache:'no-store'}).then(r=>r.text());
+            const build=config.match(/REQUIRED_API_BUILD:\s*["']([^"']+)["']/)?.[1];
+            const dep=await fetch(base+'DEPLOYMENT.json',{cache:'no-store'});results.deployment=await dep.json();
+            const health=await fetch(api,{headers:{Origin:base.slice(0,-1)}});
+            const h=await health.json();results.api.push({check:'live GET',status:health.status,ready:h.ready,build:h.buildVersion,expected:build});
+            if(!health.ok||!h.ready||!build||h.buildVersion!==build)fail('API','live health or build mismatch');
+            const cors=await fetch(api,{method:'OPTIONS',headers:{Origin:base.slice(0,-1),'Access-Control-Request-Method':'POST','Access-Control-Request-Headers':'content-type'}});
+            results.api.push({check:'CORS',status:cors.status,origin:cors.headers.get('access-control-allow-origin')});
+            if(!cors.ok||![base.slice(0,-1),'*'].includes(cors.headers.get('access-control-allow-origin')))fail('API','CORS mismatch');
+            async function setup(c,mode='inspect',city='青森市'){
+             const calls=[];
+             // All writes to remote hosts are blocked or mocked. No real order, analytics, email or charge.
+             await c.route('**/*',async route=>{
+              const req=route.request(),u=req.url(),method=req.method();
+              if(u.startsWith(api)&&method==='POST'){
+               let p={};try{p=req.postDataJSON()}catch{}
+               calls.push(p.action);
+               let data={ok:true,clientRequestId:p.clientRequestId,buildVersion:build,skipped:true};
+               if(mode==='flow'){
+                const rid='QA-MOCK-ONLY',token='mock-token';
+                if(p.action==='create_guest_request'){assert(p.propertyAddress.includes(city));assert.equal(p.requestConsent,'yes');Object.assign(data,{requestId:rid,guestToken:token,canPayNow:true,message:'模擬受付'});}
+                if(p.action==='get_guest_request')Object.assign(data,{requestId:rid,propertyAddress:'青森県'+city+' QA模擬住所',cardAvailable:true,amountJpy:3480,paid:false});
+                if(p.action==='start_guest_payment'){assert.equal(p.finalConsent,'yes');Object.assign(data,{paymentUrl:'https://buy.stripe.com/QA-MOCK-ONLY',amountJpy:3480});}
+                if(p.action==='verify_guest_payment')Object.assign(data,{paid:false});
+               }
+               return route.fulfill({status:200,contentType:'application/json',headers:{'access-control-allow-origin':base.slice(0,-1)},body:JSON.stringify(data)});
+              }
+              if(u==='https://buy.stripe.com/QA-MOCK-ONLY')return route.fulfill({status:200,contentType:'text/html',body:'<html><body>Mock checkout: no charge</body></html>'});
+              if(!['GET','HEAD','OPTIONS'].includes(method))return route.abort();
+              return route.continue();
+             });
+             return calls;
+            }
+            const jobs=pages.flatMap(p=>viewports.map(v=>({p,v})));
+            let ix=0;
+            async function worker(){
+             while(ix<jobs.length){
+              const {p,v}=jobs[ix++], scope=p+'@'+v.width;
+              const c=await b.newContext({viewport:v,deviceScaleFactor:1});await setup(c);
+              const pg=await c.newPage();let errs=[],bad=[];
+              pg.on('pageerror',e=>errs.push(String(e).slice(0,250)));
+              pg.on('response',r=>{if(r.status()>=400&&r.url().startsWith(base)&&r.request().resourceType()!=='document')bad.push(r.status()+' '+r.url().split('?')[0]);});
+              try{
+               const res=await pg.goto(base+p,{waitUntil:'domcontentloaded',timeout:20000});
+               await pg.evaluate(async()=>{for(const im of document.images){im.loading='eager'}await Promise.race([Promise.allSettled([...document.images].map(i=>i.decode())),new Promise(r=>setTimeout(r,4000))]);await document.fonts.ready});
+               const d=await pg.evaluate(()=>{
+                const visible=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'};
+                const duplicates=[...document.querySelectorAll('.header-actions,.mobile-bar,.form-actions,.hero-actions,.actions,footer')].filter(visible).map(e=>[...e.querySelectorAll('a[href]')].filter(a=>visible(a)&&/\/request(?:\.html)?$/.test(new URL(a.href).pathname)).length).filter(n=>n>1);
+                const body=document.body.innerText;
+                return {title:document.title,overflow:document.documentElement.scrollWidth-innerWidth,duplicates,brokenImages:[...document.images].filter(i=>visible(i)&&i.complete&&!i.naturalWidth).map(i=>i.getAttribute('src')),badPrice:/3,480\s*円(?:[（(]税込[）)])?\s*(?:から|〜|～|より)|正式料金|個別見積もり|出張料金/.test(body),badJapanese:body.includes('依頼するできます'),bodyLength:body.length};
+               });
+               const status=res?.status();results.views.push({scope,status,url:pg.url(),...d,errors:errs,failedAssets:bad});
+               if(!status||status>=400&&p!=='404.html')fail(scope,'HTTP '+status);
+               if(d.overflow>2)fail(scope,'horizontal overflow '+d.overflow);
+               if(d.duplicates.length)fail(scope,'duplicate visible CTA '+d.duplicates.join(','));
+               if(d.badPrice||d.badJapanese)fail(scope,'obsolete price or malformed copy');
+               if(d.brokenImages.length||bad.length||errs.length)fail(scope,JSON.stringify({brokenImages:d.brokenImages,bad,errs}));
+               if(!d.title||!d.bodyLength)fail(scope,'blank page');
+               if(v.width!==320||results.failures.some(f=>f.scope===scope))await pg.screenshot({path:'qa-evidence/'+p+'-'+v.width+'.png',fullPage:true,timeout:12000});
+              }catch(e){fail(scope,e)}finally{await c.close()}
+             }
+            }
+            await Promise.all(Array.from({length:6},worker));
+            for(const city of ['青森市','むつ市']){
+             const c=await b.newContext({viewport:{width:390,height:844}}),calls=await setup(c,'flow',city),pg=await c.newPage();
+             try{
+              await pg.goto(base+'request.html',{waitUntil:'domcontentloaded'});
+              await pg.locator('#customerName').fill('QA 模擬テスト');
+              await pg.locator('#customerEmail').fill('qa@example.invalid');
+              await pg.locator('#propertyAddress').fill('青森県'+city+' QA模擬住所');
+              await pg.locator('#requestRelationship').selectOption({label:'所有者本人'});
+              await pg.locator('#accessPermission').selectOption({label:'所有者本人として依頼する'});
+              await pg.locator('input[name=requestConsent]').check();
+              await Promise.all([pg.waitForURL(/checkout(?:\.html)?\?request_id=QA-MOCK-ONLY/,{timeout:15000}),pg.locator('#requestForm button[type=submit]').click()]);
+              await pg.locator('#checkoutBody').waitFor({state:'visible',timeout:15000});
+              assert.match(await pg.locator('#cAmount').innerText(),/3,480円（税込）/);
+              await pg.locator('#payButton').click();
+              assert(!calls.includes('start_guest_payment'),'consent guard');
+              await pg.locator('#finalConsent').check();
+              await pg.screenshot({path:'qa-evidence/mock-checkout-'+city+'.png',fullPage:true});
+              await Promise.all([pg.waitForURL('https://buy.stripe.com/QA-MOCK-ONLY',{timeout:15000}),pg.locator('#payButton').click()]);
+              assert(calls.includes('start_guest_payment'));
+              await pg.goto(base+'payment-success.html?request_id=QA-MOCK-ONLY',{waitUntil:'domcontentloaded'});
+              await pg.locator('#paymentActions').waitFor({state:'visible',timeout:12000});
+              assert.match(await pg.locator('#paymentStatus').innerText(),/決済はまだ確認できません/);
+              results.flow.push({city,status:'PASS',calls:calls.filter(x=>!x.startsWith('track')),mode:'browser-mocked-server-no-charge'});
+             }catch(e){fail('flow '+city,e);results.flow.push({city,status:'FAIL',error:String(e).slice(0,500)})}finally{await c.close()}
+            }
+           }finally{await b.close()}
+          }
+          run().catch(e=>fail('runner',e)).finally(()=>{results.finished=new Date().toISOString();fs.writeFileSync('qa-evidence/audit.json',JSON.stringify(results,null,2));console.log(JSON.stringify({html:results.html,views:results.views.length,flow:results.flow,api:results.api,failures:results.failures},null,2));if(results.failures.length||results.views.length!==pages.length*viewports.length||results.flow.length!==2)process.exitCode=1;});
+          
+          JS
+          node /tmp/akiya-live-audit.cjs
+      - name: Preserve browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: akiya-live-browser-evidence
+          path: qa-evidence/
+          retention-days: 1
+      - name: Report audit evidence
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          if test -f qa-evidence/audit.json; then
+            jq '{html,views:(.views|length),flow,api,failures}' qa-evidence/audit.json > /tmp/akiya-audit-summary.json
+            { echo "AKIYA_LIVE_BROWSER_AUDIT_RUN=$RUN_ID"; cat /tmp/akiya-audit-summary.json; } | gh issue comment 42 --body-file -
+          else
+            gh issue comment 42 --body "AKIYA_LIVE_BROWSER_AUDIT_RUN=$RUN_ID NO_EVIDENCE"
+          fi
