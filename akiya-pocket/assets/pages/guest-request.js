@@ -2,6 +2,13 @@
 (function(){
   const f=document.getElementById('requestForm'),status=document.getElementById('requestStatus');
   if(!f)return;
+  // Use existing server-allowed event names, with a separate guest funnel category.
+  // Never include customer input, address, email, request ID or guest token.
+  function funnel(type,label){try{const a=window.AkiyaAnalytics;if(a&&typeof a.publicTrack==='function')void Promise.resolve(a.publicTrack(type,{contentCategory:'guest_request',contentId:'guest_request',actionLabel:label})).catch(()=>{});}catch{}}
+  let started=false,submitting=false;
+  funnel('trigger_page_view','guest_request_view');
+  f.addEventListener('input',()=>{if(!started){started=true;funnel('value_engagement','guest_request_start')}});
+  f.addEventListener('change',()=>{if(!started){started=true;funnel('value_engagement','guest_request_start')}});
   const KEY='akiya_customer_prefill_v1',DAYS=180,fields=['customerName','customerEmail','customerPhone','propertyAddress','requestRelationship','propertyStatus'];
   const banner=document.getElementById('savedInfoBanner'),remember=document.getElementById('rememberDetails');
   const get=(key)=>{try{return localStorage.getItem(key)}catch{return null}};
@@ -29,7 +36,8 @@
     try{localStorage.setItem(KEY,JSON.stringify({version:1,savedAt:Date.now(),data}))}catch{}
   }
   f.addEventListener('submit',async function(ev){
-    ev.preventDefault();if(!f.reportValidity())return;
+    ev.preventDefault();if(submitting||!f.reportValidity())return;
+    submitting=true;funnel('trigger_cta_click','guest_request_submit');
     const btn=f.querySelector('button[type="submit"]');AkiyaUI.busy(btn,true);
     try{
       const data=AkiyaUI.formData(f);
@@ -37,6 +45,7 @@
       if(window.AkiyaAnalytics)Object.assign(data,AkiyaAnalytics.acquisitionPayload());
       const r=await AkiyaAPI.submit('create_guest_request',data);
       if(!r.ok)throw Error(r.message||'送信に失敗しました。');
+      funnel('value_engagement','guest_request_accepted');
       save();
       sessionStorage.setItem('akiya_guest_'+r.requestId,r.guestToken);
       sessionStorage.setItem('akiya_pending_guest_request_id',r.requestId);
@@ -46,7 +55,7 @@
         for(const el of f.querySelectorAll('input,select,textarea,button'))el.disabled=true;
         status.scrollIntoView({behavior:'smooth',block:'center'});
       }
-    }catch(err){AkiyaUI.show(status,err?.message||'通信に失敗しました。')}
-    finally{AkiyaUI.busy(btn,false)}
+    }catch(err){funnel('value_engagement','guest_request_error');AkiyaUI.show(status,err?.message||'通信に失敗しました。')}
+    finally{submitting=false;AkiyaUI.busy(btn,false)}
   });
 })();
