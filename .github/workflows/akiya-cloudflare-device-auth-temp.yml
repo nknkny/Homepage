@@ -191,3 +191,162 @@ jobs:
           curl -fsSL -X POST -H "Authorization: Bearer $GH_TOKEN" \
             -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json' \
             -d "$body" "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/42/comments" >/dev/null
+
+  retire_legacy_worker:
+    if: >-
+      github.event_name == 'issue_comment' &&
+      github.event.issue.number == 42 &&
+      github.event.comment.user.login == 'nknkny' &&
+      github.event.comment.body == 'RETIRE_AKIYA_LEGACY_WORKER_20261128'
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+      - name: Verify and redirect only the legacy Worker
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          umask 077
+          work=$(mktemp -d)
+          trap 'rm -rf "$work"' EXIT
+          export WORK="$work"
+          OLD=https://rapid-hat-f45c.jmdjdtdjdt.workers.dev
+          NEW=https://akiya-pocket-aomori.pages.dev
+          curl -fsS --max-time 20 "$NEW/" -o "$work/current.html"
+          grep -q '空家ポケット' "$work/current.html"
+          curl -sS --max-time 20 -D "$work/old.headers" "$OLD/" -o "$work/old.html"
+          python - <<'PY'
+          import os,pathlib,re
+          p=pathlib.Path(os.environ["WORK"])
+          headers=(p/"old.headers").read_text(errors="replace")
+          body=(p/"old.html").read_text(errors="replace")
+          status=re.findall(r"HTTP/\S+ (\d{3})",headers)
+          print("LEGACY_HTTP="+(status[-1] if status else "unknown"))
+          if not status or status[-1]!="200": raise SystemExit("STOP: old site is not an independent HTTP 200 site")
+          if not any(x in body for x in ["空家ポケット","空き家レスキュー","空家レスキュー","空き家","空家"]): raise SystemExit("STOP: old site identity not verified")
+          print("LEGACY_SITE_IDENTITY=PASS")
+          PY
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] && [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            oidc=$(curl -fsSL -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=akiya-cloudflare-ci-broker" | jq -er '.value')
+            bundle=$(curl -fsSL -X POST -H "Authorization: Bearer $oidc" -H 'Content-Type: application/json' -d '{"action":"get"}' https://fpgtwgtoqtokpitzlbie.supabase.co/functions/v1/akiya-cloudflare-ci-broker | jq -er '.credentialBundle')
+            config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/.wrangler/config"
+            mkdir -p "$config_dir"
+            printf '%s' "$bundle" | base64 -d > "$config_dir/default.toml"
+            chmod 600 "$config_dir/default.toml"
+            unset oidc bundle
+            npx --yes wrangler@4.119.0 whoami >/dev/null 2>&1 || { echo 'STOP: Cloudflare OAuth unavailable'; exit 1; }
+          elif [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo 'STOP: incomplete credential configuration'; exit 1
+          fi
+          python - <<'PY'
+          import os,json,urllib.request,urllib.error,tomllib,pathlib,urllib.parse
+          p=pathlib.Path(os.environ["WORK"])
+          token=os.environ.get("CLOUDFLARE_API_TOKEN","")
+          account=os.environ.get("CLOUDFLARE_ACCOUNT_ID","")
+          if not token:
+            path=pathlib.Path(os.environ.get("XDG_CONFIG_HOME",str(pathlib.Path.home()/".config")))/".wrangler/config/default.toml"
+            token=tomllib.loads(path.read_text()).get("oauth_token","")
+          if not token: raise SystemExit("STOP: no usable credential")
+          def get(path):
+            req=urllib.request.Request("https://api.cloudflare.com/client/v4"+path,headers={"Authorization":"Bearer "+token})
+            try:
+              with urllib.request.urlopen(req,timeout=20) as r: d=json.load(r)
+            except urllib.error.HTTPError as e:
+              raise SystemExit("STOP: Cloudflare read permission or target unavailable: HTTP "+str(e.code)+" at "+path.split("/")[-1])
+            if not d.get("success"): raise SystemExit("STOP: Cloudflare response unsuccessful")
+            return d
+          if not account:
+            accounts=get("/accounts?per_page=50")
+            if accounts.get("result_info",{}).get("total_pages",1)>1: raise SystemExit("STOP: multiple account pages")
+            matches=[]
+            for a in accounts["result"]:
+              sub=get("/accounts/"+a["id"]+"/workers/subdomain")["result"]
+              if sub.get("subdomain")=="jmdjdtdjdt": matches.append(a["id"])
+            if len(matches)!=1: raise SystemExit("STOP: account not uniquely matched")
+            account=matches[0]
+          base="/accounts/"+account+"/workers"
+          if get(base+"/subdomain")["result"].get("subdomain")!="jmdjdtdjdt": raise SystemExit("STOP: account subdomain mismatch")
+          name="rapid-hat-f45c"
+          script=base+"/scripts/"+name
+          scripts=get(base+"/scripts")["result"]
+          if not any(x.get("id")==name for x in scripts): raise SystemExit("STOP: Worker not found")
+          settings=get(script+"/settings")["result"]
+          if any(b.get("type") not in ("assets",) for b in settings.get("bindings",[])): raise SystemExit("STOP: legacy Worker has non-asset dependencies")
+          if any(x.get("service")==name for x in get(base+"/domains")["result"]): raise SystemExit("STOP: custom domain dependency")
+          schedules=get(script+"/schedules")["result"]
+          if (schedules.get("schedules",[]) if isinstance(schedules,dict) else schedules): raise SystemExit("STOP: scheduled dependency")
+          zones=get("/zones?account.id="+urllib.parse.quote(account)+"&per_page=50")
+          if zones.get("result_info",{}).get("total_pages",1)>1: raise SystemExit("STOP: route audit requires more pages")
+          for z in zones["result"]:
+            if any(x.get("script")==name for x in get("/zones/"+z["id"]+"/workers/routes")["result"]): raise SystemExit("STOP: zone route dependency")
+          if len(scripts)>35: raise SystemExit("STOP: dependency audit exceeds bounded scope")
+          for w in scripts:
+            if w.get("id")==name: continue
+            other=get(base+"/scripts/"+urllib.parse.quote(w["id"],safe="")+"/settings")["result"]
+            if any(b.get("type")=="service" and b.get("service")==name for b in other.get("bindings",[])): raise SystemExit("STOP: service binding dependency")
+          dep=get(script+"/deployments")["result"]
+          versions=dep.get("deployments",[]) if isinstance(dep,dict) else dep
+          if not versions: raise SystemExit("STOP: no rollback deployment metadata")
+          print("LEGACY_DEPENDENCY_AUDIT=PASS")
+          print("LEGACY_PREVIOUS_DEPLOYMENT="+str(versions[0].get("id","unknown")))
+          (p/"account").write_text(account)
+          PY
+          export CLOUDFLARE_ACCOUNT_ID=$(cat "$work/account")
+          cat > "$work/worker.mjs" <<'JS'
+          const origin='https://akiya-pocket-aomori.pages.dev';
+          const pages=new Set(['about','service','faq','contact','request','report-sample','checklist','aomori-city','aomori-vacant-house-checklist','aomori-vacant-house-one-time-check','aomori-vacant-house-photo-report','inherited-home-aomori','parent-facility-home-aomori','remote-home-aomori','snow-vacant-home-aomori','vacant-home-after-storm-aomori','vacant-home-notice-aomori','vacant-home-weeds-aomori','privacy','terms','service-terms','commercial','ai-training-policy']);
+          export default {fetch(request){
+            const old=new URL(request.url);
+            if(old.hostname!=='rapid-hat-f45c.jmdjdtdjdt.workers.dev') return new Response('Gone',{status:410,headers:{'Cache-Control':'no-store'}});
+            if(!['GET','HEAD'].includes(request.method)) return new Response('旧受付は終了しました。正式サイトからご依頼ください。',{status:410,headers:{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'no-store'}});
+            const slug=old.pathname.replace(/^\/|\/$/g,'').replace(/\.html$/,'');
+            const dest=new URL(pages.has(slug)?'/'+slug+'.html':/^register(?:-complete)?$|^member(?:-login)?$|^checkout$|^payment$/.test(slug)?'/request.html':'/',origin);
+            for(const [key,val] of old.searchParams) if(/^utm_(source|medium|campaign|content|term)$|^(fbclid|gclid)$/.test(key)&&val.length<=512)dest.searchParams.set(key,val);
+            return new Response(null,{status:301,headers:{Location:dest.href,'Cache-Control':'public, max-age=300','X-Content-Type-Options':'nosniff'}});
+          }};
+          JS
+          cat > "$work/wrangler.toml" <<'TOML'
+          name = "rapid-hat-f45c"
+          main = "worker.mjs"
+          compatibility_date = "2026-11-28"
+          workers_dev = true
+          preview_urls = false
+          TOML
+          node --input-type=module - "$work/worker.mjs" <<'JS'
+          import assert from 'node:assert/strict';
+          import {pathToFileURL} from 'node:url';
+          const worker=(await import(pathToFileURL(process.argv[2]).href)).default;
+          const base='https://rapid-hat-f45c.jmdjdtdjdt.workers.dev';
+          for(const [p,target] of [['/','/'],['/request.html?utm_source=facebook&token=secret','/request.html?utm_source=facebook'],['/register.html','/request.html'],['/unknown','/']]){
+            const r=worker.fetch(new Request(base+p)); assert.equal(r.status,301); assert.equal(r.headers.get('location'),'https://akiya-pocket-aomori.pages.dev'+target);
+          }
+          assert.equal(worker.fetch(new Request(base+'/request.html',{method:'POST'})).status,410);
+          assert.equal(worker.fetch(new Request('https://other.example/')).status,410);
+          console.log('LEGACY_REDIRECT_LOCAL_TEST=6/6');
+          JS
+          (cd "$work"; npx --yes wrangler@4.119.0 deploy --config wrangler.toml --keep-vars > deploy.log 2>&1) || { echo 'STOP: Worker deploy failed; inspect permissions in Cloudflare dashboard'; exit 1; }
+          echo 'LEGACY_WORKER_DEPLOY=SUCCESS'
+          for path in / /request.html /register.html /unknown; do
+            result=$(curl -sS --max-time 20 -o /dev/null -w '%{http_code} %{redirect_url}' "$OLD$path")
+            case "$path" in /request.html|/register.html) expected="301 $NEW/request.html";; *) expected="301 $NEW/";; esac
+            test "$result" = "$expected" || { echo 'STOP: live redirect mismatch'; exit 1; }
+          done
+          test "$(curl -sS --max-time 20 -X POST -o /dev/null -w '%{http_code}' "$OLD/request.html")" = 410
+          curl -fsS --max-time 20 "$NEW/DEPLOYMENT.json" -o "$work/pages-after.json"
+          jq -e '.canonicalOrigin=="https://akiya-pocket-aomori.pages.dev"' "$work/pages-after.json" >/dev/null
+          echo 'LEGACY_REDIRECT_LIVE_VERIFY=PASS'
+      - name: Record outcome
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESULT: ${{ job.status }}
+        run: gh issue comment 42 --body "AKIYA_LEGACY_REDIRECT_RUN=$GITHUB_RUN_ID RESULT=$RESULT TARGET=rapid-hat-f45c"
